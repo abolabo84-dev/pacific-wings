@@ -164,11 +164,18 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 document.getElementById('game').appendChild(renderer.domElement);
-addEventListener('resize', () => {
-  camera.aspect = innerWidth/innerHeight;
+// スマホやタブレットのたて長画面だと、よこの見える範囲がせまくなってしまう。
+// たて長のときは視野を広げて、よこもちゃんと見えるようにする
+function fitCamera() {
+  const aspect = innerWidth / innerHeight;
+  camera.aspect = aspect;
+  camera.fov = aspect < 1 ? Math.min(100, 70 / Math.pow(aspect, 0.6)) : 70;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
-});
+}
+fitCamera();
+addEventListener('resize', fitCamera);
+addEventListener('orientationchange', () => setTimeout(fitCamera, 300));
 scene.add(new THREE.AmbientLight(0xbbddff, 0.45));
 const sun = new THREE.DirectionalLight(0xffffff, 1.0);
 sun.position.set(300, 500, 200);
@@ -536,6 +543,10 @@ function startGame(faction, mode, def) {
   if (mode === 'fighter') { player.group = makePlaneMesh(color); player.radius = 5; }
   else if (mode === 'ship') { player.group = makeShipMesh(def.klass, false); player.radius = def.klass === 'carrier' ? 30 : 18; }
   else { player.group = makeSubMesh(false); player.radius = 8; }
+  // カメラの位置は、のりものの大きさに合わせる（空母は甲板が長いので、高く・うしろから見る）
+  if (mode === 'fighter') G.camOff = new THREE.Vector3(0, 8, 20);
+  else if (mode === 'ship') G.camOff = def.klass === 'carrier' ? new THREE.Vector3(0, 30, 46) : new THREE.Vector3(0, 16, 16);
+  else G.camOff = new THREE.Vector3(0, 4, 24);
   scene.add(player.group);
   G.hp = def.hp; G.maxHp = def.hp; G.fuel = 100; G.kills = 0; G.gameMin = 6*60;
   G.fogCycle = 0; G.fogActive = false; G.trumpSpawned = false; G.reinforceT = 0; G.reloadT = 0;
@@ -1086,17 +1097,18 @@ function tick() {
   }
 
   // ---- カメラ（のりものごとの視点：考案者設計） ----
+  const co = G.camOff || new THREE.Vector3(0, 8, 20);
   if (G.mode === 'fighter') {
-    const off = tmpV.set(0, 8, 20).applyEuler(new THREE.Euler(0, G.yaw, 0));
+    const off = tmpV.copy(co).applyEuler(new THREE.Euler(0, G.yaw, 0));
     camera.position.lerp(off.add(P), 1 - Math.pow(0.001, dt));
     camera.lookAt(P.x + fwd.x*30, P.y + fwd.y*30, P.z + fwd.z*30);
   } else if (G.mode === 'ship') {
     // 艦橋から水平線をまっすぐ見る
-    const off = tmpV.set(0, 16, 14).applyEuler(new THREE.Euler(0, G.yaw, 0));
+    const off = tmpV.copy(co).applyEuler(new THREE.Euler(0, G.yaw, 0));
     camera.position.lerp(off.add(P), 1 - Math.pow(0.0005, dt));
     camera.lookAt(P.x + fwd.x*500, 10, P.z + fwd.z*500);
   } else {
-    const off = tmpV.set(0, 4, 24).applyEuler(new THREE.Euler(0, G.yaw, 0));
+    const off = tmpV.copy(co).applyEuler(new THREE.Euler(0, G.yaw, 0));
     camera.position.lerp(off.add(P), 1 - Math.pow(0.001, dt));
     camera.lookAt(P.x + fwd.x*60, G.depth + 2, P.z + fwd.z*60);
   }
