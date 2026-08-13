@@ -433,7 +433,7 @@ const EAR_MUTE = (EAR === 'A');   // 無音
 // 条件は画面に出さない（見えると答えが引っぱられる）。ログのstartには記録される。
 const OFF = new Set((new URLSearchParams(location.search).get('off') || '').toLowerCase().split(',').filter(Boolean));
 // ponytail: HRTF（頭の形を使った定位）はCPUを食う。実機で重かったら 'equalpower' に落とす
-const PANNING_MODEL = 'HRTF';
+const PANNING_MODEL = (new URLSearchParams(location.search).get('panning') || 'HRTF').toUpperCase();  // ?panning=equal でスピーカー対応
 
 let audioCtx = null;
 let sfxBus = null, waterFilter = null, engine = null;
