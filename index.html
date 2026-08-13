@@ -106,10 +106,42 @@
 
 
 // ============ ゲームログ ============
+// 実験ごとに別のキーで保存する。前は全部おなじキーだったので、
+// 別のバージョンを開くたびに前の実験のログが消えていた。
+// ?tag=exp2_C のように条件の名前をつけると、その名前で保存される。
+const LOG_TAG = new URLSearchParams(location.search).get('tag') || 'free';
+const STARTED = new Date().toISOString();
+const LOG_KEY = 'yuujinGameLog_' + STARTED.replace(/[:.]/g, '-') + '_' + LOG_TAG;
 const gameLog = [];
 function logEvent(type, data) { gameLog.push({ t: Math.round(performance.now()), type, data }); }
-setInterval(() => { try { localStorage.setItem('yuujinGameLog', JSON.stringify(gameLog.slice(-3000))); } catch(e) {} }, 10000);
+function saveLog() {
+  try {
+    localStorage.setItem(LOG_KEY, JSON.stringify(
+      { ver: location.pathname, tag: LOG_TAG, started: STARTED, events: gameLog.slice(-3000) }));
+  } catch (e) {
+    // だまって消えるのがいちばん困る（テストプレイは全部データ）ので、気づけるようにする
+    console.warn('⚠ ログを保存できなかった。容量オーバーかも。Shift+L で書き出してから localStorage を空にして。', e);
+  }
+}
+window.saveLog = saveLog;
+setInterval(saveLog, 10000);
+addEventListener('beforeunload', saveLog);   // 閉じるときも保存（最後の10秒を落とさない）
 window.gameLog = gameLog;
+
+// Shift+L で、これまでの全実験のログを1つのJSONにして書き出す
+window.dumpLogs = function () {
+  const all = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith('yuujinGameLog_')) { try { all[k] = JSON.parse(localStorage.getItem(k)); } catch (e) {} }
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(all, null, 1)], { type: 'application/json' }));
+  a.download = 'gamelog_' + STARTED.slice(0, 10) + '.json';
+  a.click();
+  console.log(Object.keys(all).length + ' ラン分を書き出した');
+};
+addEventListener('keydown', e => { if (e.shiftKey && e.code === 'KeyL') { saveLog(); dumpLogs(); } });
 
 // ============ ユニット図鑑（考案者設計） ============
 const CATALOG = {
@@ -386,17 +418,124 @@ const projs = [];   // すべての弾（弾丸・砲弾・魚雷・爆弾・爆
 const explosions = [];
 
 // ============ 音 ============
+// 【自由研究・実験②】「この世界の耳は、どこにあるのか」を切りかえられるようにした。
+//   ?ear=A → 音なし（耳がない）
+//   ?ear=B → いままでどおり。どんなに遠くの爆発も目の前と同じ大きさで鳴る＝「神の耳」（規定値）
+//   ?ear=C → 自分ののりものに耳をつける。遠い音は小さく・こもって・左右に分かれて聞こえる。
+//            エンジン音がずっと鳴り、潜水艦のときは水中ぶんさらにこもる。
+// 距離の減衰も左右の定位も自前では計算せず、Web Audio 標準の PannerNode と
+// audioCtx.listener にやらせている（＝「耳の位置」という概念がブラウザ側にある）。
+const EAR = (new URLSearchParams(location.search).get('ear') || 'B').toUpperCase();
+const EAR_ON = (EAR === 'C');     // のりものの耳
+const EAR_MUTE = (EAR === 'A');   // 無音
+// 【自由研究・実験①】引き算のじっけん。部品を1つ抜いて「面白さがどの部品に宿っているか」を調べる。
+//   ?off=fog  → 霧が出ない　　?off=fuel → 燃料が減らない　　（音を抜くのは ?ear=A を使う）
+// 条件は画面に出さない（見えると答えが引っぱられる）。ログのstartには記録される。
+const OFF = new Set((new URLSearchParams(location.search).get('off') || '').toLowerCase().split(',').filter(Boolean));
+// ponytail: HRTF（頭の形を使った定位）はCPUを食う。実機で重かったら 'equalpower' に落とす
+const PANNING_MODEL = 'HRTF';
+
 let audioCtx = null;
-function initAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
-function playGun() {
-  if (!audioCtx) return;
+let sfxBus = null, waterFilter = null, engine = null;
+
+function initAudio() {
+  if (EAR_MUTE) return;                                   // A: そもそも音を作らない
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();  // iOS対策：タップで起こす
+  if (EAR_ON && !sfxBus) buildEar();
+}
+
+// C専用。耳のうしろ側（水中のこもり）と、のりもののエンジン音をつくる
+function buildEar() {
+  sfxBus = audioCtx.createGain(); sfxBus.gain.value = 1;
+  waterFilter = audioCtx.createBiquadFilter();
+  waterFilter.type = 'lowpass'; waterFilter.frequency.value = 20000;  // 水上では素通し
+  sfxBus.connect(waterFilter).connect(audioCtx.destination);
+
+  // エンジン音：のりものの中にいることが耳でわかるように、ずっと鳴らす
+  const osc = audioCtx.createOscillator(); osc.type = 'sawtooth'; osc.frequency.value = 60;
+  const lp = audioCtx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 320;
+  const g = audioCtx.createGain(); g.gain.value = 0;
+  const lfo = audioCtx.createOscillator(); lfo.frequency.value = 5.5;   // すこし揺らす
+  const lfoG = audioCtx.createGain(); lfoG.gain.value = 3;              // （一定だと機械に聞こえない）
+  lfo.connect(lfoG).connect(osc.frequency); lfo.start();
+  osc.connect(lp).connect(g).connect(sfxBus); osc.start();
+  engine = { osc, gain: g };
+}
+
+// 音の出口を返す。ここが「耳をどこに置くか」の分かれ道。
+// pos を渡さない音＝自分のすぐそば（自機の武器）なので、距離の計算はしない。
+function sfxOut(pos) {
+  if (EAR_MUTE || !audioCtx) return null;
+  if (!EAR_ON || !sfxBus) return audioCtx.destination;   // B: 昔のまま。距離も向きも無視
+  if (!pos) return sfxBus;                               // 自機の音（水中フィルタだけは通る）
+  const d = player.group ? pos.distanceTo(player.group.position) : 0;
+  const air = audioCtx.createBiquadFilter();             // 遠いほど高い音が空気に吸われる
+  air.type = 'lowpass'; air.frequency.value = Math.max(500, 12000 / (1 + d / 200));
+  const pan = audioCtx.createPanner();
+  pan.panningModel = PANNING_MODEL;
+  pan.distanceModel = 'inverse'; pan.refDistance = 80; pan.rolloffFactor = 0.9; pan.maxDistance = 8000;
+  if (pan.positionX) { pan.positionX.value = pos.x; pan.positionY.value = pos.y; pan.positionZ.value = pos.z; }
+  else pan.setPosition(pos.x, pos.y, pos.z);             // 古いSafari用
+  air.connect(pan).connect(sfxBus);
+  return air;
+}
+
+// 毎フレーム、耳を自分ののりものの位置と向きに置きなおす（目＝カメラとは別物）
+function updateEar(P, fwd) {
+  if (!EAR_ON || !audioCtx || !sfxBus) return;
+  const L = audioCtx.listener;
+  if (L.positionX) {
+    L.positionX.value = P.x; L.positionY.value = P.y; L.positionZ.value = P.z;
+    L.forwardX.value = fwd.x; L.forwardY.value = fwd.y; L.forwardZ.value = fwd.z;
+    L.upX.value = 0; L.upY.value = 1; L.upZ.value = 0;
+  } else {
+    L.setPosition(P.x, P.y, P.z);
+    L.setOrientation(fwd.x, fwd.y, fwd.z, 0, 1, 0);      // 古いSafari用
+  }
+  const wet = (G.mode === 'sub');                        // 水の中では高い音が届かない
+  waterFilter.frequency.value += ((wet ? 500 : 20000) - waterFilter.frequency.value) * 0.1;
+  if (engine) {
+    const spec = G.mode === 'fighter' ? { f: 78, v: 0.07 }
+               : G.mode === 'ship'    ? { f: 34, v: 0.09 }
+               :                        { f: 46, v: 0.06 };
+    engine.osc.frequency.value = spec.f;
+    engine.gain.gain.value += ((G.running ? spec.v : 0) - engine.gain.gain.value) * 0.08;
+  }
+}
+
+// 実験中にコンソールで「いまどの条件か」を確かめる用。
+// 画面には絶対に出さない（本人に条件が見えると、答えがそっちに引っぱられる）。
+// 条件の取りちがえに気づかないまま5分回すのがいちばん怖いので、これは残す。
+window.earInfo = (dist) => {
+  const info = { ear: EAR, 耳: EAR_MUTE ? 'なし（無音）' : EAR_ON ? '自分ののりもの' : '神の耳（距離を無視）',
+                 エンジン音: engine ? +engine.gain.gain.value.toFixed(3) : null,
+                 水中のこもりHz: waterFilter ? Math.round(waterFilter.frequency.value) : null };
+  if (dist != null) {
+    const p = player.group ? player.group.position : { x: 0, y: 0, z: 0 };
+    const out = sfxOut({ x: p.x, y: p.y, z: p.z + dist, distanceTo: () => dist });
+    info[`${dist}はなれた音`] = out
+      ? { 出口: out.constructor.name, こもり具合Hz: out.frequency ? Math.round(out.frequency.value) : '（かからない）' }
+      : '鳴らない';
+  }
+  return info;
+};
+
+// 実験①の確認用（コンソール専用。画面には出さない）
+window.expInfo = () => ({ off: [...OFF].join(',') || 'none', 霧が出るか: !OFF.has('fog'),
+                          燃料が減るか: !OFF.has('fuel'), いまの燃料: Math.round(G.fuel), いま霧か: G.fogActive,
+                          音楽: BGM_ON ? (bgm.name || '（まだ鳴っていない）') : 'なし（?bgm=on で有効）',
+                          曲ファイル: Object.entries(bgm.tracks).filter(([, a]) => a).map(([k]) => k).join(',') || 'なし' });
+
+function playGun(pos) {
+  const out = sfxOut(pos); if (!out) return;
   const t = audioCtx.currentTime, o = audioCtx.createOscillator(), g = audioCtx.createGain();
   o.type = 'square'; o.frequency.setValueAtTime(180, t); o.frequency.exponentialRampToValueAtTime(60, t+0.08);
   g.gain.setValueAtTime(0.1, t); g.gain.exponentialRampToValueAtTime(0.001, t+0.09);
-  o.connect(g).connect(audioCtx.destination); o.start(t); o.stop(t+0.1);
+  o.connect(g).connect(out); o.start(t); o.stop(t+0.1);
 }
-function playBoom(big) {
-  if (!audioCtx) return;
+function playBoom(big, pos) {
+  const out = sfxOut(pos); if (!out) return;
   const t = audioCtx.currentTime, dur = big ? 0.9 : 0.4;
   const buf = audioCtx.createBuffer(1, audioCtx.sampleRate*dur, audioCtx.sampleRate);
   const d = buf.getChannelData(0);
@@ -404,7 +543,7 @@ function playBoom(big) {
   const src = audioCtx.createBufferSource(); src.buffer = buf;
   const f = audioCtx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = big ? 400 : 900;
   const g = audioCtx.createGain(); g.gain.value = big ? 0.45 : 0.22;
-  src.connect(f).connect(g).connect(audioCtx.destination); src.start(t);
+  src.connect(f).connect(g).connect(out); src.start(t);
 }
 
 // ============ 音楽（パパ作曲スロット：musicフォルダにmp3を置くだけで流れる） ============
@@ -418,7 +557,13 @@ for (const [k, src] of Object.entries(BGM_FILES)) {
   if (k === 'trump') a.addEventListener('ended', () => { if (G.running) playBgm(G.fogActive ? 'fog' : 'battle'); });
   bgm.tracks[k] = a;
 }
+// 【自由研究・実験②の条件D】音楽は ?bgm=on のときだけ鳴る。
+// mp3を置いたら勝手に鳴る、にすると A/B/C を比べている途中で条件が変わってしまうため、
+// 曲が入っても既定は「音楽なし」のまま。D＝いまの耳（B or C）＋音楽 として後から足す。
+const BGM_ON = (new URLSearchParams(location.search).get('bgm') || '').toLowerCase() === 'on';
 function playBgm(name) {
+  if (!BGM_ON) return;           // 既定は音楽なし（実験②A/B/Cを汚さない）
+  if (EAR_MUTE) return;          // 条件A（音なし）は音楽も鳴らさない
   if (bgm.name === name) return;
   if (bgm.current) { bgm.current.pause(); bgm.current.currentTime = 0; }
   bgm.name = name;
@@ -517,7 +662,7 @@ $('btnRetry').onclick = () => { $('endScreen').style.display = 'none'; $('titleS
 // ============ ゲーム開始 ============
 function startGame(faction, mode, def) {
   G.faction = faction; G.mode = mode; G.def = def;
-  logEvent('start', { faction, mode, type: def.id });
+  logEvent('start', { faction, mode, type: def.id, ear: EAR, off: [...OFF].join(',') || 'none', bgm: BGM_ON });   // 実験①②の条件を記録に残す
   // まえのユニットをそうじ
   for (const u of units) scene.remove(u.group);
   units = [];
@@ -606,7 +751,7 @@ function explode(pos, big) {
   const m = new THREE.Mesh(new THREE.SphereGeometry(big ? 14 : 4, 10, 10), new THREE.MeshBasicMaterial({ color: 0xff6f00, transparent: true, opacity: 0.9 }));
   m.position.copy(pos); scene.add(m);
   explosions.push({ mesh: m, life: big ? 1.2 : 0.5 });
-  playBoom(big);
+  playBoom(big, pos);   // 爆発の起きた場所を渡す（Cのとき、遠い爆発は小さく聞こえる）
   if (big) G.shake = 0.6;
 }
 
@@ -709,7 +854,7 @@ function tick() {
   // ---- きり ----
   G.fogCycle += GAME_MIN_PER_SEC * dt;
   const wasFog = G.fogActive;
-  G.fogActive = (G.fogCycle % FOG_EVERY) > (FOG_EVERY - FOG_LASTS);
+  G.fogActive = !OFF.has('fog') && (G.fogCycle % FOG_EVERY) > (FOG_EVERY - FOG_LASTS);
   if (G.fogActive && !wasFog) { $('fogNotice').style.opacity = 1; playBgm('fog'); logEvent('fog', { on: true }); }
   if (!G.fogActive && wasFog) { $('fogNotice').style.opacity = 0; showMessage('☀ きりが はれた！'); playBgm('battle'); logEvent('fog', { on: false }); }
 
@@ -795,7 +940,7 @@ function tick() {
       }
     }
     // 燃料
-    G.fuel -= (100/FUEL_MINUTES) * GAME_MIN_PER_SEC * dt;
+    if (!OFF.has('fuel')) G.fuel -= (100/FUEL_MINUTES) * GAME_MIN_PER_SEC * dt;
     const nearBase = Math.hypot(P.x-OUR.base.x, P.z-OUR.base.z) < 80;
     const nearPort = Math.hypot(P.x-OUR.port.x, P.z-OUR.port.z) < 90;
     if ((nearBase || nearPort) && P.y < 32) {
@@ -1001,7 +1146,7 @@ function tick() {
       if (tgt) {
         trump.fireTimer = 4;
         shoot({ pos: tp.clone().setY(12), vel: tgt.group.position.clone().sub(tp).normalize().multiplyScalar(120), color: 0xffab00, size: 1.8, owner: 'ally', dmg: 22, type: 'shell', homing: tgt, life: 7 });
-        playBoom(false);
+        playBoom(false, tp);   // 切り札は自分から離れた場所にいる
       } else trump.fireTimer = 1;
     }
   }
@@ -1117,6 +1262,9 @@ function tick() {
     camera.position.x += (Math.random()-0.5)*G.shake*4;
     camera.position.y += (Math.random()-0.5)*G.shake*4;
   }
+
+  // ---- 耳（条件Cのときだけ）。カメラのあとに置くのは、目と耳が別物だとわかるようにするため ----
+  updateEar(P, fwd);
 
   // ---- 空ときりの色（水中なら海の色） ----
   const underwater = camera.position.y < 0;
