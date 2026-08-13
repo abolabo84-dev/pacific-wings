@@ -125,6 +125,54 @@ setInterval(saveLog, 10000);
 addEventListener('beforeunload', saveLog);   // 閉じるときも保存（最後の10秒を落とさない）
 window.gameLog = gameLog;
 
+// ============ ログの自動アップロード ============
+// localStorage は端末ごとに別なので、サブPCのぶんを Shift+L で手作業で
+// 回収するしかなかった（8/13に取りこぼしかけた）。どの端末・どのバージョンで
+// 遊んでも同じスプレッドシートに自動で集まるようにする。
+// localStorage と Shift+L はそのまま残す＝ネットが切れても失わない二重化。
+const CLOUD_URL = 'https://script.google.com/macros/s/AKfycbyMDP1lVKD7YRe3A0Z37qr9W6fMOcIyPiy-c_d2kZs1ywQCeeBrwLz7sm6-5tKqYomX/exec';
+const CLOUD_KEY = 'yuujin2026';
+// どのPCから送られたログか分かるように、端末ごとの名前を1回だけ作って覚えておく
+if (!localStorage.getItem('yuujinDevice')) {
+  localStorage.setItem('yuujinDevice', 'pc-' + Math.random().toString(36).slice(2, 7));
+}
+const DEVICE = localStorage.getItem('yuujinDevice');
+let sentCount = 0;            // ここまでは送信ずみ
+let sending = false;
+function cloudBody(events) {
+  const q = new URLSearchParams(location.search);
+  return JSON.stringify({
+    key: CLOUD_KEY, runId: LOG_KEY, device: DEVICE, ver: location.pathname,
+    tag: LOG_TAG, ear: q.get('ear') || 'B', off: q.get('off') || '',
+    bgm: q.get('bgm') || 'off', events
+  });
+}
+async function sendLog() {
+  if (sending || sentCount >= gameLog.length) return;
+  sending = true;
+  const upto = gameLog.length;          // 送信中に増えたぶんは次の回にまわす
+  try {
+    const res = await fetch(CLOUD_URL, {
+      method: 'POST', headers: { 'Content-Type': 'text/plain' },
+      body: cloudBody(gameLog.slice(sentCount, upto))
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    sentCount = upto;                   // 届いたぶんだけ進める。失敗したら次回また送る
+  } catch (e) {
+    // 送れなかったときは黙って捨てずに、次の60秒でもう一度試す
+    console.warn('⚠ ログを送れなかった。次の60秒でまた試す。localStorage には残っている。', e);
+  } finally { sending = false; }
+}
+setInterval(sendLog, 60000);
+addEventListener('beforeunload', () => {
+  // 閉じるときは fetch が途中で切られるので sendBeacon で投げっぱなしにする
+  if (sentCount < gameLog.length) {
+    navigator.sendBeacon(CLOUD_URL,
+      new Blob([cloudBody(gameLog.slice(sentCount))], { type: 'text/plain' }));
+  }
+});
+window.sendLog = sendLog;
+
 // Shift+L で、これまでの全実験のログを1つのJSONにして書き出す
 window.dumpLogs = function () {
   const all = {};
