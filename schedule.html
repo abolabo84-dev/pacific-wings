@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>けんきゅう表 — 太平洋の翼 自由研究</title>
+<style>
+  :root { --line:#d8d8d8; --mute:#666; --warn:#b00020; --ok:#0a7d3c; --bg:#fff; --fg:#111; --panel:#f7f7f7; }
+  @media (prefers-color-scheme: dark) {
+    :root { --line:#3a3a3a; --mute:#a8a8a8; --warn:#ff8a9a; --ok:#7ee2a8; --bg:#161616; --fg:#eee; --panel:#202020; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "BIZ UDPGothic", "Yu Gothic UI", "Meiryo", system-ui, sans-serif;
+    line-height: 1.75; color: var(--fg); background: var(--bg);
+    margin: 0 auto; padding: 16px; max-width: 900px; font-size: 16px;
+  }
+  h1 { font-size: 1.5rem; margin: 0 0 .2em; }
+  h2 { font-size: 1.15rem; margin: 2em 0 .5em; padding-bottom: .2em; border-bottom: 2px solid var(--fg); }
+  h3 { font-size: 1rem; margin: 1.4em 0 .3em; }
+  .lead { color: var(--mute); margin: 0 0 1.5em; font-size: .95rem; }
+
+  .day { border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; margin-bottom: 10px; background: var(--panel); }
+  .day > .hd { font-weight: bold; font-size: 1.05rem; margin-bottom: .3em; }
+  .day .tag { font-size: .8rem; font-weight: normal; color: var(--mute); margin-left: .6em; }
+  .day.today { border-color: var(--fg); border-width: 2px; }
+
+  ul { margin: .3em 0 .3em; padding-left: 0; list-style: none; }
+  li { margin: .25em 0; }
+  label { display: flex; gap: .5em; align-items: flex-start; cursor: pointer; }
+  input[type=checkbox] { width: 1.15em; height: 1.15em; margin-top: .35em; flex: none; }
+  input:checked + span { color: var(--mute); text-decoration: line-through; }
+
+  .warn { color: var(--warn); font-weight: bold; }
+  .note { font-size: .88rem; color: var(--mute); background: var(--panel);
+          border-left: 3px solid var(--line); padding: 8px 12px; margin: .6em 0; }
+  a { color: inherit; }
+  .files a { display: inline-block; margin-right: 1em; }
+  table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+  td, th { border: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
+  .reset { font-size: .8rem; color: var(--mute); background: none; border: 1px solid var(--line);
+           border-radius: 5px; padding: 4px 10px; cursor: pointer; }
+  @media print {
+    body { max-width: none; font-size: 10.5pt; }
+    .reset, .note.hint { display: none; }
+    .day { break-inside: avoid; background: none; }
+  }
+</style>
+</head>
+<body>
+
+<h1>🛩 けんきゅう表</h1>
+<p class="lead">
+  「太平洋の翼」自由研究 ／ <b>8月12日(水)スタート</b>。<br>
+  体制：ゆうじん＝<b>監督</b>／パパ＝助監督兼記録係／AI＝スタッフ。<b>決めるのは監督の仕事。</b><br>
+  チェックはこの端末に保存されます（閉じても残る）。
+  <button class="reset" onclick="if(confirm('チェックを全部消す？'))
+    {Object.keys(localStorage).filter(k=>k.startsWith('yj_')).forEach(k=>localStorage.removeItem(k));location.reload()}">チェックを消す</button>
+</p>
+
+<h2>毎日やる4つ（日割りより、こっちが大事）</h2>
+<div class="day">
+  <ul>
+    <li><label><input type="checkbox" data-k="every1"><span><b>写真を1枚</b>撮る（作業中か画面）── 本のコピーは使えず、自分かおうちの人が撮った写真だけが使える</span></label></li>
+    <li><label><input type="checkbox" data-k="every2"><span><b>ログを書き出す</b>（ゲーム画面で <b>Shift+L</b>）── 日付フォルダに保存</span></label></li>
+    <li><label><input type="checkbox" data-k="every3"><span><b>じぶんの言葉を3行</b>（録音でも、口で言ってパパが書いてもOK）</span></label></li>
+    <li><label><input type="checkbox" data-k="every4"><span><b>おわりの儀式</b>：「今日いちばん面白かったことは？」→ 下の<b>面白メーター</b>に1〜5</span></label></li>
+  </ul>
+  <div class="note hint">※チェックは毎日つけ直す。面白メーターだけは日付ごとに保存されます。</div>
+</div>
+
+<h2>面白メーター</h2>
+<div class="day">
+  <p style="margin:.2em 0 .5em">きょうの研究は面白かった？（1＝つまらなかった 〜 5＝さいこうに面白かった）</p>
+  <table id="meter"><tbody>
+    <tr><th style="width:7em">8/12(水)</th><td data-m="12"></td></tr>
+    <tr><th>8/13(木)</th><td data-m="13"></td></tr>
+    <tr><th>8/14(金)</th><td data-m="14"></td></tr>
+    <tr><th>8/15(土)</th><td data-m="15"></td></tr>
+    <tr><th>8/16(日)</th><td data-m="16"></td></tr>
+    <tr><th>8/17(月)</th><td data-m="17"></td></tr>
+    <tr><th>8/18(火)</th><td data-m="18"></td></tr>
+  </tbody></table>
+  <div class="note hint">その日のうちにつける。あとからまとめてつけると、思い出しではなく作り話になる。
+  低い日があってもいい——<b>正直につけた記録だけが、あとで役に立つ</b>。</div>
+</div>
+
+<h2>日割り</h2>
+
+<div class="day today">
+  <div class="hd">8/12(水) <span class="tag">ほんとうのスタート</span></div>
+  <ul>
+    <li><label><input type="checkbox" data-k="d12r"><span><b>監督に任命される</b>（ゆうじん＝監督、パパ＝助監督兼記録係、AI＝スタッフ）</span></label></li>
+    <li><label><input type="checkbox" data-k="d12s"><span><b>できごとカード並べ</b>（地図マットの上に。並べたら写真）</span></label></li>
+    <li><label><input type="checkbox" data-k="d12t"><span>手書きメモ<b>1・2枚目の翻刻</b>（本人が読む→パパが打つ・10分）</span></label></li>
+    <li><label><input type="checkbox" data-k="d12u"><span><b>予想シート記入（パパも書く）</b><span class="warn">※書き終わるまでゲームを触らない</span></span></label></li>
+    <li><label><input type="checkbox" data-k="d12v"><span><b>本を読む前の「面白かったこと3つ」</b>を言う（本は明日届く＝<b>今日は絶対に読めない日</b>。ベースラインを録るには一番いい日）</span></label></li>
+    <li><label><input type="checkbox" data-k="d12w"><span>第1号（v1）を5分／<b>アンケート開始</b>（レーダーの三角。<span class="warn">ヒント厳禁</span>・名前は書かず続柄で）</span></label></li>
+  </ul>
+</div>
+
+<div class="day">
+  <div class="hd">8/13(木) <span class="tag">実験②「耳はどこにあるか」── 山場</span></div>
+  <ul>
+    <li><label><input type="checkbox" data-k="d13a"><span>A(音なし) / B(いまのゲーム) / C(のりものの耳) を各5分、<b>順番を変えて2周</b></span></label></li>
+    <li><label><input type="checkbox" data-k="d13b"><span>質問は<b>2つに分けて</b>：「どれがいちばん<b>本当っぽい</b>？」→「どれがいちばん<b>面白い</b>？」</span></label></li>
+    <li><label><input type="checkbox" data-k="d13c"><span><span class="warn">⚠ 2つの答えは<b>同じでも、ちがっても、どっちでもいい</b>。むりに合わせない、むりにずらさない</span></span></label></li>
+    <li><label><input type="checkbox" data-k="d13d"><span><b>⑤ポーズ</b>：予想（シート⑤）を先に書く → AIスタッフに作らせる → 遊んで確かめる</span></label></li>
+  </ul>
+</div>
+
+<div class="day">
+  <div class="hd">8/14(金) <span class="tag">実験③ 難易度</span></div>
+  <ul>
+    <li><label><input type="checkbox" data-k="d14a"><span>予想シート③「ハードは何をむずかしくすればいい？」の<b>監督の答えのとおりに</b>作る（午前）</span></label></li>
+    <li><label><input type="checkbox" data-k="d14b"><span>ノーマル／ハードを遊びくらべ → どっちが面白かったか、なぜかを言う（学者の説と見くらべるのは8/18）</span></label></li>
+  </ul>
+</div>
+
+<div class="day">
+  <div class="hd">8/15(土) <span class="tag">実験① 引き算 ＆ 初見の人</span></div>
+  <ul>
+    <li><label><input type="checkbox" data-k="d15a"><span><b>引き算のじっけん</b>：きりオフ／燃料無限／音なし を遊びくらべ →「どれを抜くといちばんつまらないか」答え合わせ</span></label></li>
+    <li><label><input type="checkbox" data-k="d15c"><span><b>はじめての人に遊んでもらう</b>（綾瀬の友だち／1階の人たち）── スマホの<b>感想フォーム</b>か紙で。<span class="warn">「ここが面白い」は言わない</span></span></label></li>
+    <li><label><input type="checkbox" data-k="d15d"><span>遠くの人（おねえちゃんなど）にURLを送って遊んでもらう</span></label></li>
+    <li><label><input type="checkbox" data-k="d15b"><span>ログを表にする／写真の棚おろし</span></label></li>
+  </ul>
+</div>
+
+<div class="day">
+  <div class="hd">8/16(日) <span class="tag">本の日 ＆ 実験④ 決着</span></div>
+  <ul>
+    <li><label><input type="checkbox" data-k="d12a"><span><b>本を受け取る</b>（ママが届けてくれる）</span></label></li>
+    <li><label><input type="checkbox" data-k="d12b"><span class="warn">★受け取ったらすぐ撮る：図書館名／各本の奥付／<b>背ラベルの請求記号</b>── 返却後は書けない</span></label></li>
+    <li><label><input type="checkbox" data-k="d16e"><span>夜から本を開いてOK（読み聞かせ可・付箋）。しっかり読むのは8/17</span></label></li>
+    <li><label><input type="checkbox" data-k="d16a"><span>アンケート集計（何人に聞いたか・続柄）→ 答え合わせ</span></label></li>
+    <li><label><input type="checkbox" data-k="d16c"><span>そのときの様子を録画・録音</span></label></li>
+  </ul>
+</div>
+
+<div class="day">
+  <div class="hd">8/17(月) <span class="tag">本を読む日 ＆ 本の前後・答え合わせ</span></div>
+  <ul>
+    <li><label><input type="checkbox" data-k="d17a"><span>付箋 → 引用したいところを<b>学校の書き方</b>（番号・著者・書名・出版社・発行年・ページ）で書き写す</span></label></li>
+    <li><label><input type="checkbox" data-k="d17c"><span><b>本を読んだ後の「面白かったこと3つ」</b>を言う → 8/12に言ったのと見くらべる</span></label></li>
+    <li><label><input type="checkbox" data-k="d17d"><span><b>うわさの見わけシート</b>（30分）：「雷」の話の8つを、ほんとう／あとからついた話 に仕分け →
+      <span class="warn">8つぜんぶ○をつけてから</span>うらの答え合わせを読む</span></label></li>
+    <li><label><input type="checkbox" data-k="d17b"><span class="warn">写真とデータを撮り直せる最後の日</span></label></li>
+  </ul>
+</div>
+
+<div class="day">
+  <div class="hd">8/18(火) <span class="tag">ふりかえり ＆ 三つどもえ答え合わせ</span></div>
+  <ul>
+    <li><label><input type="checkbox" data-k="d18a"><span><b>ふりかえりシート</b>を書く（予想シートを横に置いて）</span></label></li>
+    <li><label><input type="checkbox" data-k="d18b"><span>とくに「<b>考えが変わったこと・広がったこと</b>」＝まとめの中心。口で言ってもOK</span></label></li>
+    <li><label><input type="checkbox" data-k="d18d"><span><b>AIの予想の封筒を開ける</b> → 監督・パパ・AIの三つどもえ答え合わせ（当たった数をかぞえる）</span></label></li>
+    <li><label><input type="checkbox" data-k="d18c"><span><span class="warn">予想シートは書きなおさない</span>。ちがったことは、ふりかえりシートに書く</span></label></li>
+  </ul>
+</div>
+
+<div class="day">
+  <div class="hd">8/19(水) 午前 <span class="tag">おうちに帰る日</span></div>
+  <ul>
+    <li><label><input type="checkbox" data-k="d19a"><span>足りないところの最終チェック（言葉・写真・データ）</span></label></li>
+    <li><label><input type="checkbox" data-k="d19b"><span>ママのところへ。清書は8/21〜31、提出は9/1（始業式）</span></label></li>
+  </ul>
+</div>
+
+<h2>実験の起動リンク</h2>
+<div class="day files">
+  <h3 style="margin-top:0">実験① 引き算のじっけん — 面白さは、どの部品にある？</h3>
+  <a href="https://abolabo84-dev.github.io/pacific-wings/?tag=exp1_now">いまの版（ぜんぶ入り）</a><br>
+  <a href="https://abolabo84-dev.github.io/pacific-wings/?off=fog&amp;tag=exp1_nofog">きりオフ</a>
+  <a href="https://abolabo84-dev.github.io/pacific-wings/?off=fuel&amp;tag=exp1_nofuel">燃料無限</a>
+  <a href="https://abolabo84-dev.github.io/pacific-wings/?ear=A&amp;tag=exp1_nosound">音なし</a>
+
+  <h3>実験② この世界の耳は、どこにある？</h3>
+  <a href="https://abolabo84-dev.github.io/pacific-wings/?ear=A&amp;tag=exp2_A"><b>A</b> 音なし</a>
+  <a href="https://abolabo84-dev.github.io/pacific-wings/?ear=B&amp;tag=exp2_B"><b>B</b> いまのゲーム</a>
+  <a href="https://abolabo84-dev.github.io/pacific-wings/?ear=C&amp;tag=exp2_C"><b>C</b> のりものの耳</a>
+
+  <div class="note">
+    <b>遊ぶ順番は毎回変える。</b>いつも同じ順番だと「最後に遊んだのがいちばん面白い」になりやすい。<br>
+    どの条件で遊んだかは自動で記録に残ります。
+  </div>
+</div>
+
+<h2>シート</h2>
+<div class="day files">
+  <a href="予想シート.pdf">予想シート</a>
+  <a href="ふりかえりシート.pdf">ふりかえりシート</a>
+  <a href="できごとカード.pdf">できごとカード＋地図マット</a>
+  <a href="うわさの見わけシート.pdf">うわさの見わけシート（8/17）</a>
+  <a href="https://abolabo84-dev.github.io/pacific-wings/form.html">はじめての人の感想フォーム</a>
+  <div class="note">
+    遠くの人に遊んでもらうときは、この2つをLINEで送る：<br>
+    ゲーム → <code>https://abolabo84-dev.github.io/pacific-wings/</code><br>
+    フォーム → <code>https://abolabo84-dev.github.io/pacific-wings/form.html</code>
+  </div>
+</div>
+
+<script>
+// チェックの状態をこの端末に保存する
+for (const el of document.querySelectorAll('input[type=checkbox][data-k]')) {
+  const key = 'yj_' + el.dataset.k;
+  el.checked = localStorage.getItem(key) === '1';
+  el.addEventListener('change', () => localStorage.setItem(key, el.checked ? '1' : '0'));
+}
+
+// 面白メーター（日付ごとに1〜5を保存）
+for (const cell of document.querySelectorAll('#meter td[data-m]')) {
+  const key = 'yj_meter_' + cell.dataset.m;
+  for (let v = 1; v <= 5; v++) {
+    const b = document.createElement('button');
+    b.textContent = v; b.dataset.v = v;
+    b.style.cssText = 'width:2.2em;height:2.2em;margin-right:.4em;border:1.5px solid var(--line);' +
+      'border-radius:50%;background:none;color:var(--fg);font:inherit;cursor:pointer;';
+    b.addEventListener('click', () => { localStorage.setItem(key, String(v)); paint(cell, key); });
+    cell.appendChild(b);
+  }
+  paint(cell, key);
+}
+function paint(cell, key) {
+  const cur = localStorage.getItem(key);
+  for (const b of cell.querySelectorAll('button')) {
+    const on = b.dataset.v === cur;
+    b.style.background = on ? 'var(--fg)' : 'none';
+    b.style.color = on ? 'var(--bg)' : 'var(--fg)';
+    b.style.borderColor = on ? 'var(--fg)' : 'var(--line)';
+  }
+}
+</script>
+</body>
+</html>
