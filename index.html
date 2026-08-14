@@ -144,7 +144,7 @@ function cloudBody(events) {
   return JSON.stringify({
     key: CLOUD_KEY, runId: LOG_KEY, device: DEVICE, ver: location.pathname,
     tag: LOG_TAG, ear: q.get('ear') || 'B', off: q.get('off') || '',
-    bgm: q.get('bgm') || 'off', events
+    bgm: q.get('bgm') || 'off', diff: q.get('diff') || 'normal', events
   });
 }
 async function sendLog() {
@@ -482,6 +482,12 @@ const EAR_MUTE = (EAR === 'A');   // 無音
 const OFF = new Set((new URLSearchParams(location.search).get('off') || '').toLowerCase().split(',').filter(Boolean));
 // ponytail: HRTF（頭の形を使った定位）はCPUを食う。実機で重かったら 'equalpower' に落とす
 const PANNING_MODEL = (new URLSearchParams(location.search).get('panning') || 'HRTF').toUpperCase();  // ?panning=equal でスピーカー対応
+// 【自由研究・実験③】難易度。監督の設計（8/14のテストプレイ録音より）：
+//   ?diff=easy → 初級者向け。えらべる機体はゼロ戦だけ・敵の増援は1体だけ・燃料ちょっと多め（3割まし）
+//   ?diff=hard → 敵の潜水艦がもぐって来る・増援が多くて空母もたくさん出る・燃料はノーマルの半分
+//   なし＝normal（いままでのゲーム＝基準）。実験①②と同じで、条件のちがいは画面に出さない。ログには残る。
+const DIFF = (new URLSearchParams(location.search).get('diff') || 'normal').toLowerCase();
+const FUEL_MULT = DIFF === 'easy' ? 1.3 : DIFF === 'hard' ? 0.5 : 1;   // 燃料のもち時間の倍率
 
 let audioCtx = null;
 let sfxBus = null, waterFilter = null, engine = null;
@@ -700,7 +706,7 @@ function openUnitScreen(f) {
 }
 function buildCatRow() {
   const row = $('catRow'); row.innerHTML = '';
-  for (const key of ['fighter', 'ship', 'sub']) {
+  for (const key of (DIFF === 'easy' ? ['fighter'] : ['fighter', 'ship', 'sub'])) {   // イージーは戦闘機だけ（監督ルール）
     const b = document.createElement('button');
     b.className = 'btn catBtn' + (key === selCat ? ' sel' : '');
     b.textContent = CATALOG[key].label;
@@ -713,7 +719,8 @@ function pickCat(key) {
   buildCatRow();
   const list = $('typeList'); list.innerHTML = '';
   for (const t of CATALOG[key].types) {
-    if (t.faction && t.faction !== selFaction) continue;
+    if (DIFF === 'easy' && t.id !== 'zero') continue;                       // イージーはゼロ戦だけ（監督ルール）
+    if (DIFF !== 'easy' && t.faction && t.faction !== selFaction) continue;
     const b = document.createElement('button');
     b.className = 'typeBtn';
     b.innerHTML = `<b>${t.name}</b><br><small>${t.desc}</small>`;
@@ -722,6 +729,7 @@ function pickCat(key) {
   }
 }
 $('btnLaunch').onclick = () => {
+  if (DIFF === 'easy') { selCat = 'fighter'; selType = CATALOG.fighter.types.find(t => t.id === 'zero'); }
   if (!selType) { selType = CATALOG[selCat].types.find(t => !t.faction || t.faction === selFaction); }
   startGame(selFaction, selCat, selType);
 };
@@ -730,7 +738,7 @@ $('btnRetry').onclick = () => { $('endScreen').style.display = 'none'; $('titleS
 // ============ ゲーム開始 ============
 function startGame(faction, mode, def) {
   G.faction = faction; G.mode = mode; G.def = def;
-  logEvent('start', { faction, mode, type: def.id, ear: EAR, off: [...OFF].join(',') || 'none', bgm: BGM_ON });   // 実験①②の条件を記録に残す
+  logEvent('start', { faction, mode, type: def.id, ear: EAR, off: [...OFF].join(',') || 'none', bgm: BGM_ON, diff: DIFF });   // 実験①②③の条件を記録に残す
   // まえのユニットをそうじ
   for (const u of units) scene.remove(u.group);
   units = [];
@@ -938,16 +946,23 @@ function tick() {
   G.reinforceT += dt;
   if (G.reinforceT >= REINFORCE_SEC) {
     G.reinforceT = 0;
-    // 1回の増援で3ユニット。飛行機・船・潜水艦が1つずつ、ばらばらの順番で出る（ゆうじん調整）
-    const kinds = ['plane', 'ship', 'sub'].sort(() => Math.random() - 0.5);
+    // 1回の増援：ノーマル3体（飛・船・潜が1つずつ：ゆうじん調整）／
+    // イージー1体だけ・ハード5体で空母多め（監督の難易度設計 8/14）
+    let kinds;
+    if (DIFF === 'easy') kinds = [['plane', 'ship', 'sub'][Math.floor(Math.random()*3)]];
+    else if (DIFF === 'hard') kinds = ['plane', 'plane', 'ship', 'ship', 'sub'].sort(() => Math.random() - 0.5);
+    else kinds = ['plane', 'ship', 'sub'].sort(() => Math.random() - 0.5);
+    const carrierP = DIFF === 'hard' ? 0.6 : 0.3;
     for (const kind of kinds) {
       const rx = ENEMY.base.x - 150 + Math.random()*300, rz = ENEMY.base.z - 150 + Math.random()*300;
       if (kind === 'plane') spawnAIPlane('enemy', rx, rz);
-      else if (kind === 'ship') spawnAIShip('enemy', Math.random() < 0.3 ? 'carrier' : 'destroyer', rx, rz, 'attack');
+      else if (kind === 'ship') spawnAIShip('enemy', Math.random() < carrierP ? 'carrier' : 'destroyer', rx, rz, 'attack');
       else spawnAISub('enemy', rx, rz, 'attack');
       logEvent('reinforce', { kind });
     }
-    showMessage('⚠⚠ 敵の増援！ 飛行機・船・潜水艦 があらわれた！！ ⚠⚠', 4);
+    showMessage(kinds.length === 1 ? '⚠ 敵の増援！ 1体 あらわれた！'
+      : kinds.length > 3 ? '⚠⚠⚠ 敵の大増援！！ 空母もいるぞ！！ ⚠⚠⚠'
+      : '⚠⚠ 敵の増援！ 飛行機・船・潜水艦 があらわれた！！ ⚠⚠', 4);
   }
 
   // ---- 自動デモ操縦（記録係が動画をとるためのモード） ----
@@ -1016,7 +1031,7 @@ function tick() {
       }
     }
     // 燃料
-    if (!OFF.has('fuel')) G.fuel -= (100/FUEL_MINUTES) * GAME_MIN_PER_SEC * dt;
+    if (!OFF.has('fuel')) G.fuel -= (100/(FUEL_MINUTES*FUEL_MULT)) * GAME_MIN_PER_SEC * dt;
     const nearBase = Math.hypot(P.x-OUR.base.x, P.z-OUR.base.z) < 80;
     const nearPort = Math.hypot(P.x-OUR.port.x, P.z-OUR.port.z) < 90;
     if ((nearBase || nearPort) && P.y < 32) {
@@ -1116,7 +1131,14 @@ function tick() {
         up.z += Math.cos(u.angle)*dt*6;
         u.group.rotation.y = u.angle + Math.PI/2;
       }
-      if (u.kind === 'sub') up.y = -2;
+      if (u.kind === 'sub') {
+        // ハードでは敵の潜水艦がもぐって来る（監督の難易度設計 8/14）。30秒周期で20秒もぐり、10秒うかぶ
+        if (DIFF === 'hard') {
+          u.diveT = (u.diveT || 0) + dt;
+          u.submerged = (u.diveT % 30) < 20;
+          up.y += ((u.submerged ? -14 : -2) - up.y) * Math.min(1, dt*1.5);
+        } else up.y = -2;
+      }
       // 空母は戦闘機を発艦させる（さいだい2機・しずめないかぎり出てくる：ゆうじん要望）
       if (u.planeCap) {
         u.planes = u.planes.filter(pl => !pl.dead);
@@ -1262,6 +1284,8 @@ function tick() {
     if (p.owner === 'player' || p.owner === 'ally') {
       for (const u of units) {
         if (u.dead || u.faction !== 'enemy') continue;
+        // ハードの敵潜水艦：もぐっている間は魚雷・爆雷・対潜攻撃しか当たらない（プレイヤーのもぐり中と同じルール）
+        if (u.submerged && !['torpedo', 'depth'].includes(p.type) && p.role !== 'antisub') continue;
         const hitR = p.area ? 0 : u.radius;
         const dd = p.mesh.position.distanceTo(u.group.position);
         if (!p.area && dd < u.radius && Math.abs(p.mesh.position.y - u.group.position.y) < 34) {
