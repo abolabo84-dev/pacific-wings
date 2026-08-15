@@ -81,6 +81,8 @@
     <button class="btn" id="btnAllied">🇺🇸 連合国<br><span style="font-size:60%">切り札：巨大原子力潜水艦</span></button>
     <button class="btn" id="btnAxis">🇯🇵 同盟国<br><span style="font-size:60%">切り札：戦艦 大和</span></button>
   </div>
+  <p style="margin-top:1em; font-size:.85rem; opacity:.75">
+    かんそうを書くときの あいことば：<b id="titleWord" style="font-size:1.1rem"></b></p>
 </div>
 
 <div class="overlay" id="unitScreen" style="display:none">
@@ -93,6 +95,9 @@
 <div class="overlay" id="endScreen" style="display:none">
   <h1 id="endTitle"></h1>
   <p id="endText"></p>
+  <p style="margin:.2em 0 0; font-size:.95rem">かんそうを書くときの <b>あいことば</b></p>
+  <p id="endWord" style="margin:.1em 0 .6em; font-size:1.6rem; font-weight:bold; letter-spacing:.05em;
+     background:rgba(255,255,255,.15); border-radius:8px; padding:.15em .6em"></p>
   <button class="btn" id="btnRetry">もういちど！</button>
 </div>
 
@@ -147,6 +152,25 @@ const PLATFORM =
   /Macintosh/i.test(UA) && TOUCH ? 'tablet' :          // iPadはMacと名乗るので、タッチの有無で見分ける
   TOUCH && Math.min(screen.width, screen.height) <= 820 ? 'phone' : 'pc';
 const SCREEN = screen.width + 'x' + screen.height;
+// 【あいことば】感想フォームの回答と、この端末のプレイ記録を結びつけるための合言葉。
+// これが無いと、遊んだ人が増えたとき「どの感想がどのプレイのものか」が分からなくなる。
+// 端末ごとに1回だけ決めて覚えるので、同じ人が何回遊んでも同じ言葉になる。
+// 言葉は1つだけ＋3けたの数字にする（2語つなげると「ちいさいわし」→「ちいさ・いわし」のように
+// 読み間違えるため）。10種×900＝9000とおりなので、数十人ぶんならまず重ならない。
+if (!localStorage.getItem('yuujinWord')) {
+  const B = ['ねこ', 'いぬ', 'くじら', 'さめ', 'かめ', 'たか', 'わし', 'ぺんぎん', 'らっこ', 'きつね'];
+  localStorage.setItem('yuujinWord',
+    B[Math.floor(Math.random() * B.length)] + (100 + Math.floor(Math.random() * 900)));
+}
+const WORD = localStorage.getItem('yuujinWord');
+addEventListener('DOMContentLoaded', () => {
+  const t = document.getElementById('titleWord');
+  if (t) t.textContent = WORD;
+});
+if (document.readyState !== 'loading') {
+  const t = document.getElementById('titleWord');
+  if (t) t.textContent = WORD;
+}
 // キーボードで遊んだか、指で遊んだか（＝③「キーボードの音が気持ちいい」に関わる）。最初の1回だけ記録
 let firstInput = null;
 function noteInput(how) {
@@ -812,7 +836,7 @@ $('btnRetry').onclick = () => { $('endScreen').style.display = 'none'; $('titleS
 function startGame(faction, mode, def) {
   G.faction = faction; G.mode = mode; G.def = def;
   logEvent('start', { faction, mode, type: def.id, ear: EAR, off: [...OFF].join(',') || 'none', bgm: BGM_ON, diff: DIFF, tune: tuneStr(),
-    platform: PLATFORM, screen: SCREEN, touch: TOUCH });   // 実験①②③の条件と、遊んだ機械を記録に残す
+    platform: PLATFORM, screen: SCREEN, touch: TOUCH, word: WORD });   // 実験の条件・遊んだ機械・あいことば
   // まえのユニットをそうじ
   for (const u of units) scene.remove(u.group);
   units = [];
@@ -964,6 +988,7 @@ function win() {
   logEvent('win', { kills: G.kills });
   $('endTitle').textContent = '🏆 だいしょうり！！';
   $('endText').innerHTML = `敵の港を撃破した！ ${G.faction === 'axis' ? '同盟国' : '連合国'}のかち！<br>撃破数：${G.kills}`;
+  $('endWord').textContent = WORD;
   $('endScreen').style.display = 'flex';
   fireBtn.style.display = fireBtn2.style.display = pauseBtn.style.display = 'none';
   PAUSED = false; pauseBtn.style.background = 'rgba(0,150,200,0.55)'; pauseBtn.innerHTML = '⏸<br>一時停止';
@@ -974,6 +999,7 @@ function lose() {
   logEvent('lose', { kills: G.kills });
   $('endTitle').textContent = '😢 はいぼく…';
   $('endText').innerHTML = `味方の港が撃破されてしまった…<br>つぎは港をまもりながら攻めよう！`;
+  $('endWord').textContent = WORD;
   $('endScreen').style.display = 'flex';
   fireBtn.style.display = fireBtn2.style.display = pauseBtn.style.display = 'none';
   PAUSED = false; pauseBtn.style.background = 'rgba(0,150,200,0.55)'; pauseBtn.innerHTML = '⏸<br>一時停止';
