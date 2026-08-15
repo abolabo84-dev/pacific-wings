@@ -4,128 +4,21 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>「太平洋の翼」あそんだ感想フォーム</title>
+<meta http-equiv="refresh" content="0; url=https://docs.google.com/forms/d/e/1FAIpQLScwx2UO1o56_M6qBL8lGsNHx--5wG8e5OvtHRbDXKfh49an1w/viewform">
 <style>
-  :root { --line:#d8d8d8; --mute:#666; --bg:#fff; --fg:#111; --panel:#f7f7f7; --acc:#0a5cd6; }
-  @media (prefers-color-scheme: dark) {
-    :root { --line:#3a3a3a; --mute:#a8a8a8; --bg:#161616; --fg:#eee; --panel:#202020; --acc:#7ab4ff; }
-  }
-  * { box-sizing: border-box; }
+  :root { --bg:#fff; --fg:#111; --mute:#555; --acc:#0a5cd6; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#161616; --fg:#eee; --mute:#aaa; --acc:#7ab4ff; } }
   body { font-family: "BIZ UDPGothic", "Yu Gothic UI", "Meiryo", system-ui, sans-serif;
-         line-height: 1.7; color: var(--fg); background: var(--bg);
-         margin: 0 auto; padding: 16px; max-width: 640px; font-size: 16px; }
-  h1 { font-size: 1.3rem; margin: 0 0 .2em; }
-  .lead { color: var(--mute); font-size: .9rem; margin: 0 0 1em; }
-  .q { border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
-       padding: 10px 14px; margin-bottom: 12px; }
-  .q h2 { font-size: 1rem; margin: 0 0 .4em; }
-  .q .hint { font-size: .85rem; color: var(--mute); margin: 0 0 .4em; }
-  label.opt { display: inline-flex; align-items: center; gap: .35em; margin: 0 1em .4em 0;
-              padding: .35em .7em; border: 1.5px solid var(--line); border-radius: 999px; cursor: pointer; }
-  label.opt:has(input:checked) { border-color: var(--acc); background: color-mix(in srgb, var(--acc) 14%, transparent); }
-  input[type=radio] { accent-color: var(--acc); }
-  input[type=text], textarea { width: 100%; font: inherit; color: var(--fg); background: var(--bg);
-        border: 1px solid var(--line); border-radius: 6px; padding: .45em .6em; margin-top: .2em; }
-  textarea { min-height: 3.2em; }
-  button { font: inherit; padding: .6em 1.2em; border-radius: 8px; border: 1.5px solid var(--fg);
-           background: var(--fg); color: var(--bg); cursor: pointer; margin: .2em .6em .2em 0; }
-  button.sub { background: none; color: var(--fg); }
-  #out { display: none; margin-top: 12px; }
-  #outText { width: 100%; min-height: 14em; font-family: ui-monospace, monospace; font-size: .85rem; }
-  .ok { color: var(--acc); font-weight: bold; }
+         line-height: 1.8; color: var(--fg); background: var(--bg);
+         margin: 0 auto; padding: 24px; max-width: 640px; font-size: 16px; }
+  a.btn { display: inline-block; margin-top: 1em; padding: .7em 1.4em; border-radius: 8px;
+          background: var(--acc); color: #fff; text-decoration: none; font-weight: bold; }
+  p { color: var(--mute); }
 </style>
 </head>
 <body>
-
 <h1>🛩「太平洋の翼」あそんだ感想フォーム</h1>
-<p class="lead">
-  小学4年生の監督が作ったゲームの、自由研究用アンケートです。<b>名前は書きません</b>（続柄・関係だけ）。
-  正直な感想がいちばん助かります——ほめなくて大丈夫です。さいごのボタンで、答えがLINEなどで送れます。
-</p>
-
-<div class="q">
-  <h2>あなたは？（名前じゃなく、関係で）</h2>
-  <input type="text" id="who" placeholder="例：パパの友だち／1階の人／親せき">
-  <p class="hint" style="margin-top:.5em">どこで遊んだ？</p>
-  <label class="opt"><input type="radio" name="where" value="目の前で"><span>目の前で</span></label>
-  <label class="opt"><input type="radio" name="where" value="ネットごしで"><span>ネットごしで</span></label>
-</div>
-
-<div class="q">
-  <h2>Q1　このゲーム、<u>好き</u>ですか？</h2>
-  <label class="opt"><input type="radio" name="q1" value="好き"><span>好き</span></label>
-  <label class="opt"><input type="radio" name="q1" value="ふつう"><span>ふつう</span></label>
-  <label class="opt"><input type="radio" name="q1" value="好きじゃない"><span>好きじゃない</span></label>
-</div>
-
-<div class="q">
-  <h2>Q2　このゲーム、<u>よくできてる</u>と思いますか？</h2>
-  <p class="hint">「好き」と「よくできてる」は、べつの物差しとして聞いています</p>
-  <label class="opt"><input type="radio" name="q2" value="よくできてる"><span>よくできてる</span></label>
-  <label class="opt"><input type="radio" name="q2" value="ふつう"><span>ふつう</span></label>
-  <label class="opt"><input type="radio" name="q2" value="まだまだ"><span>まだまだ</span></label>
-  <p class="hint" style="margin-top:.5em">Q1とQ2の答えがちがったら、よければ、そのわけを：</p>
-  <textarea id="q2b"></textarea>
-</div>
-
-<div class="q">
-  <h2>Q3　面白かったことを、3つまで</h2>
-  <input type="text" id="q3a" placeholder="1つめ">
-  <input type="text" id="q3b" placeholder="2つめ">
-  <input type="text" id="q3c" placeholder="3つめ">
-</div>
-
-<div class="q">
-  <h2>Q4　やりにくかったこと・こまったことは？</h2>
-  <textarea id="q4"></textarea>
-</div>
-
-<div class="q">
-  <h2>Q5　このゲーム、なにかに<u>似てました</u>か？</h2>
-  <input type="text" id="q5" placeholder="似てたもの（ゲーム・映画・なんでも）">
-  <p class="hint" style="margin-top:.5em">似てたことは、良かったですか？</p>
-  <label class="opt"><input type="radio" name="q5b" value="良かった"><span>良かった</span></label>
-  <label class="opt"><input type="radio" name="q5b" value="どちらでもない"><span>どちらでもない</span></label>
-  <label class="opt"><input type="radio" name="q5b" value="良くなかった"><span>良くなかった</span></label>
-</div>
-
-<button id="send">答えを送る（LINEなど）</button>
-<button id="copy" class="sub">答えをコピーする</button>
-<span id="done"></span>
-
-<div id="out">
-  <p class="hint">↓この文をコピーして、LINEなどで送ってください</p>
-  <textarea id="outText" readonly></textarea>
-</div>
-
-<script>
-const $ = id => document.getElementById(id);
-const radio = n => (document.querySelector(`input[name=${n}]:checked`) || {}).value || '（未回答）';
-function build() {
-  const d = new Date();
-  const l = [];
-  l.push(`【太平洋の翼・初見インタビュー】${d.getMonth()+1}/${d.getDate()}`);
-  l.push(`つづきがら: ${$('who').value || '（未記入）'}／場所: ${radio('where')}`);
-  l.push(`Q1 好き？: ${radio('q1')}`);
-  l.push(`Q2 よくできてる？: ${radio('q2')}`);
-  if ($('q2b').value) l.push(`Q1≠Q2のわけ: ${$('q2b').value}`);
-  const fun = [$('q3a').value, $('q3b').value, $('q3c').value].filter(Boolean);
-  l.push(`Q3 面白かった: ${fun.length ? fun.map((s,i)=>`(${i+1})${s}`).join(' ') : '（未記入）'}`);
-  l.push(`Q4 こまった: ${$('q4').value || '（なし）'}`);
-  l.push(`Q5 似てた: ${$('q5').value || '（なし）'}${$('q5').value ? '／' + radio('q5b') : ''}`);
-  return l.join('\n');
-}
-$('send').addEventListener('click', async () => {
-  const text = build();
-  try { localStorage.setItem('yj_form_backup_' + Date.now(), text); } catch (e) {}
-  if (navigator.share) { try { await navigator.share({ text }); $('done').textContent = '✔ 送りました。ありがとう！'; $('done').className='ok'; return; } catch (e) {} }
-  $('outText').value = text; $('out').style.display = 'block'; $('outText').select();
-});
-$('copy').addEventListener('click', async () => {
-  const text = build();
-  try { localStorage.setItem('yj_form_backup_' + Date.now(), text); } catch (e) {}
-  try { await navigator.clipboard.writeText(text); $('done').textContent = '✔ コピーしました。LINEなどに貼って送ってください'; $('done').className='ok'; }
-  catch (e) { $('outText').value = text; $('out').style.display = 'block'; $('outText').select(); }
-});
-</script>
+<p>フォームに移動します。ひらかない場合は、下のボタンを押してください。</p>
+<a class="btn" href="https://docs.google.com/forms/d/e/1FAIpQLScwx2UO1o56_M6qBL8lGsNHx--5wG8e5OvtHRbDXKfh49an1w/viewform">感想フォームをひらく</a>
 </body>
 </html>
