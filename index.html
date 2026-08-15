@@ -137,6 +137,25 @@ if (!localStorage.getItem('yuujinDevice')) {
   localStorage.setItem('yuujinDevice', 'pc-' + Math.random().toString(36).slice(2, 7));
 }
 const DEVICE = localStorage.getItem('yuujinDevice');
+// どんな機械で遊んだかを自動で見分ける。スマホだと霧の見え方が変わるので、
+// 感想を読むときの前提が変わる（監督の修繕指示・8/14）。だから必ず記録する。
+const UA = navigator.userAgent;
+const TOUCH = (navigator.maxTouchPoints || 0) > 0 || 'ontouchstart' in window;
+const PLATFORM =
+  /iPhone|Windows Phone|Android.+Mobile/i.test(UA) ? 'phone' :
+  /iPad|Tablet/i.test(UA) || /Android/i.test(UA) ? 'tablet' :
+  /Macintosh/i.test(UA) && TOUCH ? 'tablet' :          // iPadはMacと名乗るので、タッチの有無で見分ける
+  TOUCH && Math.min(screen.width, screen.height) <= 820 ? 'phone' : 'pc';
+const SCREEN = screen.width + 'x' + screen.height;
+// キーボードで遊んだか、指で遊んだか（＝③「キーボードの音が気持ちいい」に関わる）。最初の1回だけ記録
+let firstInput = null;
+function noteInput(how) {
+  if (firstInput) return;
+  firstInput = how;
+  logEvent('input', { how });
+}
+addEventListener('keydown', () => noteInput('key'));
+addEventListener('touchstart', () => noteInput('touch'), { passive: true });
 let sentCount = 0;            // ここまでは送信ずみ
 let sending = false;
 function cloudBody(events) {
@@ -792,7 +811,8 @@ $('btnRetry').onclick = () => { $('endScreen').style.display = 'none'; $('titleS
 // ============ ゲーム開始 ============
 function startGame(faction, mode, def) {
   G.faction = faction; G.mode = mode; G.def = def;
-  logEvent('start', { faction, mode, type: def.id, ear: EAR, off: [...OFF].join(',') || 'none', bgm: BGM_ON, diff: DIFF, tune: tuneStr() });   // 実験①②③の条件を記録に残す
+  logEvent('start', { faction, mode, type: def.id, ear: EAR, off: [...OFF].join(',') || 'none', bgm: BGM_ON, diff: DIFF, tune: tuneStr(),
+    platform: PLATFORM, screen: SCREEN, touch: TOUCH });   // 実験①②③の条件と、遊んだ機械を記録に残す
   // まえのユニットをそうじ
   for (const u of units) scene.remove(u.group);
   units = [];
