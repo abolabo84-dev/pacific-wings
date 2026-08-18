@@ -791,12 +791,15 @@ function playBgm(name) {
   if (G.tutorial && name !== 'tutorial') return;   // v5: チュートリアル中は曲を切りかえない
   if (EAR_MUTE) return;          // 条件A（音なし）は音楽も鳴らさない
   if (bgm.name === name) return;
-  if (bgm.current) { bgm.current.pause(); bgm.current.currentTime = 0; }
-  bgm.name = name;
   let t = bgm.tracks[name];
   if (!t && name === 'tutorial') t = bgm.tracks['battle'];   // v5: tutorial.mp3 がまだ無いあいだは戦闘の曲でだいよう
-  bgm.current = t || null;
-  if (t) t.play().catch(() => {});
+  // v5: その曲のファイルがまだ無いときは、いま鳴っている曲をそのまま続ける。
+  // （前は曲が無いと止まってしまい、きりが出るたびにBGMが切れていた）
+  if (!t) return;
+  if (bgm.current) { bgm.current.pause(); bgm.current.currentTime = 0; }
+  bgm.name = name;
+  bgm.current = t;
+  t.play().catch(() => {});
 }
 
 // ============ 入力 ============
@@ -1669,11 +1672,13 @@ function drawMinimap() {
     mm.closePath(); mm.fill();
     // v5: そこに「ふつうの矢印」を重ねて足す（監督8/16「普通の矢印を、その先につけたら」）
     // ⚠ 三角は直さない。矢印を足すだけ＝監督が出した第3の答え
+    // ⚠⚠ この三角は「はばの広いほうが進む方向」（監督8/16「最初やってみて、こっち進むから」）。
+    //     ＝ とがったほうが うしろ。矢印は とがったほうの反対（＝はばの広いほう）へ向ける。
     mm.strokeStyle = '#ffe066'; mm.fillStyle = '#ffe066';
     mm.lineWidth = 2; mm.lineCap = 'round';
-    mm.beginPath(); mm.moveTo(0, 6); mm.lineTo(0, -8); mm.stroke();   // まっすぐな軸
-    mm.beginPath();                                                   // さきっぽの矢じり
-    mm.moveTo(0, -12); mm.lineTo(4.5, -5); mm.lineTo(-4.5, -5);
+    mm.beginPath(); mm.moveTo(0, -6); mm.lineTo(0, 8); mm.stroke();   // まっすぐな軸
+    mm.beginPath();                                                   // さきっぽの矢じり（進む方向）
+    mm.moveTo(0, 12); mm.lineTo(4.5, 5); mm.lineTo(-4.5, 5);
     mm.closePath(); mm.fill();
     mm.restore();
   }
