@@ -827,6 +827,20 @@ function playBgm(name) {
   t.play().catch(() => {});
 }
 
+// v5: 画面が見えなくなったら音を止める（タブを切りかえた・ウィンドウを閉じた・最小化した とき）。
+// 前は うらに回っても鳴りっぱなしだった（監督8/18「ウィンドウをとじても音楽がおわらない」）
+function hushAudio() {
+  if (bgm.current) bgm.current.pause();
+  if (audioCtx && audioCtx.state === 'running') audioCtx.suspend().catch(() => {});
+}
+function wakeAudio() {
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+  if (bgmOn && bgm.current) bgm.current.play().catch(() => {});
+}
+document.addEventListener('visibilitychange', () => { document.hidden ? hushAudio() : wakeAudio(); });
+addEventListener('pagehide', hushAudio);
+addEventListener('blur', () => { if (document.hidden) hushAudio(); });
+
 // ============ 入力 ============
 const keys = {};
 addEventListener('keydown', e => { keys[e.code] = true; if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','KeyB'].includes(e.code)) e.preventDefault(); });
