@@ -1191,6 +1191,10 @@ function tick() {
         keys['ArrowUp'] = true;
         if (nd < 380 && Math.abs(dy2) < 0.3) keys['Space'] = true;
       } else {
+        // v5: 潜水艦はしっかり潜る（監督8/18「もっとがっつり潜った方がいい。そのほうが潜水艦のイメージがつかめる」）
+        // キー入力ごしだと潜るのが遅くて「潜水艦らしさ」が出ないので、深さを直接うごかす。
+        // いちばん深いのが -22。見せる用に -19 あたりまで もぐる（＝かくれ中の表示になる）
+        G.depth += (-19 - G.depth) * Math.min(1, dt*0.9);
         if (nd < 260 && Math.abs(dy2) < 0.25) keys['Space'] = true;
       }
     }
@@ -1715,7 +1719,7 @@ const TUT_LAST = [
   '🌫 きりが出たら レーダーが きかない',
 ];
 const LINE_SEC = 3.4;            // 字幕1行の表示時間
-let tutTimer = null, tutScene = 0;
+let tutTimer = null, tutScene = 0, tutFinished = false;
 // ponytail: 字幕はsetTimeoutベースの素朴な進行, 秒数をBGMと同期したくなったら初めてタイムライン化
 
 function tutSay(text) { const e = $('tutSub'); e.textContent = text; e.style.display = 'block'; }
@@ -1726,7 +1730,8 @@ function startTutorial() {
   initAudio();
   diffBeforeTut = DIFF; DIFF = 'easy';   // チュートリアル中はやさしい条件で（見せるための時間）
   G.tutorial = true; G.demo = true;
-  tutScene = 0;
+  tutScene = 0; tutFinished = false;
+  $('tutSkip').textContent = 'つぎへ ▶';
   $('tutBar').style.display = 'block';
   logEvent('tutorial_start', {});
   playBgm('tutorial');
@@ -1754,7 +1759,14 @@ function tutFinale() {
   let i = 0;
   const step = () => {
     if (!G.tutorial) return;
-    if (i >= TUT_LAST.length) { logEvent('tutorial_done', {}); return endTutorial(); }
+    if (i >= TUT_LAST.length) {
+      // v5: 勝手にタイトルへ戻らない（監督8/18「ボタンを押すかスキップを選ぶまでタイトルにいかないように」）
+      logEvent('tutorial_done', {});
+      tutFinished = true;
+      $('tutSkip').textContent = '🏁 タイトルへ ▶';
+      tutSay('これで おわり！　右上の「🏁 タイトルへ」を おしてね');
+      return;   // タイマーを止めて、ここで待つ
+    }
     tutSay(TUT_LAST[i++]);
     tutTimer = setTimeout(step, LINE_SEC*1000);
   };
@@ -1776,7 +1788,11 @@ function endTutorial() {
   playBgm('title');
 }
 $('btnTut').onclick = startTutorial;
-$('tutSkip').onclick = () => { logEvent('tutorial_skip', { scene: tutScene }); tutClearTimers(); tutScene++; runTutScene(); };
+$('tutSkip').onclick = () => {
+  if (tutFinished) return endTutorial();   // さいごまで見たとき＝「タイトルへ」ボタンになっている
+  logEvent('tutorial_skip', { scene: tutScene });
+  tutClearTimers(); tutScene++; runTutScene();
+};
 $('tutClose').onclick = () => { logEvent('tutorial_skip', { scene: tutScene, closed: true }); endTutorial(); };
 
 // ============ 記録用の自動スタート（?auto=allied|axis&cat=fighter|ship|sub&type=ID&demo=1） ============
