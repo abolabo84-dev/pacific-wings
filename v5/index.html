@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>太平洋の翼 〜敵の港を撃破せよ！〜 第4号（完成版）</title>
+<title>太平洋の翼 〜敵の港を撃破せよ！〜 第5号（改良版）</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: "Meiryo", sans-serif; touch-action: none; }
@@ -70,7 +70,7 @@
 <div class="fbtn" id="pauseBtn" style="bottom:240px">⏸<br>一時停止</div>
 
 <div class="overlay" id="titleScreen">
-  <h1>🌊 太平洋の翼 第4号（完成版） 🛩</h1>
+  <h1>🌊 太平洋の翼 第5号（改良版） 🛩</h1>
   <p>敵の港を撃破したら勝ち！ 味方の港が撃破されたら負け…<br>
   敵を <b>5つ撃破</b>で切り札、<b>10撃破で2せき目（同盟国は武蔵！）</b>が出撃！<br>
   空母からは戦闘機が発艦する（しずめないかぎり出てくるぞ）。<br>
@@ -81,6 +81,8 @@
     <button class="btn" id="btnAllied">🇺🇸 連合国<br><span style="font-size:60%">切り札：巨大原子力潜水艦</span></button>
     <button class="btn" id="btnAxis">🇯🇵 同盟国<br><span style="font-size:60%">切り札：戦艦 大和</span></button>
   </div>
+  <p style="margin-top:.6em">
+    <button class="btn" id="btnBgm" style="font-size:.9rem; padding:.4em 1em">🎵 音楽：ON</button></p>
   <p style="margin-top:1em; font-size:.85rem; opacity:.75">
     かんそうを書くときの あいことば：<b id="titleWord" style="font-size:1.1rem"></b></p>
 </div>
@@ -187,7 +189,7 @@ function cloudBody(events) {
   return JSON.stringify({
     key: CLOUD_KEY, runId: LOG_KEY, device: DEVICE, ver: location.pathname,
     tag: LOG_TAG, ear: q.get('ear') || 'B', off: q.get('off') || '',
-    ver: 'v5', bgm: q.get('bgm') || 'off', diff: q.get('diff') || 'normal', tune: tuneStr(), events
+    ver: 'v5', bgm: (typeof bgmOn !== 'undefined' && bgmOn) ? 'on' : 'off', diff: q.get('diff') || 'normal', tune: tuneStr(), events
   });
 }
 async function sendLog() {
@@ -674,7 +676,7 @@ window.earInfo = (dist) => {
 // 実験①の確認用（コンソール専用。画面には出さない）
 window.expInfo = () => ({ off: [...OFF].join(',') || 'none', 霧が出るか: !OFF.has('fog'),
                           燃料が減るか: !OFF.has('fuel'), いまの燃料: Math.round(G.fuel), いま霧か: G.fogActive,
-                          音楽: BGM_ON ? (bgm.name || '（まだ鳴っていない）') : 'なし（?bgm=on で有効）',
+                          音楽: bgmOn ? (bgm.name || '（まだ鳴っていない）') : 'OFF',
                           曲ファイル: Object.entries(bgm.tracks).filter(([, a]) => a).map(([k]) => k).join(',') || 'なし' });
 
 function playGun(pos) {
@@ -710,9 +712,27 @@ for (const [k, src] of Object.entries(BGM_FILES)) {
 // 【自由研究・実験②の条件D】音楽は ?bgm=on のときだけ鳴る。
 // mp3を置いたら勝手に鳴る、にすると A/B/C を比べている途中で条件が変わってしまうため、
 // 曲が入っても既定は「音楽なし」のまま。D＝いまの耳（B or C）＋音楽 として後から足す。
-const BGM_ON = (new URLSearchParams(location.search).get('bgm') || '').toLowerCase() === 'on';
+// v5: 音楽は最初からON。タイトル画面のボタンで切りかえられる（えらんだ設定はこの機械におぼえる）。
+// ?bgm=on / ?bgm=off を書いたときは、そっちが優先。
+const BGM_Q = (new URLSearchParams(location.search).get('bgm') || '').toLowerCase();
+let bgmOn = BGM_Q === 'on' ? true
+          : BGM_Q === 'off' ? false
+          : (localStorage.getItem('pw_bgm') !== 'off');   // 既定＝ON
+function setBgm(on) {
+  bgmOn = on;
+  localStorage.setItem('pw_bgm', on ? 'on' : 'off');
+  const b = document.getElementById('btnBgm');
+  if (b) b.textContent = on ? '🎵 音楽：ON' : '🔇 音楽：OFF';
+  if (!on) {
+    if (bgm.current) { bgm.current.pause(); bgm.current.currentTime = 0; }
+    bgm.current = null; bgm.name = null;
+  } else {
+    playBgm(G.running ? (G.fogActive ? 'fog' : 'battle') : 'title');
+  }
+  logEvent('bgm_toggle', { on });
+}
 function playBgm(name) {
-  if (!BGM_ON) return;           // 既定は音楽なし（実験②A/B/Cを汚さない）
+  if (!bgmOn) return;            // 音楽OFFのときは鳴らさない
   if (EAR_MUTE) return;          // 条件A（音なし）は音楽も鳴らさない
   if (bgm.name === name) return;
   if (bgm.current) { bgm.current.pause(); bgm.current.currentTime = 0; }
@@ -791,6 +811,9 @@ function showMessage(text, seconds = 2.5) { $('message').textContent = text; $('
 let selFaction = null, selCat = 'fighter', selType = null;
 $('btnAllied').onclick = () => openUnitScreen('allied');
 $('btnAxis').onclick = () => openUnitScreen('axis');
+// v5: タイトル画面の音楽ON/OFFボタン
+$('btnBgm').textContent = bgmOn ? '🎵 音楽：ON' : '🔇 音楽：OFF';
+$('btnBgm').onclick = () => { initAudio(); setBgm(!bgmOn); };
 function openUnitScreen(f) {
   initAudio();
   playBgm('title');
@@ -835,7 +858,7 @@ $('btnRetry').onclick = () => { $('endScreen').style.display = 'none'; $('titleS
 // ============ ゲーム開始 ============
 function startGame(faction, mode, def) {
   G.faction = faction; G.mode = mode; G.def = def;
-  logEvent('start', { faction, mode, type: def.id, ear: EAR, off: [...OFF].join(',') || 'none', bgm: BGM_ON, diff: DIFF, tune: tuneStr(),
+  logEvent('start', { faction, mode, type: def.id, ear: EAR, off: [...OFF].join(',') || 'none', bgm: bgmOn, diff: DIFF, tune: tuneStr(),
     platform: PLATFORM, screen: SCREEN, touch: TOUCH, word: WORD });   // 実験の条件・遊んだ機械・あいことば
   // まえのユニットをそうじ
   for (const u of units) scene.remove(u.group);
