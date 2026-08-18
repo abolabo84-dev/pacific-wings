@@ -1,0 +1,1591 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>太平洋の翼 〜敵の港を撃破せよ！〜 第4号（完成版）</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: "Meiryo", sans-serif; touch-action: none; }
+  #game { position: absolute; inset: 0; }
+  .overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,20,40,0.88); color: #fff; z-index: 20; overflow-y: auto; }
+  .overlay h1 { font-size: clamp(22px, 5vw, 42px); margin: 10px; text-shadow: 2px 2px 4px #000; }
+  .overlay h2 { font-size: clamp(16px, 4vw, 26px); margin: 8px; }
+  .overlay p { font-size: clamp(12px, 2.8vw, 17px); margin: 5px 16px; text-align: center; line-height: 1.6; }
+  .btn { font-size: clamp(16px, 4vw, 26px); padding: 12px 30px; margin: 10px; border: 3px solid #fff; border-radius: 12px; cursor: pointer; color: #fff; font-weight: bold; text-shadow: 1px 1px 2px #000; background: #37474f; }
+  .btn:active { transform: scale(0.95); }
+  #btnAllied { background: #1565c0; }
+  #btnAxis { background: #c62828; }
+  #btnRetry { background: #2e7d32; }
+  #btnLaunch { background: #e65100; font-size: clamp(20px, 5vw, 30px); }
+  .catBtn { background: #37474f; }
+  .catBtn.sel { background: #00695c; border-color: #ffd54f; }
+  .typeBtn { display: block; width: min(90vw, 480px); text-align: left; font-size: clamp(13px, 3vw, 17px); padding: 10px 14px; margin: 5px; border: 2px solid #90a4ae; border-radius: 10px; background: #263238; color: #fff; cursor: pointer; }
+  .typeBtn.sel { background: #00695c; border-color: #ffd54f; }
+  .typeBtn small { color: #b0bec5; }
+  #hud { position: absolute; top: 8px; left: 8px; color: #fff; z-index: 10; text-shadow: 1px 1px 2px #000; font-size: 13px; pointer-events: none; }
+  .bar { width: 150px; height: 13px; background: rgba(0,0,0,0.5); border: 1px solid #fff; border-radius: 4px; margin: 2px 0 6px; overflow: hidden; }
+  .bar > div { height: 100%; }
+  #fuelFill { background: #ffb300; width: 100%; }
+  #hpFill { background: #e53935; width: 100%; }
+  #portFill { background: #29b6f6; width: 100%; }
+  #clock { font-size: 15px; font-weight: bold; }
+  #kills { font-size: 15px; font-weight: bold; color: #ffd54f; }
+  #extra { font-size: 13px; color: #b3e5fc; }
+  #message { position: absolute; top: 16%; width: 100%; text-align: center; color: #ffeb3b; font-size: clamp(17px, 4.5vw, 30px); font-weight: bold; text-shadow: 2px 2px 4px #000; z-index: 10; pointer-events: none; opacity: 0; transition: opacity 0.4s; }
+  #targetArrow { position: absolute; top: 6px; left: 50%; transform: translateX(-50%); color: #fff; font-size: 15px; font-weight: bold; text-shadow: 1px 1px 3px #000; z-index: 10; pointer-events: none; text-align: center; }
+  #arrowIcon { display: inline-block; font-size: 22px; }
+  #minimap { position: absolute; top: 8px; right: 8px; border: 2px solid rgba(255,255,255,0.7); border-radius: 8px; z-index: 10; background: rgba(0,30,60,0.6); }
+  #stick { position: absolute; left: 0; bottom: 0; width: 45%; height: 55%; z-index: 15; }
+  #stickBase { position: absolute; width: 110px; height: 110px; border: 2px solid rgba(255,255,255,0.4); border-radius: 50%; background: rgba(255,255,255,0.08); display: none; }
+  #stickKnob { position: absolute; width: 50px; height: 50px; border-radius: 50%; background: rgba(255,255,255,0.4); display: none; }
+  .fbtn { position: absolute; right: 20px; width: 84px; height: 84px; border-radius: 50%; border: 3px solid rgba(255,255,255,0.7); color: #fff; font-size: 15px; font-weight: bold; z-index: 15; display: none; align-items: center; justify-content: center; text-shadow: 1px 1px 2px #000; text-align: center; }
+  #fireBtn { bottom: 40px; background: rgba(229,57,53,0.55); }
+  #fireBtn2 { bottom: 140px; background: rgba(255,143,0,0.55); }
+  #pauseBtn { width: 60px; height: 60px; font-size: 11px; background: rgba(0,150,200,0.55); }
+  #controlsHint { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); color: rgba(255,255,255,0.85); font-size: 12px; z-index: 10; text-shadow: 1px 1px 2px #000; pointer-events: none; text-align: center; }
+  #fogNotice { position: absolute; top: 60px; width: 100%; text-align: center; color: #cfd8dc; font-size: 17px; font-weight: bold; text-shadow: 1px 1px 3px #000; z-index: 10; opacity: 0; transition: opacity 1s; pointer-events: none; }
+</style>
+</head>
+<body>
+<div id="game"></div>
+
+<div id="hud" style="display:none">
+  <div id="clock">🕐 06:00</div>
+  <div id="fuelRow"><span>ねんりょう</span><div class="bar"><div id="fuelFill"></div></div></div>
+  <div><span id="hpLabel">きたい（HP）</span></div><div class="bar"><div id="hpFill"></div></div>
+  <div>🏳 味方の港</div><div class="bar"><div id="portFill"></div></div>
+  <div id="kills">☆ 撃破 0 / 5</div>
+  <div id="extra"></div>
+</div>
+<canvas id="minimap" width="150" height="150" style="display:none"></canvas>
+<div id="targetArrow" style="display:none">🚩 敵の港 <span id="arrowIcon">▲</span> <span id="arrowDist"></span></div>
+<div id="message"></div>
+<div id="fogNotice">🌫 きりが でてきた…（レーダーがきかない！）</div>
+<div id="controlsHint" style="display:none"></div>
+
+<div id="stick"><div id="stickBase"></div><div id="stickKnob"></div></div>
+<div class="fbtn" id="fireBtn">🔥<br>発射</div>
+<div class="fbtn" id="fireBtn2">💣</div>
+<div class="fbtn" id="pauseBtn" style="bottom:240px">⏸<br>一時停止</div>
+
+<div class="overlay" id="titleScreen">
+  <h1>🌊 太平洋の翼 第4号（完成版） 🛩</h1>
+  <p>敵の港を撃破したら勝ち！ 味方の港が撃破されたら負け…<br>
+  敵を <b>5つ撃破</b>で切り札、<b>10撃破で2せき目（同盟国は武蔵！）</b>が出撃！<br>
+  空母からは戦闘機が発艦する（しずめないかぎり出てくるぞ）。<br>
+  💣 爆弾を積んだまま<b>体当たり</b>すると大爆発！（でも自分も大破…）<br>
+  🌫 きりはゲーム内20分ごと。⛽ 燃料はゲーム内1時間ぶん。⚠ 5分ごとに敵の増援！</p>
+  <p>どっちの国でたたかう？</p>
+  <div style="display:flex; flex-wrap:wrap; justify-content:center;">
+    <button class="btn" id="btnAllied">🇺🇸 連合国<br><span style="font-size:60%">切り札：巨大原子力潜水艦</span></button>
+    <button class="btn" id="btnAxis">🇯🇵 同盟国<br><span style="font-size:60%">切り札：戦艦 大和</span></button>
+  </div>
+  <p style="margin-top:1em; font-size:.85rem; opacity:.75">
+    かんそうを書くときの あいことば：<b id="titleWord" style="font-size:1.1rem"></b></p>
+</div>
+
+<div class="overlay" id="unitScreen" style="display:none">
+  <h2>のりものをえらぼう</h2>
+  <div id="catRow" style="display:flex; flex-wrap:wrap; justify-content:center;"></div>
+  <div id="typeList"></div>
+  <button class="btn" id="btnLaunch">🚀 出撃！</button>
+</div>
+
+<div class="overlay" id="endScreen" style="display:none">
+  <h1 id="endTitle"></h1>
+  <p id="endText"></p>
+  <p style="margin:.2em 0 0; font-size:.95rem">かんそうを書くときの <b>あいことば</b></p>
+  <p id="endWord" style="margin:.1em 0 .6em; font-size:1.6rem; font-weight:bold; letter-spacing:.05em;
+     background:rgba(255,255,255,.15); border-radius:8px; padding:.15em .6em"></p>
+  <button class="btn" id="btnRetry">もういちど！</button>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+// ============ ゲームログ ============
+// 実験ごとに別のキーで保存する。前は全部おなじキーだったので、
+// 別のバージョンを開くたびに前の実験のログが消えていた。
+// ?tag=exp2_C のように条件の名前をつけると、その名前で保存される。
+const LOG_TAG = new URLSearchParams(location.search).get('tag') || 'free';
+const STARTED = new Date().toISOString();
+const LOG_KEY = 'yuujinGameLog_' + STARTED.replace(/[:.]/g, '-') + '_' + LOG_TAG;
+const gameLog = [];
+function logEvent(type, data) { gameLog.push({ t: Math.round(performance.now()), type, data }); }
+function saveLog() {
+  try {
+    localStorage.setItem(LOG_KEY, JSON.stringify(
+      { ver: location.pathname, tag: LOG_TAG, started: STARTED, events: gameLog.slice(-3000) }));
+  } catch (e) {
+    // だまって消えるのがいちばん困る（テストプレイは全部データ）ので、気づけるようにする
+    console.warn('⚠ ログを保存できなかった。容量オーバーかも。Shift+L で書き出してから localStorage を空にして。', e);
+  }
+}
+window.saveLog = saveLog;
+setInterval(saveLog, 10000);
+addEventListener('beforeunload', saveLog);   // 閉じるときも保存（最後の10秒を落とさない）
+window.gameLog = gameLog;
+
+// ============ ログの自動アップロード ============
+// localStorage は端末ごとに別なので、サブPCのぶんを Shift+L で手作業で
+// 回収するしかなかった（8/13に取りこぼしかけた）。どの端末・どのバージョンで
+// 遊んでも同じスプレッドシートに自動で集まるようにする。
+// localStorage と Shift+L はそのまま残す＝ネットが切れても失わない二重化。
+const CLOUD_URL = 'https://script.google.com/macros/s/AKfycbyMDP1lVKD7YRe3A0Z37qr9W6fMOcIyPiy-c_d2kZs1ywQCeeBrwLz7sm6-5tKqYomX/exec';
+const CLOUD_KEY = 'yuujin2026';
+// どのPCから送られたログか分かるように、端末ごとの名前を1回だけ作って覚えておく
+if (!localStorage.getItem('yuujinDevice')) {
+  localStorage.setItem('yuujinDevice', 'pc-' + Math.random().toString(36).slice(2, 7));
+}
+const DEVICE = localStorage.getItem('yuujinDevice');
+// どんな機械で遊んだかを自動で見分ける。スマホだと霧の見え方が変わるので、
+// 感想を読むときの前提が変わる（監督の修繕指示・8/14）。だから必ず記録する。
+const UA = navigator.userAgent;
+const TOUCH = (navigator.maxTouchPoints || 0) > 0 || 'ontouchstart' in window;
+const PLATFORM =
+  /iPhone|Windows Phone|Android.+Mobile/i.test(UA) ? 'phone' :
+  /iPad|Tablet/i.test(UA) || /Android/i.test(UA) ? 'tablet' :
+  /Macintosh/i.test(UA) && TOUCH ? 'tablet' :          // iPadはMacと名乗るので、タッチの有無で見分ける
+  TOUCH && Math.min(screen.width, screen.height) <= 820 ? 'phone' : 'pc';
+const SCREEN = screen.width + 'x' + screen.height;
+// 【あいことば】感想フォームの回答と、この端末のプレイ記録を結びつけるための合言葉。
+// これが無いと、遊んだ人が増えたとき「どの感想がどのプレイのものか」が分からなくなる。
+// 端末ごとに1回だけ決めて覚えるので、同じ人が何回遊んでも同じ言葉になる。
+// 言葉は1つだけ＋3けたの数字にする（2語つなげると「ちいさいわし」→「ちいさ・いわし」のように
+// 読み間違えるため）。10種×900＝9000とおりなので、数十人ぶんならまず重ならない。
+if (!localStorage.getItem('yuujinWord')) {
+  const B = ['ねこ', 'いぬ', 'くじら', 'さめ', 'かめ', 'たか', 'わし', 'ぺんぎん', 'らっこ', 'きつね'];
+  localStorage.setItem('yuujinWord',
+    B[Math.floor(Math.random() * B.length)] + (100 + Math.floor(Math.random() * 900)));
+}
+const WORD = localStorage.getItem('yuujinWord');
+addEventListener('DOMContentLoaded', () => {
+  const t = document.getElementById('titleWord');
+  if (t) t.textContent = WORD;
+});
+if (document.readyState !== 'loading') {
+  const t = document.getElementById('titleWord');
+  if (t) t.textContent = WORD;
+}
+// キーボードで遊んだか、指で遊んだか（＝③「キーボードの音が気持ちいい」に関わる）。最初の1回だけ記録
+let firstInput = null;
+function noteInput(how) {
+  if (firstInput) return;
+  firstInput = how;
+  logEvent('input', { how });
+}
+addEventListener('keydown', () => noteInput('key'));
+addEventListener('touchstart', () => noteInput('touch'), { passive: true });
+let sentCount = 0;            // ここまでは送信ずみ
+let sending = false;
+function cloudBody(events) {
+  const q = new URLSearchParams(location.search);
+  return JSON.stringify({
+    key: CLOUD_KEY, runId: LOG_KEY, device: DEVICE, ver: location.pathname,
+    tag: LOG_TAG, ear: q.get('ear') || 'B', off: q.get('off') || '',
+    ver: 'v5', bgm: q.get('bgm') || 'off', diff: q.get('diff') || 'normal', tune: tuneStr(), events
+  });
+}
+async function sendLog() {
+  if (sending || sentCount >= gameLog.length) return;
+  sending = true;
+  const upto = gameLog.length;          // 送信中に増えたぶんは次の回にまわす
+  try {
+    const res = await fetch(CLOUD_URL, {
+      method: 'POST', headers: { 'Content-Type': 'text/plain' },
+      body: cloudBody(gameLog.slice(sentCount, upto))
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    sentCount = upto;                   // 届いたぶんだけ進める。失敗したら次回また送る
+  } catch (e) {
+    // 送れなかったときは黙って捨てずに、次の60秒でもう一度試す
+    console.warn('⚠ ログを送れなかった。次の60秒でまた試す。localStorage には残っている。', e);
+  } finally { sending = false; }
+}
+setInterval(sendLog, 60000);
+addEventListener('beforeunload', () => {
+  // 閉じるときは fetch が途中で切られるので sendBeacon で投げっぱなしにする
+  if (sentCount < gameLog.length) {
+    navigator.sendBeacon(CLOUD_URL,
+      new Blob([cloudBody(gameLog.slice(sentCount))], { type: 'text/plain' }));
+  }
+});
+window.sendLog = sendLog;
+
+// Shift+L で、これまでの全実験のログを1つのJSONにして書き出す
+window.dumpLogs = function () {
+  const all = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith('yuujinGameLog_')) { try { all[k] = JSON.parse(localStorage.getItem(k)); } catch (e) {} }
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(all, null, 1)], { type: 'application/json' }));
+  a.download = 'gamelog_' + STARTED.slice(0, 10) + '.json';
+  a.click();
+  console.log(Object.keys(all).length + ' ラン分を書き出した');
+};
+addEventListener('keydown', e => {
+  if (e.shiftKey && e.code === 'KeyL') { saveLog(); dumpLogs(); }
+  if (e.code === 'KeyP' && G.running) { togglePause(); }
+});
+
+// ============ ユニット図鑑（ゆうじん設計） ============
+const CATALOG = {
+  fighter: { label: '🛩 戦闘機', types: [
+    { id:'antisub',     role:'antisub',     name:'潜水艦撃破機',   desc:'潜水艦に大ダメージ！爆弾は爆雷にもなる', speed:60, turn:1.4, gun:2,   bombs:2, bombDmg:70,  hp:100 },
+    { id:'anticarrier', role:'anticarrier', name:'空母撃破型機',   desc:'空母に大ダメージ！',                     speed:60, turn:1.4, gun:2,   bombs:2, bombDmg:80,  hp:100 },
+    { id:'antiair',     role:'antiair',     name:'敵機撃破型機',   desc:'敵の飛行機に強い。旋回がはやい',         speed:64, turn:2.0, gun:2,   bombs:2, bombDmg:55,  hp:100 },
+    { id:'antiport',    role:'antiport',    name:'港撃破型機',     desc:'港と拠点に大ダメージ！爆弾がでかい',     speed:56, turn:1.3, gun:2,   bombs:2, bombDmg:120, hp:110 },
+    { id:'recon',  faction:'allied', role:'none', name:'水上偵察機', desc:'いちばん速い！きりの中でもレーダーが使える', speed:80, turn:1.6, gun:1.2, bombs:1, bombDmg:40, hp:80, radarInFog:true },
+    { id:'zero',   faction:'axis',   role:'antiair', name:'零式戦闘機', desc:'速くてよく曲がる名機',               speed:72, turn:1.9, gun:2.2, bombs:2, bombDmg:55,  hp:90 },
+    // イージー専用機（監督指示 8/14：連合国はB29）。ノーマル＝実験の基準を変えないため easyOnly
+    { id:'b29',    faction:'allied', role:'antiport', name:'B29爆撃機', desc:'でっかくてがんじょうな爆撃機。爆弾を4発つめる', speed:58, turn:1.2, gun:2, bombs:4, bombDmg:70, hp:140, easyOnly:true },
+  ]},
+  ship: { label: '🚢 軍艦', types: [
+    { id:'carrier',   klass:'carrier',   name:'空母',             desc:'HPが高く、じぶんで修理できて、護衛機を2機まで発艦できる', speed:28, turn:0.4, gun:5,  hp:170, selfRepair:true, escorts:2, both:true },
+    { id:'destroyer', klass:'destroyer', name:'駆逐艦',           desc:'バランス型。爆雷で潜水艦もたおせる',   speed:30, turn:0.6,  gun:12, hp:95,  depthCharges:6, both:true },
+    { id:'gunboat',   faction:'allied', klass:'destroyer', name:'小船軍艦',       desc:'小さくて速い！',                       speed:44, turn:0.9,  gun:8,  hp:60 },
+    { id:'giantA',    faction:'allied', klass:'destroyer', name:'巨大駆逐艦',     desc:'大砲がすごい。HPも高い。でもおそい',   speed:21, turn:0.4,  gun:20, hp:150 },
+    { id:'carrierD',  faction:'allied', klass:'carrier',   name:'空母型駆逐艦',   desc:'修理もできて大砲もそこそこ。護衛機も2機だせる', speed:32, turn:0.55, gun:10, hp:115, selfRepair:true, escorts:2 },
+    { id:'scoutD',    faction:'axis',   klass:'destroyer', name:'偵察式駆逐艦',   desc:'きりの中でもレーダーが使える',         speed:33, turn:0.7,  gun:9,  hp:85, radarInFog:true },
+    { id:'torpD',     faction:'axis',   klass:'destroyer', name:'魚雷装備駆逐艦', desc:'魚雷を6本もっている！',                speed:30, turn:0.6,  gun:10, hp:95, torpedoes:6 },
+    { id:'giantX',    faction:'axis',   klass:'destroyer', name:'巨大駆逐艦',     desc:'大砲がすごい。HPも高い。でもおそい',   speed:20, turn:0.4,  gun:20, hp:160 },
+  ]},
+  sub: { label: '🐋 潜水艦', types: [
+    { id:'subAntiD', role:'antidestroyer', name:'駆逐艦撃破艦', desc:'魚雷が駆逐艦に大ダメージ',           speed:22, turn:0.8, torpDmg:45, reload:3,   hp:65, both:true },
+    { id:'subAntiC', role:'anticarrier',   name:'空母撃破艦',   desc:'魚雷が空母に大ダメージ',             speed:22, turn:0.8, torpDmg:45, reload:3,   hp:65, both:true },
+    { id:'subAll',   role:'universal',     name:'船のすべてに通用する撃破艦', desc:'どの船にもちょっと強い', speed:20, turn:0.8, torpDmg:40, reload:3,   hp:75, both:true },
+    { id:'subTorp',  faction:'allied', role:'none', name:'魚雷用の撃破艦', desc:'魚雷のこめなおしが超はやい！', speed:22, turn:0.9, torpDmg:40, reload:1.6, hp:60 },
+    { id:'uboat',    faction:'axis',   role:'none', name:'Uボート',        desc:'速い！水中のかりうど',         speed:28, turn:0.9, torpDmg:45, reload:2.2, hp:70 },
+  ]},
+};
+// 相性倍率（じゃんけんシステム）
+function roleMult(role, unit) {
+  if (!role || role === 'none') return 1;
+  if (role === 'antisub'     && unit.kind === 'sub') return 2.5;
+  if (role === 'anticarrier' && unit.klass === 'carrier') return 2.2;
+  if (role === 'antiair'     && unit.kind === 'plane') return 2.5;
+  if (role === 'antiport'    && (unit.kind === 'port' || unit.kind === 'base')) return 2.2;
+  if (role === 'antidestroyer' && unit.klass === 'destroyer') return 2.2;
+  if (role === 'universal'   && unit.kind === 'ship') return 1.5;
+  return 1;
+}
+
+// ============ 3D基本セットアップ ============
+const scene = new THREE.Scene();
+const SKY_CLEAR = new THREE.Color(0x87ceeb);
+const SKY_FOG = new THREE.Color(0x9eaeb5);
+const SKY_SEA = new THREE.Color(0x0a3d62);
+scene.background = SKY_CLEAR.clone();
+scene.fog = new THREE.FogExp2(0x87ceeb, 0.003);
+
+const camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.5, 5000);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+document.getElementById('game').appendChild(renderer.domElement);
+// スマホやタブレットのたて長画面だと、よこの見える範囲がせまくなってしまう。
+// たて長のときは視野を広げて、よこもちゃんと見えるようにする
+function fitCamera() {
+  const aspect = innerWidth / innerHeight;
+  camera.aspect = aspect;
+  camera.fov = aspect < 1 ? Math.min(100, 70 / Math.pow(aspect, 0.6)) : 70;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+}
+fitCamera();
+addEventListener('resize', fitCamera);
+addEventListener('orientationchange', () => setTimeout(fitCamera, 300));
+scene.add(new THREE.AmbientLight(0xbbddff, 0.8));
+const sun = new THREE.DirectionalLight(0xffffff, 2.2);
+sun.position.set(300, 500, 200);
+scene.add(sun);
+
+// 海（下からも見えるように両面）
+const seaGeo = new THREE.PlaneGeometry(7000, 7000, 70, 70);
+const sea = new THREE.Mesh(seaGeo, new THREE.MeshLambertMaterial({ color: 0x1565c0, side: THREE.DoubleSide, transparent: true, opacity: 0.96 }));
+sea.rotation.x = -Math.PI/2;
+scene.add(sea);
+const seaBase = seaGeo.attributes.position.array.slice();
+// 海底
+const seabed = new THREE.Mesh(new THREE.PlaneGeometry(7000, 7000), new THREE.MeshLambertMaterial({ color: 0x14324a }));
+seabed.rotation.x = -Math.PI/2;
+seabed.position.y = -40;
+scene.add(seabed);
+
+// ============ ワールドの部品 ============
+function makeIsland(x, z, radius, kind) { // kind: 'base' | 'port' | 'plain'
+  const g = new THREE.Group();
+  const rock = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius*1.25, 46, 24), new THREE.MeshLambertMaterial({ color: 0xd7c08a }));
+  rock.position.y = -20;
+  g.add(rock);
+  if (kind === 'base') {
+    const pad = new THREE.Mesh(new THREE.CylinderGeometry(radius*0.85, radius*0.85, 2, 24), new THREE.MeshLambertMaterial({ color: 0x9e9e9e }));
+    pad.position.y = 4; g.add(pad);
+    const runway = new THREE.Mesh(new THREE.BoxGeometry(radius*1.5, 0.8, 16), new THREE.MeshLambertMaterial({ color: 0x555555 }));
+    runway.position.y = 5.4; g.add(runway);
+    const tower = new THREE.Mesh(new THREE.BoxGeometry(6, 14, 6), new THREE.MeshLambertMaterial({ color: 0x78909c }));
+    tower.position.set(0, 12, radius*0.45); g.add(tower);
+  } else if (kind === 'plain') {
+    const green = new THREE.Mesh(new THREE.CylinderGeometry(radius*0.7, radius*0.85, 5, 24), new THREE.MeshLambertMaterial({ color: 0x2e7d32 }));
+    green.position.y = 5; g.add(green);
+  }
+  g.position.set(x, 0, z);
+  scene.add(g);
+  return g;
+}
+function makeFlag(color) {
+  const g = new THREE.Group();
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 34), new THREE.MeshLambertMaterial({ color: 0xeceff1 }));
+  pole.position.y = 17; g.add(pole);
+  const flag = new THREE.Mesh(new THREE.PlaneGeometry(14, 8), new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide }));
+  flag.position.set(7.5, 29, 0); g.add(flag);
+  return g;
+}
+function makePortBuildings(color) {
+  const g = new THREE.Group();
+  const cols = color === 'red' ? [0xbf360c, 0x8d6e63, 0x6d4c41] : [0x1565c0, 0x546e7a, 0x37474f];
+  for (let i = 0; i < 6; i++) {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(8+Math.random()*7, 8+Math.random()*12, 8+Math.random()*7), new THREE.MeshLambertMaterial({ color: cols[i%3] }));
+    b.position.set((Math.random()-0.5)*46, 9, (Math.random()-0.5)*46);
+    g.add(b);
+  }
+  const crane = new THREE.Mesh(new THREE.BoxGeometry(2, 26, 2), new THREE.MeshLambertMaterial({ color: 0xff8f00 }));
+  crane.position.set(22, 17, 0); g.add(crane);
+  g.add(makeFlag(color === 'red' ? 0xd50000 : 0x2962ff));
+  return g;
+}
+function makeShipMesh(klass, enemy) {
+  const g = new THREE.Group();
+  const col = enemy ? 0x5d4037 : 0x37474f;
+  // 水面下の船体（潜水艦からもぐって見上げたときにも、ちゃんと船の底がある：ゆうじん発見）
+  if (klass === 'carrier') {
+    const deck = new THREE.Mesh(new THREE.BoxGeometry(16, 6, 70), new THREE.MeshLambertMaterial({ color: col })); deck.position.y = 4; g.add(deck);
+    const flat = new THREE.Mesh(new THREE.BoxGeometry(18, 1.5, 74), new THREE.MeshLambertMaterial({ color: 0x263238 })); flat.position.y = 7.5; g.add(flat);
+    const isl = new THREE.Mesh(new THREE.BoxGeometry(4, 8, 10), new THREE.MeshLambertMaterial({ color: 0x78909c })); isl.position.set(8, 12, 0); g.add(isl);
+    const keel = new THREE.Mesh(new THREE.BoxGeometry(13, 6, 60), new THREE.MeshLambertMaterial({ color: 0x6d2c1b })); keel.position.y = -2.5; g.add(keel);
+  } else {
+    const hull = new THREE.Mesh(new THREE.BoxGeometry(8, 5, 42), new THREE.MeshLambertMaterial({ color: col })); hull.position.y = 3; g.add(hull);
+    const keel = new THREE.Mesh(new THREE.BoxGeometry(6, 5, 34), new THREE.MeshLambertMaterial({ color: 0x6d2c1b })); keel.position.y = -2; g.add(keel);
+    const sup = new THREE.Mesh(new THREE.BoxGeometry(5, 6, 14), new THREE.MeshLambertMaterial({ color: 0x90a4ae })); sup.position.y = 8; g.add(sup);
+    const gun = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 8), new THREE.MeshLambertMaterial({ color: 0x455a64 }));
+    gun.rotation.x = Math.PI/2.5; gun.position.set(0, 8, -14); g.add(gun);
+  }
+  return g;
+}
+function makeSubMesh(enemy) {
+  const g = new THREE.Group();
+  const hull = new THREE.Mesh(new THREE.CapsuleGeometry(3.5, 26, 6, 10), new THREE.MeshLambertMaterial({ color: enemy ? 0x4e342e : 0x263238 }));
+  hull.rotation.x = Math.PI/2; g.add(hull);
+  const tower = new THREE.Mesh(new THREE.BoxGeometry(3, 5, 8), new THREE.MeshLambertMaterial({ color: 0x37474f }));
+  tower.position.y = 4; g.add(tower);
+  const scope = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 6), new THREE.MeshLambertMaterial({ color: 0x90a4ae }));
+  scope.position.y = 8; g.add(scope);
+  return g;
+}
+function makePlaneMesh(color) {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 0.6, 10, 10), new THREE.MeshLambertMaterial({ color }));
+  body.rotation.x = -Math.PI/2; g.add(body);
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(1.2, 2.5, 10), new THREE.MeshLambertMaterial({ color: 0x424242 }));
+  nose.rotation.x = -Math.PI/2; nose.position.z = -6; g.add(nose);
+  const wing = new THREE.Mesh(new THREE.BoxGeometry(16, 0.5, 3.5), new THREE.MeshLambertMaterial({ color })); wing.position.z = -0.5; g.add(wing);
+  const tail = new THREE.Mesh(new THREE.BoxGeometry(6, 0.4, 2), new THREE.MeshLambertMaterial({ color })); tail.position.z = 4.5; g.add(tail);
+  const fin = new THREE.Mesh(new THREE.BoxGeometry(0.4, 2.5, 2), new THREE.MeshLambertMaterial({ color })); fin.position.set(0, 1.2, 4.5); g.add(fin);
+  return g;
+}
+function makeTrumpMesh(faction) {
+  const g = new THREE.Group();
+  if (faction === 'axis') {
+    const hull = new THREE.Mesh(new THREE.BoxGeometry(16, 8, 90), new THREE.MeshLambertMaterial({ color: 0x37474f })); hull.position.y = 4; g.add(hull);
+    const keel = new THREE.Mesh(new THREE.BoxGeometry(13, 6, 78), new THREE.MeshLambertMaterial({ color: 0x6d2c1b })); keel.position.y = -2.5; g.add(keel);
+    const sup = new THREE.Mesh(new THREE.BoxGeometry(9, 14, 24), new THREE.MeshLambertMaterial({ color: 0x546e7a })); sup.position.y = 13; g.add(sup);
+    for (const zz of [-32, -18, 26]) {
+      const t = new THREE.Mesh(new THREE.BoxGeometry(9, 4, 12), new THREE.MeshLambertMaterial({ color: 0x455a64 }));
+      t.position.set(0, 9.5, zz); g.add(t);
+    }
+  } else {
+    const hull = new THREE.Mesh(new THREE.CapsuleGeometry(7, 70, 8, 12), new THREE.MeshLambertMaterial({ color: 0x263238 }));
+    hull.rotation.x = Math.PI/2; hull.position.y = 3; g.add(hull);
+    const tower = new THREE.Mesh(new THREE.BoxGeometry(5, 10, 14), new THREE.MeshLambertMaterial({ color: 0x37474f })); tower.position.y = 11; g.add(tower);
+  }
+  return g;
+}
+
+// ============ HPバー（敵にも味方にも出す：ゆうじん要望） ============
+function attachHpBar(unit, height) {
+  const cv = document.createElement('canvas'); cv.width = 64; cv.height = 10;
+  const tex = new THREE.CanvasTexture(cv);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false }));
+  sp.scale.set(26, 4, 1);
+  sp.position.y = height;
+  unit.group.add(sp);
+  unit.hpCv = cv; unit.hpTex = tex; unit.hpSprite = sp;
+  updateHpBar(unit);
+}
+function updateHpBar(unit) {
+  const c = unit.hpCv.getContext('2d');
+  c.clearRect(0, 0, 64, 10);
+  c.fillStyle = 'rgba(0,0,0,0.6)'; c.fillRect(0, 0, 64, 10);
+  const pct = Math.max(0, unit.hp / unit.maxHp);
+  c.fillStyle = pct > 0.5 ? '#66bb6a' : pct > 0.25 ? '#ffee58' : '#ef5350';
+  c.fillRect(1, 1, 62 * pct, 8);
+  c.strokeStyle = unit.faction === 'enemy' ? '#ff5252' : '#69f0ae';
+  c.strokeRect(0.5, 0.5, 63, 9);
+  unit.hpTex.needsUpdate = true;
+}
+
+// ============ ワールド配置（第2号：港と拠点は別、距離も遠く） ============
+const OUR = { base: { x: -1000, z: -150 }, port: { x: -1350, z: 180 } };
+const ENEMY = { base: { x: 1050, z: 200 }, port: { x: 1450, z: -180 } };
+const islandDefs = [
+  { ...OUR.base, r: 65, kind: 'base', side: 'ally' },
+  { ...OUR.port, r: 75, kind: 'port', side: 'ally' },
+  { ...ENEMY.base, r: 65, kind: 'base', side: 'enemy' },
+  { ...ENEMY.port, r: 75, kind: 'port', side: 'enemy' },
+  { x: 0, z: -500, r: 45, kind: 'plain' }, { x: 150, z: 450, r: 35, kind: 'plain' },
+  { x: -400, z: 350, r: 28, kind: 'plain' }, { x: 450, z: -300, r: 30, kind: 'plain' },
+];
+for (const d of islandDefs) d.group = makeIsland(d.x, d.z, d.r, d.kind === 'plain' ? 'plain' : d.kind);
+
+// ============ ユニット管理 ============
+let units = [];   // AIユニット＋港＋拠点（playerはべつ）
+function addUnit(u) {
+  if (u.faction === 'enemy' && TUNE.ehp !== 1) { u.hp *= TUNE.ehp; u.maxHp *= TUNE.ehp; }   // 調整パネル：敵のかたさ（敵の全ユニットに1箇所で効く）
+  units.push(u); scene.add(u.group); attachHpBar(u, u.barH || 20); return u;
+}
+
+function spawnStructure(side, kind) { // kind: 'port' | 'base'
+  const at = side === 'enemy' ? ENEMY[kind] : OUR[kind];
+  const g = new THREE.Group();
+  if (kind === 'port') g.add(makePortBuildings(side === 'enemy' ? 'red' : 'blue'));
+  else g.add(makeFlag(side === 'enemy' ? 0xff6d00 : 0x00b0ff));
+  g.position.set(at.x, 4, at.z);
+  return addUnit({ group: g, kind, klass: kind, faction: side === 'enemy' ? 'enemy' : 'ally',
+    name: (side === 'enemy' ? '敵の' : '味方の') + (kind === 'port' ? '港' : '拠点'),
+    hp: kind === 'port' ? 250 : 160, maxHp: kind === 'port' ? 250 : 160,
+    radius: kind === 'port' ? 36 : 30, aaRange: kind === 'port' ? 260 : 220, aaTimer: 1, barH: 42, structure: true });
+}
+function spawnAIShip(side, klass, x, z, mission) {
+  const g = makeShipMesh(klass, side === 'enemy');
+  g.position.set(x, 0, z);
+  return addUnit({ group: g, kind: 'ship', klass, faction: side,
+    name: (side === 'enemy' ? '敵の' : '味方の') + (klass === 'carrier' ? '空母' : '駆逐艦'),
+    hp: klass === 'carrier' ? 130 : 60, maxHp: klass === 'carrier' ? 130 : 60,
+    radius: klass === 'carrier' ? 38 : 24, speed: klass === 'carrier' ? 10 : 16,
+    aaRange: 180, aaTimer: Math.random()*2, angle: Math.random()*Math.PI*2, mission, shellTimer: 3, barH: klass === 'carrier' ? 22 : 18,
+    planeCap: klass === 'carrier' ? 1 + Math.floor(Math.random()*2) : 0, planes: [], launchT: 6 });
+}
+function spawnAISub(side, x, z, mission) {
+  const g = makeSubMesh(side === 'enemy');
+  g.position.set(x, -2, z);
+  return addUnit({ group: g, kind: 'sub', klass: 'sub', faction: side, name: (side === 'enemy' ? '敵の' : '味方の') + '潜水艦',
+    hp: 55, maxHp: 55, radius: 18, speed: 14, aaRange: 0, aaTimer: 0, angle: Math.random()*Math.PI*2, mission, shellTimer: 5, barH: 12 });
+}
+function spawnAIPlane(side, x, z) {
+  const g = makePlaneMesh(side === 'enemy' ? 0x8d6e63 : 0x1565c0);
+  g.position.set(x, 50, z);
+  return addUnit({ group: g, kind: 'plane', klass: 'plane', faction: side, name: (side === 'enemy' ? '敵の' : '味方の') + '戦闘機',
+    hp: 30, maxHp: 30, radius: 9, speed: 52, aaRange: 170, aaTimer: 1, yaw: Math.random()*Math.PI*2, barH: 8 });
+}
+
+// ============ ゲーム状態 ============
+const G = {
+  running: false, faction: null, mode: null, def: null,
+  fuel: 100, hp: 100, kills: 0, gameMin: 6*60,
+  fogCycle: 0, fogActive: false, msgTimer: 0, shake: 0,
+  yaw: 0, pitch: 0, shipSpeed: 0, depth: -3,
+  ammo2: 0, reloadT: 0, trumpSpawned: false, reinforceT: 0,
+};
+const GAME_MIN_PER_SEC = 0.5;
+const FUEL_MINUTES = 60;
+const FOG_EVERY = 20, FOG_LASTS = 5;
+const REINFORCE_SEC = 300; // 現実時間5分ごとに増援（ゆうじんルール）
+
+let player = { group: null, radius: 5 };
+let trumps = [];
+let ourPort = null, enemyPort = null;
+const projs = [];   // すべての弾（弾丸・砲弾・魚雷・爆弾・爆雷）
+const explosions = [];
+
+// ============ 音 ============
+// 【自由研究・実験②】「この世界の耳は、どこにあるのか」を切りかえられるようにした。
+//   ?ear=A → 音なし（耳がない）
+//   ?ear=B → いままでどおり。どんなに遠くの爆発も目の前と同じ大きさで鳴る＝「神の耳」（規定値）
+//   ?ear=C → 自分ののりものに耳をつける。遠い音は小さく・こもって・左右に分かれて聞こえる。
+//            エンジン音がずっと鳴り、潜水艦のときは水中ぶんさらにこもる。
+// 距離の減衰も左右の定位も自前では計算せず、Web Audio 標準の PannerNode と
+// audioCtx.listener にやらせている（＝「耳の位置」という概念がブラウザ側にある）。
+const EAR = (new URLSearchParams(location.search).get('ear') || 'B').toUpperCase();
+const EAR_ON = (EAR === 'C');     // のりものの耳
+const EAR_MUTE = (EAR === 'A');   // 無音
+// 【自由研究・実験①】引き算のじっけん。部品を1つ抜いて「面白さがどの部品に宿っているか」を調べる。
+//   ?off=fog  → 霧が出ない　　?off=fuel → 燃料が減らない　　（音を抜くのは ?ear=A を使う）
+// 条件は画面に出さない（見えると答えが引っぱられる）。ログのstartには記録される。
+const OFF = new Set((new URLSearchParams(location.search).get('off') || '').toLowerCase().split(',').filter(Boolean));
+// ponytail: HRTF（頭の形を使った定位）はCPUを食う。実機で重かったら 'equalpower' に落とす
+const PANNING_MODEL = (new URLSearchParams(location.search).get('panning') || 'HRTF').toUpperCase();  // ?panning=equal でスピーカー対応
+// 【自由研究・実験③】難易度。監督の設計（8/14のテストプレイ録音より）：
+//   ?diff=easy → 初級者向け。えらべる機体はゼロ戦だけ・敵の増援は1体だけ・燃料ちょっと多め（3割まし）
+//   ?diff=hard → 敵の潜水艦がもぐって来る・増援が多くて空母もたくさん出る・燃料はノーマルの半分
+//   なし＝normal（いままでのゲーム＝基準）。実験①②と同じで、条件のちがいは画面に出さない。ログには残る。
+const DIFF = (new URLSearchParams(location.search).get('diff') || 'normal').toLowerCase();
+const FUEL_MULT = DIFF === 'easy' ? 1.3 : DIFF === 'hard' ? 0.5 : 1;   // 燃料のもち時間の倍率
+
+// 【監督の調整パネル】?dev=1 でスライダーが出る（8/14夜・バランス調整権限の道具）。
+// スライダーの値は tn_〜 のURLパラメータでも効く＝「監督プリセット」のURLを人に配れる。
+// 動かした値は全部ログに残る（監督の見つけた「ちょうどいい」がそのままデータになる）。
+const DEV = new URLSearchParams(location.search).get('dev') === '1';
+const TUNE = (() => {
+  const q = new URLSearchParams(location.search);
+  const num = (k, d) => { const v = parseFloat(q.get(k)); return isNaN(v) ? d : v; };
+  return {
+    fuel: num('tn_fuel', 1),    // 燃料のもち（モードの倍率にさらに掛ける）
+    rein: num('tn_rein', -1),   // 増援の数（-1＝モードのまま／0〜8で上書き）
+    ehp:  num('tn_ehp', 1),     // 敵のかたさ
+    edmg: num('tn_edmg', 1),    // 敵の攻撃の強さ
+  };
+})();
+function tuneStr() { return `fuel${TUNE.fuel}_rein${TUNE.rein}_ehp${TUNE.ehp}_edmg${TUNE.edmg}`; }
+if (DEV) {
+  const defs = [
+    ['fuel', '⛽ 燃料のもち',     0.3, 3, 0.1],
+    ['rein', '⚠ 増援の数',       -1,  8, 1],
+    ['ehp',  '🛡 敵のかたさ',     0.3, 3, 0.1],
+    ['edmg', '💥 敵の攻撃の強さ', 0,   3, 0.1],
+  ];
+  const pane = document.createElement('div');
+  pane.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99;background:rgba(0,20,40,.85);color:#fff;padding:8px 10px;border-radius:8px;font:12px sans-serif;width:210px';
+  pane.innerHTML = '<b>🎛 監督の調整パネル</b><br>' + defs.map(([k, name]) =>
+    `<label style="display:block;margin-top:4px">${name} <span id="tv_${k}"></span><br>` +
+    `<input id="tn_${k}" type="range" style="width:100%"></label>`).join('') +
+    '<button id="tn_url" style="margin-top:6px;width:100%">この設定のURLをコピー</button>';
+  document.body.appendChild(pane);
+  const el = id => document.getElementById(id);   // ($ はこの行より下で定義されるため使えない)
+  const show = k => { el(`tv_${k}`).textContent = (k === 'rein' && TUNE.rein < 0) ? 'モードのまま' : (k === 'rein' ? TUNE.rein + '体' : '×' + TUNE[k].toFixed(1)); };
+  for (const [k, , min, max, step] of defs) {
+    const s = el(`tn_${k}`);
+    s.min = min; s.max = max; s.step = step; s.value = TUNE[k];
+    show(k);
+    s.oninput = () => { TUNE[k] = parseFloat(s.value); show(k); };
+    s.onchange = () => logEvent('tune', { ...TUNE });   // 指をはなした値だけ記録（動かし中は記録しない）
+  }
+  el('tn_url').onclick = () => {
+    const q = new URLSearchParams();
+    if (DIFF !== 'normal') q.set('diff', DIFF);
+    for (const k of ['fuel', 'rein', 'ehp', 'edmg']) if (TUNE[k] !== (k === 'rein' ? -1 : 1)) q.set('tn_' + k, TUNE[k]);
+    q.set('tag', 'kantoku');
+    const url = location.origin + location.pathname + '?' + q;
+    navigator.clipboard.writeText(url).then(() => { el('tn_url').textContent = 'コピーした！'; setTimeout(() => el('tn_url').textContent = 'この設定のURLをコピー', 1500); });
+  };
+}
+
+let audioCtx = null;
+let sfxBus = null, waterFilter = null, engine = null;
+
+function initAudio() {
+  if (EAR_MUTE) return;                                   // A: そもそも音を作らない
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();  // iOS対策：タップで起こす
+  if (EAR_ON && !sfxBus) buildEar();
+}
+
+// C専用。耳のうしろ側（水中のこもり）と、のりもののエンジン音をつくる
+function buildEar() {
+  sfxBus = audioCtx.createGain(); sfxBus.gain.value = 1;
+  waterFilter = audioCtx.createBiquadFilter();
+  waterFilter.type = 'lowpass'; waterFilter.frequency.value = 20000;  // 水上では素通し
+  sfxBus.connect(waterFilter).connect(audioCtx.destination);
+
+  // エンジン音：のりものの中にいることが耳でわかるように、ずっと鳴らす
+  const osc = audioCtx.createOscillator(); osc.type = 'sawtooth'; osc.frequency.value = 60;
+  const lp = audioCtx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 320;
+  const g = audioCtx.createGain(); g.gain.value = 0;
+  const lfo = audioCtx.createOscillator(); lfo.frequency.value = 5.5;   // すこし揺らす
+  const lfoG = audioCtx.createGain(); lfoG.gain.value = 3;              // （一定だと機械に聞こえない）
+  lfo.connect(lfoG).connect(osc.frequency); lfo.start();
+  osc.connect(lp).connect(g).connect(sfxBus); osc.start();
+  engine = { osc, gain: g };
+}
+
+// 音の出口を返す。ここが「耳をどこに置くか」の分かれ道。
+// pos を渡さない音＝自分のすぐそば（自機の武器）なので、距離の計算はしない。
+function sfxOut(pos) {
+  if (EAR_MUTE || !audioCtx) return null;
+  if (!EAR_ON || !sfxBus) return audioCtx.destination;   // B: 昔のまま。距離も向きも無視
+  if (!pos) return sfxBus;                               // 自機の音（水中フィルタだけは通る）
+  const d = player.group ? pos.distanceTo(player.group.position) : 0;
+  const air = audioCtx.createBiquadFilter();             // 遠いほど高い音が空気に吸われる
+  air.type = 'lowpass'; air.frequency.value = Math.max(500, 12000 / (1 + d / 200));
+  const pan = audioCtx.createPanner();
+  pan.panningModel = PANNING_MODEL;
+  pan.distanceModel = 'inverse'; pan.refDistance = 80; pan.rolloffFactor = 0.9; pan.maxDistance = 8000;
+  if (pan.positionX) { pan.positionX.value = pos.x; pan.positionY.value = pos.y; pan.positionZ.value = pos.z; }
+  else pan.setPosition(pos.x, pos.y, pos.z);             // 古いSafari用
+  air.connect(pan).connect(sfxBus);
+  return air;
+}
+
+// 毎フレーム、耳を自分ののりものの位置と向きに置きなおす（目＝カメラとは別物）
+function updateEar(P, fwd) {
+  if (!EAR_ON || !audioCtx || !sfxBus) return;
+  const L = audioCtx.listener;
+  if (L.positionX) {
+    L.positionX.value = P.x; L.positionY.value = P.y; L.positionZ.value = P.z;
+    L.forwardX.value = fwd.x; L.forwardY.value = fwd.y; L.forwardZ.value = fwd.z;
+    L.upX.value = 0; L.upY.value = 1; L.upZ.value = 0;
+  } else {
+    L.setPosition(P.x, P.y, P.z);
+    L.setOrientation(fwd.x, fwd.y, fwd.z, 0, 1, 0);      // 古いSafari用
+  }
+  const wet = (G.mode === 'sub');                        // 水の中では高い音が届かない
+  waterFilter.frequency.value += ((wet ? 500 : 20000) - waterFilter.frequency.value) * 0.1;
+  if (engine) {
+    const spec = G.mode === 'fighter' ? { f: 78, v: 0.07 }
+               : G.mode === 'ship'    ? { f: 34, v: 0.09 }
+               :                        { f: 46, v: 0.06 };
+    engine.osc.frequency.value = spec.f;
+    engine.gain.gain.value += ((G.running ? spec.v : 0) - engine.gain.gain.value) * 0.08;
+  }
+}
+
+// 実験中にコンソールで「いまどの条件か」を確かめる用。
+// 画面には絶対に出さない（本人に条件が見えると、答えがそっちに引っぱられる）。
+// 条件の取りちがえに気づかないまま5分回すのがいちばん怖いので、これは残す。
+window.earInfo = (dist) => {
+  const info = { ear: EAR, 耳: EAR_MUTE ? 'なし（無音）' : EAR_ON ? '自分ののりもの' : '神の耳（距離を無視）',
+                 エンジン音: engine ? +engine.gain.gain.value.toFixed(3) : null,
+                 水中のこもりHz: waterFilter ? Math.round(waterFilter.frequency.value) : null };
+  if (dist != null) {
+    const p = player.group ? player.group.position : { x: 0, y: 0, z: 0 };
+    const out = sfxOut({ x: p.x, y: p.y, z: p.z + dist, distanceTo: () => dist });
+    info[`${dist}はなれた音`] = out
+      ? { 出口: out.constructor.name, こもり具合Hz: out.frequency ? Math.round(out.frequency.value) : '（かからない）' }
+      : '鳴らない';
+  }
+  return info;
+};
+
+// 実験①の確認用（コンソール専用。画面には出さない）
+window.expInfo = () => ({ off: [...OFF].join(',') || 'none', 霧が出るか: !OFF.has('fog'),
+                          燃料が減るか: !OFF.has('fuel'), いまの燃料: Math.round(G.fuel), いま霧か: G.fogActive,
+                          音楽: BGM_ON ? (bgm.name || '（まだ鳴っていない）') : 'なし（?bgm=on で有効）',
+                          曲ファイル: Object.entries(bgm.tracks).filter(([, a]) => a).map(([k]) => k).join(',') || 'なし' });
+
+function playGun(pos) {
+  const out = sfxOut(pos); if (!out) return;
+  const t = audioCtx.currentTime, o = audioCtx.createOscillator(), g = audioCtx.createGain();
+  o.type = 'square'; o.frequency.setValueAtTime(180, t); o.frequency.exponentialRampToValueAtTime(60, t+0.08);
+  g.gain.setValueAtTime(0.1, t); g.gain.exponentialRampToValueAtTime(0.001, t+0.09);
+  o.connect(g).connect(out); o.start(t); o.stop(t+0.1);
+}
+function playBoom(big, pos) {
+  const out = sfxOut(pos); if (!out) return;
+  const t = audioCtx.currentTime, dur = big ? 0.9 : 0.4;
+  const buf = audioCtx.createBuffer(1, audioCtx.sampleRate*dur, audioCtx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = (Math.random()*2-1)*Math.pow(1-i/d.length, 2);
+  const src = audioCtx.createBufferSource(); src.buffer = buf;
+  const f = audioCtx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = big ? 400 : 900;
+  const g = audioCtx.createGain(); g.gain.value = big ? 0.45 : 0.22;
+  src.connect(f).connect(g).connect(out); src.start(t);
+}
+
+// ============ 音楽（パパ作曲スロット：musicフォルダにmp3を置くだけで流れる） ============
+const BGM_FILES = { title: '../music/title.mp3', battle: '../music/battle.mp3', fog: '../music/fog.mp3', trump: '../music/trump.mp3', victory: '../music/victory.mp3', defeat: '../music/defeat.mp3' };   // v5はサブフォルダなので1つ上へ
+const bgm = { tracks: {}, current: null, name: null };
+for (const [k, src] of Object.entries(BGM_FILES)) {
+  const a = new Audio(src);
+  a.loop = (k === 'title' || k === 'battle' || k === 'fog');
+  a.volume = 0.45;
+  a.addEventListener('error', () => { bgm.tracks[k] = null; });
+  if (k === 'trump') a.addEventListener('ended', () => { if (G.running) playBgm(G.fogActive ? 'fog' : 'battle'); });
+  bgm.tracks[k] = a;
+}
+// 【自由研究・実験②の条件D】音楽は ?bgm=on のときだけ鳴る。
+// mp3を置いたら勝手に鳴る、にすると A/B/C を比べている途中で条件が変わってしまうため、
+// 曲が入っても既定は「音楽なし」のまま。D＝いまの耳（B or C）＋音楽 として後から足す。
+const BGM_ON = (new URLSearchParams(location.search).get('bgm') || '').toLowerCase() === 'on';
+function playBgm(name) {
+  if (!BGM_ON) return;           // 既定は音楽なし（実験②A/B/Cを汚さない）
+  if (EAR_MUTE) return;          // 条件A（音なし）は音楽も鳴らさない
+  if (bgm.name === name) return;
+  if (bgm.current) { bgm.current.pause(); bgm.current.currentTime = 0; }
+  bgm.name = name;
+  const t = bgm.tracks[name];
+  bgm.current = t || null;
+  if (t) t.play().catch(() => {});
+}
+
+// ============ 入力 ============
+const keys = {};
+addEventListener('keydown', e => { keys[e.code] = true; if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','KeyB'].includes(e.code)) e.preventDefault(); });
+addEventListener('keyup', e => { keys[e.code] = false; });
+const stick = { active: false, x: 0, y: 0, id: null };
+let firePressed = false, fire2Pressed = false;
+const stickZone = document.getElementById('stick');
+const stickBase = document.getElementById('stickBase'), stickKnob = document.getElementById('stickKnob');
+const fireBtn = document.getElementById('fireBtn'), fireBtn2 = document.getElementById('fireBtn2');
+const isTouch = 'ontouchstart' in window;
+stickZone.addEventListener('touchstart', e => {
+  const t = e.changedTouches[0];
+  stick.active = true; stick.id = t.identifier; stick.cx = t.clientX; stick.cy = t.clientY;
+  stickBase.style.display = stickKnob.style.display = 'block';
+  stickBase.style.left = (t.clientX-55)+'px'; stickBase.style.top = (t.clientY-55)+'px';
+  stickKnob.style.left = (t.clientX-25)+'px'; stickKnob.style.top = (t.clientY-25)+'px';
+  e.preventDefault();
+}, { passive: false });
+stickZone.addEventListener('touchmove', e => {
+  for (const t of e.changedTouches) {
+    if (t.identifier !== stick.id) continue;
+    let dx = t.clientX-stick.cx, dy = t.clientY-stick.cy;
+    const len = Math.hypot(dx, dy), max = 50;
+    if (len > max) { dx = dx/len*max; dy = dy/len*max; }
+    stick.x = dx/max; stick.y = dy/max;
+    stickKnob.style.left = (stick.cx+dx-25)+'px'; stickKnob.style.top = (stick.cy+dy-25)+'px';
+  }
+  e.preventDefault();
+}, { passive: false });
+stickZone.addEventListener('touchend', e => {
+  for (const t of e.changedTouches) {
+    if (t.identifier !== stick.id) continue;
+    stick.active = false; stick.x = 0; stick.y = 0; stick.id = null;
+    stickBase.style.display = stickKnob.style.display = 'none';
+  }
+});
+fireBtn.addEventListener('touchstart', e => { firePressed = true; e.preventDefault(); }, { passive: false });
+fireBtn.addEventListener('touchend', () => { firePressed = false; });
+fireBtn2.addEventListener('touchstart', e => { fire2Pressed = true; e.preventDefault(); }, { passive: false });
+fireBtn2.addEventListener('touchend', () => { fire2Pressed = false; });
+const pauseBtn = document.getElementById('pauseBtn');
+pauseBtn.addEventListener('click', togglePause);
+pauseBtn.addEventListener('touchstart', e => { e.preventDefault(); togglePause(); }, { passive: false });
+
+function togglePause() {
+  if (!G.running) return;
+  PAUSED = !PAUSED;
+  pausedAt = PAUSED ? performance.now() : 0;
+  if (PAUSED) {
+    if (bgm.current) bgm.current.pause();
+    pauseBtn.style.background = 'rgba(100,200,255,0.8)';
+    pauseBtn.innerHTML = '▶<br>続ける';
+    logEvent('pause', {});
+  } else {
+    if (bgm.current && bgm.current.paused) bgm.current.play().catch(() => {});
+    pauseBtn.style.background = 'rgba(0,150,200,0.55)';
+    pauseBtn.innerHTML = '⏸<br>一時停止';
+    logEvent('resume', {});
+  }
+}
+
+// ============ UI ============
+const $ = id => document.getElementById(id);
+function showMessage(text, seconds = 2.5) { $('message').textContent = text; $('message').style.opacity = 1; G.msgTimer = seconds; }
+
+// ============ えらぶ画面 ============
+let selFaction = null, selCat = 'fighter', selType = null;
+$('btnAllied').onclick = () => openUnitScreen('allied');
+$('btnAxis').onclick = () => openUnitScreen('axis');
+function openUnitScreen(f) {
+  initAudio();
+  playBgm('title');
+  selFaction = f;
+  $('titleScreen').style.display = 'none';
+  $('unitScreen').style.display = 'flex';
+  buildCatRow();
+  pickCat('fighter');
+}
+function buildCatRow() {
+  const row = $('catRow'); row.innerHTML = '';
+  for (const key of (DIFF === 'easy' ? ['fighter'] : ['fighter', 'ship', 'sub'])) {   // イージーは戦闘機だけ（監督ルール）
+    const b = document.createElement('button');
+    b.className = 'btn catBtn' + (key === selCat ? ' sel' : '');
+    b.textContent = CATALOG[key].label;
+    b.onclick = () => pickCat(key);
+    row.appendChild(b);
+  }
+}
+function pickCat(key) {
+  selCat = key; selType = null;
+  buildCatRow();
+  const list = $('typeList'); list.innerHTML = '';
+  for (const t of CATALOG[key].types) {
+    if (DIFF === 'easy' && t.id !== (selFaction === 'axis' ? 'zero' : 'b29')) continue;  // イージー：同盟国＝ゼロ戦、連合国＝B29（監督ルール）
+    if (DIFF !== 'easy' && t.easyOnly) continue;                            // イージー専用機は基準（ノーマル）に混ぜない
+    if (DIFF !== 'easy' && t.faction && t.faction !== selFaction) continue;
+    const b = document.createElement('button');
+    b.className = 'typeBtn';
+    b.innerHTML = `<b>${t.name}</b><br><small>${t.desc}</small>`;
+    b.onclick = () => { selType = t; for (const el of list.children) el.classList.remove('sel'); b.classList.add('sel'); };
+    list.appendChild(b);
+  }
+}
+$('btnLaunch').onclick = () => {
+  if (DIFF === 'easy') { selCat = 'fighter'; selType = CATALOG.fighter.types.find(t => t.id === (selFaction === 'axis' ? 'zero' : 'b29')); }
+  if (!selType) { selType = CATALOG[selCat].types.find(t => !t.faction || t.faction === selFaction); }
+  startGame(selFaction, selCat, selType);
+};
+$('btnRetry').onclick = () => { $('endScreen').style.display = 'none'; $('titleScreen').style.display = 'flex'; };
+
+// ============ ゲーム開始 ============
+function startGame(faction, mode, def) {
+  G.faction = faction; G.mode = mode; G.def = def;
+  logEvent('start', { faction, mode, type: def.id, ear: EAR, off: [...OFF].join(',') || 'none', bgm: BGM_ON, diff: DIFF, tune: tuneStr(),
+    platform: PLATFORM, screen: SCREEN, touch: TOUCH, word: WORD });   // 実験の条件・遊んだ機械・あいことば
+  // まえのユニットをそうじ
+  for (const u of units) scene.remove(u.group);
+  units = [];
+  if (player.group) scene.remove(player.group);
+  for (const t of trumps) scene.remove(t.group);
+  trumps = [];
+  for (const p of projs) scene.remove(p.mesh);
+  projs.length = 0;
+  // 港と拠点（両方の国にある：ゆうじん要望）
+  ourPort = spawnStructure('ally', 'port');
+  spawnStructure('ally', 'base');
+  enemyPort = spawnStructure('enemy', 'port');
+  spawnStructure('enemy', 'base');
+  // 敵の艦隊
+  spawnAIShip('enemy', 'destroyer', 700, -100, 'patrol');
+  spawnAIShip('enemy', 'destroyer', 850, 250, 'patrol');
+  spawnAIShip('enemy', 'destroyer', 500, 100, 'patrol');
+  spawnAIShip('enemy', 'carrier', 950, -50, 'patrol');
+  spawnAISub('enemy', 400, -200, 'patrol');
+  spawnAIPlane('enemy', 800, 100);
+  // 自分ののりもの
+  const color = faction === 'axis' ? 0x9e9d24 : 0x1565c0;
+  if (mode === 'fighter') { player.group = makePlaneMesh(color); player.radius = 5; }
+  else if (mode === 'ship') { player.group = makeShipMesh(def.klass, false); player.radius = def.klass === 'carrier' ? 30 : 18; }
+  else { player.group = makeSubMesh(false); player.radius = 8; }
+  // カメラの位置は、のりものの大きさに合わせる（空母は甲板が長いので、高く・うしろから見る）
+  if (mode === 'fighter') G.camOff = new THREE.Vector3(0, 8, 20);
+  else if (mode === 'ship') G.camOff = def.klass === 'carrier' ? new THREE.Vector3(0, 30, 46) : new THREE.Vector3(0, 16, 16);
+  else G.camOff = new THREE.Vector3(0, 4, 24);
+  scene.add(player.group);
+  G.hp = def.hp; G.maxHp = def.hp; G.fuel = 100; G.kills = 0; G.gameMin = 6*60;
+  G.fogCycle = 0; G.fogActive = false; G.trumpSpawned = false; G.reinforceT = 0; G.reloadT = 0;
+  G.ammo2 = def.bombs || def.torpedoes || def.depthCharges || def.escorts || 0;
+  respawn();
+  playBgm('battle');
+  G.running = true;
+  $('titleScreen').style.display = 'none';
+  $('unitScreen').style.display = 'none';
+  $('endScreen').style.display = 'none';
+  $('hud').style.display = 'block';
+  $('minimap').style.display = 'block';
+  $('targetArrow').style.display = 'block';
+  $('controlsHint').style.display = 'block';
+  $('fuelRow').style.display = mode === 'fighter' ? 'block' : 'none';
+  $('hpLabel').textContent = mode === 'fighter' ? 'きたい（HP）' : mode === 'ship' ? 'ふね（HP）' : 'せんすいかん（HP）';
+  setupControlsUI();
+  showMessage(`${def.name} 出撃！ 🚩の方角へすすめ！`, 4);
+}
+function setupControlsUI() {
+  const m = G.mode;
+  let hint, btn2label = '';
+  if (m === 'fighter') { hint = '↑↓←→ 操縦 ／ スペース 機銃 ／ B 爆弾'; btn2label = '💣<br>爆弾'; }
+  else if (m === 'ship') {
+    hint = '←→ かじ ／ ↑↓ 速度 ／ スペース 大砲';
+    if (G.def.torpedoes) { hint += ' ／ B 魚雷'; btn2label = '🐟<br>魚雷'; }
+    else if (G.def.depthCharges) { hint += ' ／ B 爆雷'; btn2label = '💥<br>爆雷'; }
+    else if (G.def.escorts) { hint += ' ／ B 護衛機発艦'; btn2label = '🛩<br>発艦'; }
+  }
+  else { hint = '←→ かじ ／ ↑うかぶ ↓もぐる ／ スペース 魚雷'; }
+  if (isTouch) hint = m === 'fighter' ? '左スティック操縦／🔥機銃／💣爆弾' : m === 'ship' ? '左スティック かじと速度／🔥大砲' : '左スティック かじと深さ／🔥魚雷';
+  $('controlsHint').innerHTML = hint;
+  if (isTouch) {
+    fireBtn.style.display = 'flex';
+    fireBtn2.style.display = btn2label ? 'flex' : 'none';
+    if (btn2label) fireBtn2.innerHTML = btn2label;
+  }
+  pauseBtn.style.display = 'flex';
+}
+function respawn() {
+  const m = G.mode;
+  if (m === 'fighter') { G.yaw = -Math.PI/2; G.pitch = 0; player.group.position.set(OUR.base.x, 40, OUR.base.z); }
+  else if (m === 'ship') { G.yaw = -Math.PI/2; G.shipSpeed = 0; player.group.position.set(OUR.port.x + 120, 0, OUR.port.z); }
+  else { G.yaw = -Math.PI/2; G.depth = -3; player.group.position.set(OUR.base.x + 120, -3, OUR.base.z + 60); }
+  G.hp = G.maxHp; G.fuel = 100;
+  G.ammo2 = G.def.bombs || G.def.torpedoes || G.def.depthCharges || G.def.escorts || 0;
+}
+
+// ============ 弾を出すヘルパー ============
+function shoot(opt) { // {pos, vel, color, size, owner, dmg, type, gravity, homing, role, life}
+  const m = new THREE.Mesh(new THREE.SphereGeometry(opt.size || 0.6, 6, 6), new THREE.MeshBasicMaterial({ color: opt.color }));
+  m.position.copy(opt.pos);
+  scene.add(m);
+  // vel は必ずコピーする（使い回しベクトルを渡されても安全なように）
+  projs.push({ mesh: m, vel: opt.vel.clone(), life: opt.life || 2, owner: opt.owner, dmg: opt.dmg, type: opt.type, gravity: opt.gravity || 0, homing: opt.homing || null, role: opt.role || 'none', area: opt.area || 0 });
+}
+function explode(pos, big) {
+  const m = new THREE.Mesh(new THREE.SphereGeometry(big ? 14 : 4, 10, 10), new THREE.MeshBasicMaterial({ color: 0xff6f00, transparent: true, opacity: 0.9 }));
+  m.position.copy(pos); scene.add(m);
+  explosions.push({ mesh: m, life: big ? 1.2 : 0.5 });
+  playBoom(big, pos);   // 爆発の起きた場所を渡す（Cのとき、遠い爆発は小さく聞こえる）
+  if (big) G.shake = 0.6;
+}
+
+// ============ ダメージ処理 ============
+function applyDamage(unit, dmg, role, wtype) {
+  let mult = roleMult(role, unit);
+  if (unit.kind === 'sub' && !['torpedo','depth','bomb'].includes(wtype) && role !== 'antisub') mult *= 0.3;
+  unit.hp -= dmg * mult;
+  updateHpBar(unit);
+  if (unit.hp <= 0 && !unit.dead) destroyUnit(unit);
+}
+function destroyUnit(u) {
+  u.dead = true;
+  explode(u.group.position.clone().setY(8), true);
+  logEvent('destroy', { name: u.name, by: 'player-side' });
+  if (u === enemyPort) { win(); return; }
+  if (u === ourPort) { lose(); return; }
+  if (u.faction === 'enemy') {
+    G.kills++;
+    showMessage(`🎯 ${u.name} 撃破！ (${Math.min(G.kills,5)}/5)`, 2.5);
+    if (G.kills >= 5 && trumps.length === 0) spawnTrump(1);
+    if (G.kills >= 10 && trumps.length === 1) spawnTrump(2);
+  } else {
+    showMessage(`⚠ ${u.name} がやられた！`, 2.5);
+  }
+  if (u.structure) { u.group.visible = false; }
+}
+// 切り札：5撃破で1せき目、10撃破で2せき目（同盟国は武蔵！：ゆうじん要望）
+function spawnTrump(n) {
+  G.trumpSpawned = true;
+  const name = G.faction === 'axis'
+    ? (n === 1 ? '戦艦 大和' : '戦艦 武蔵')
+    : (n === 1 ? '巨大原子力潜水艦' : '巨大原子力潜水艦・2番艦');
+  const g = makeTrumpMesh(G.faction);
+  g.position.set(OUR.port.x + 150, 0, OUR.port.z + (n-1)*90);
+  const t = { group: g, hp: 500, maxHp: 500, radius: 50, name, fireTimer: 2, faction: 'ally', kind: 'ship', klass: 'trump' };
+  scene.add(g);
+  attachHpBar(t, 26);
+  trumps.push(t);
+  setTimeout(() => showMessage(`⭐ ${name}、出撃！！ ⭐`, 4), 1200);
+  playBgm('trump');
+  logEvent('trump_spawn', { name });
+}
+function playerHit(dmg) {
+  dmg *= TUNE.edmg;   // 調整パネル：敵の攻撃の強さ（プレイヤーへの全ダメージに1箇所で効く）
+  G.hp -= dmg; G.shake = 0.4;
+  explode(player.group.position.clone(), false);
+  logEvent('player_hit', { hp: Math.round(G.hp) });
+  if (G.hp <= 0) {
+    explode(player.group.position.clone(), true);
+    showMessage('💥 大破！ さいしゅっぱつ！', 3);
+    logEvent('player_down', {});
+    respawn();
+  }
+}
+function win() {
+  G.running = false;
+  playBgm('victory');
+  logEvent('win', { kills: G.kills });
+  $('endTitle').textContent = '🏆 だいしょうり！！';
+  $('endText').innerHTML = `敵の港を撃破した！ ${G.faction === 'axis' ? '同盟国' : '連合国'}のかち！<br>撃破数：${G.kills}`;
+  $('endWord').textContent = WORD;
+  $('endScreen').style.display = 'flex';
+  fireBtn.style.display = fireBtn2.style.display = pauseBtn.style.display = 'none';
+  PAUSED = false; pauseBtn.style.background = 'rgba(0,150,200,0.55)'; pauseBtn.innerHTML = '⏸<br>一時停止';
+}
+function lose() {
+  G.running = false;
+  playBgm('defeat');
+  logEvent('lose', { kills: G.kills });
+  $('endTitle').textContent = '😢 はいぼく…';
+  $('endText').innerHTML = `味方の港が撃破されてしまった…<br>つぎは港をまもりながら攻めよう！`;
+  $('endWord').textContent = WORD;
+  $('endScreen').style.display = 'flex';
+  fireBtn.style.display = fireBtn2.style.display = pauseBtn.style.display = 'none';
+  PAUSED = false; pauseBtn.style.background = 'rgba(0,150,200,0.55)'; pauseBtn.innerHTML = '⏸<br>一時停止';
+}
+
+// ============ メインループ ============
+const fwd = new THREE.Vector3();
+const tmpV = new THREE.Vector3();
+let lastT = performance.now(), fireCd = 0, fire2Cd = 0, PAUSED = false;
+let pausedAt = 0;
+
+function tick() {
+  requestAnimationFrame(tick);
+  const now = performance.now();
+  if (PAUSED) {
+    renderer.render(scene, camera);
+    return;
+  }
+  const dt = Math.min((now - lastT)/1000, 0.05);
+  lastT = now;
+
+  // 波
+  const pos = seaGeo.attributes.position, tt = now/1000;
+  for (let i = 0; i < pos.count; i += 3) {
+    pos.setZ(i, seaBase[i*3+2] + Math.sin(tt*1.5 + seaBase[i*3]*0.02 + seaBase[i*3+1]*0.03) * 1.5);
+  }
+  pos.needsUpdate = true;
+
+  if (!G.running) { renderer.render(scene, camera); return; }
+  const P = player.group.position;
+
+  // ---- 時計 ----
+  G.gameMin += GAME_MIN_PER_SEC * dt;
+  const h = Math.floor(G.gameMin/60)%24, mi = Math.floor(G.gameMin%60);
+  $('clock').textContent = `🕐 ${String(h).padStart(2,'0')}:${String(mi).padStart(2,'0')}`;
+
+  // ---- きり ----
+  G.fogCycle += GAME_MIN_PER_SEC * dt;
+  const wasFog = G.fogActive;
+  G.fogActive = !OFF.has('fog') && (G.fogCycle % FOG_EVERY) > (FOG_EVERY - FOG_LASTS);
+  if (G.fogActive && !wasFog) { $('fogNotice').style.opacity = 1; playBgm('fog'); logEvent('fog', { on: true }); }
+  if (!G.fogActive && wasFog) { $('fogNotice').style.opacity = 0; showMessage('☀ きりが はれた！'); playBgm('battle'); logEvent('fog', { on: false }); }
+
+  // ---- 増援（現実時間5分ごと：ゆうじんルール） ----
+  G.reinforceT += dt;
+  if (G.reinforceT >= REINFORCE_SEC) {
+    G.reinforceT = 0;
+    // 1回の増援：ノーマル3体（飛・船・潜が1つずつ：ゆうじん調整）／
+    // イージー1体だけ・ハード5体で空母多め（監督の難易度設計 8/14）
+    let kinds;
+    if (DIFF === 'easy') kinds = [['plane', 'ship', 'sub'][Math.floor(Math.random()*3)]];
+    else if (DIFF === 'hard') kinds = ['plane', 'plane', 'ship', 'ship', 'sub'].sort(() => Math.random() - 0.5);
+    else kinds = ['plane', 'ship', 'sub'].sort(() => Math.random() - 0.5);
+    if (TUNE.rein >= 0) kinds = Array.from({ length: TUNE.rein }, () => ['plane', 'ship', 'sub'][Math.floor(Math.random()*3)]);   // 調整パネル：増援の数の上書き
+    const carrierP = DIFF === 'hard' ? 0.6 : 0.3;
+    for (const kind of kinds) {
+      const rx = ENEMY.base.x - 150 + Math.random()*300, rz = ENEMY.base.z - 150 + Math.random()*300;
+      if (kind === 'plane') spawnAIPlane('enemy', rx, rz);
+      else if (kind === 'ship') spawnAIShip('enemy', Math.random() < carrierP ? 'carrier' : 'destroyer', rx, rz, 'attack');
+      else spawnAISub('enemy', rx, rz, 'attack');
+      logEvent('reinforce', { kind });
+    }
+    if (kinds.length) showMessage(kinds.length === 1 ? '⚠ 敵の増援！ 1体 あらわれた！'
+      : kinds.length > 3 ? '⚠⚠⚠ 敵の大増援！！ 空母もいるぞ！！ ⚠⚠⚠'
+      : '⚠⚠ 敵の増援！ 飛行機・船・潜水艦 があらわれた！！ ⚠⚠', 4);
+  }
+
+  // ---- 自動デモ操縦（記録係が動画をとるためのモード） ----
+  if (G.demo) {
+    let target = null, nd = 1e9;
+    for (const u of units) {
+      if (u.dead || u.faction !== 'enemy') continue;
+      const d = u.group.position.distanceTo(P);
+      if (d < nd) { nd = d; target = u; }
+    }
+    for (const k of ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space']) keys[k] = false;
+    if (target) {
+      const ddx = target.group.position.x - P.x, ddz = target.group.position.z - P.z;
+      const wantYaw = Math.atan2(-ddx, -ddz);
+      let dy2 = wantYaw - G.yaw;
+      while (dy2 > Math.PI) dy2 -= Math.PI*2;
+      while (dy2 < -Math.PI) dy2 += Math.PI*2;
+      if (dy2 > 0.06) keys['ArrowLeft'] = true;
+      else if (dy2 < -0.06) keys['ArrowRight'] = true;
+      if (G.mode === 'fighter') {
+        if (P.y > 50) keys['ArrowDown'] = true;
+        else if (P.y < 30) keys['ArrowUp'] = true;
+        if (nd < 320 && Math.abs(dy2) < 0.35) keys['Space'] = true;
+      } else if (G.mode === 'ship') {
+        keys['ArrowUp'] = true;
+        if (nd < 380 && Math.abs(dy2) < 0.3) keys['Space'] = true;
+      } else {
+        if (nd < 260 && Math.abs(dy2) < 0.25) keys['Space'] = true;
+      }
+    }
+  }
+
+  // ---- 操縦 ----
+  let sx = 0, sy = 0;
+  if (keys['ArrowLeft'] || keys['KeyA']) sx = -1;
+  if (keys['ArrowRight'] || keys['KeyD']) sx = 1;
+  if (keys['ArrowUp'] || keys['KeyW']) sy = -1;
+  if (keys['ArrowDown'] || keys['KeyS']) sy = 1;
+  if (stick.active) { sx = stick.x; sy = stick.y; }
+
+  if (G.mode === 'fighter') {
+    G.yaw -= sx * G.def.turn * dt;
+    G.pitch += sy * 1.1 * dt;
+    G.pitch = Math.max(-0.7, Math.min(0.7, G.pitch));
+    if (!sy) G.pitch *= 1 - dt*1.2;
+    fwd.set(-Math.sin(G.yaw)*Math.cos(G.pitch), Math.sin(-G.pitch), -Math.cos(G.yaw)*Math.cos(G.pitch));
+    P.addScaledVector(fwd, G.def.speed * dt);
+    P.y = Math.max(3, Math.min(220, P.y));
+    player.group.rotation.set(-G.pitch, G.yaw, -sx*0.6);
+    if (P.y <= 3.2 && G.pitch > 0.3) {
+      explode(P.clone(), true); showMessage('💦 うみに ついらく！', 3); logEvent('crash', {}); respawn();
+    }
+    // 体当たり：爆弾を積んどるほど大爆発（ゆうじん要望）。ただし自分も大破する！
+    for (const u of units) {
+      if (u.dead || u.faction !== 'enemy') continue;
+      const dh = Math.hypot(P.x - u.group.position.x, P.z - u.group.position.z);
+      const dv = Math.abs(P.y - u.group.position.y);
+      if (dh < u.radius && dv < (u.structure ? 30 : (u.kind === 'plane' ? 8 : 14))) {
+        const ramDmg = 25 + G.ammo2 * (G.def.bombDmg || 50) * 0.8;
+        applyDamage(u, ramDmg, G.def.role, 'bomb');
+        explode(P.clone(), true);
+        showMessage(G.ammo2 > 0 ? `💥💥 爆弾もろとも体当たり！！（${Math.round(ramDmg)}ダメージ）` : '💥 体当たり！', 3);
+        logEvent('ram', { target: u.name, bombs: G.ammo2, dmg: Math.round(ramDmg) });
+        respawn();
+        break;
+      }
+    }
+    // 燃料
+    if (!OFF.has('fuel')) G.fuel -= (100/(FUEL_MINUTES*FUEL_MULT*TUNE.fuel)) * GAME_MIN_PER_SEC * dt;
+    const nearBase = Math.hypot(P.x-OUR.base.x, P.z-OUR.base.z) < 80;
+    const nearPort = Math.hypot(P.x-OUR.port.x, P.z-OUR.port.z) < 90;
+    if ((nearBase || nearPort) && P.y < 32) {
+      if (G.fuel < 100 || G.hp < G.maxHp || G.ammo2 < (G.def.bombs||0)) showMessage('⛽ ほきゅうちゅう…（爆弾もこめなおし）', 0.5);
+      G.fuel = Math.min(100, G.fuel + 25*dt);
+      G.hp = Math.min(G.maxHp, G.hp + 15*dt);
+      G.ammo2 = G.def.bombs || 0;
+    }
+    if (G.fuel <= 0) { explode(P.clone(), true); showMessage('⛽ ガスけつ！', 3); logEvent('fuel_out', {}); respawn(); }
+  } else if (G.mode === 'ship') {
+    G.yaw -= sx * G.def.turn * dt;
+    G.shipSpeed = Math.max(0, Math.min(G.def.speed, G.shipSpeed - sy * 14 * dt));
+    fwd.set(-Math.sin(G.yaw), 0, -Math.cos(G.yaw));
+    P.addScaledVector(fwd, G.shipSpeed * dt);
+    P.y = 0;
+    player.group.rotation.set(0, G.yaw, 0);
+    if (G.def.selfRepair) G.hp = Math.min(G.maxHp, G.hp + 2*dt);
+    // 味方の港の近くで補給
+    if (Math.hypot(P.x-OUR.port.x, P.z-OUR.port.z) < 130) {
+      G.hp = Math.min(G.maxHp, G.hp + 8*dt);
+      G.ammo2 = G.def.torpedoes || G.def.depthCharges || G.def.escorts || 0;
+    }
+  } else { // sub
+    G.yaw -= sx * G.def.turn * dt;
+    G.depth = Math.max(-22, Math.min(-2, G.depth - sy * 8 * dt));
+    fwd.set(-Math.sin(G.yaw), 0, -Math.cos(G.yaw));
+    P.addScaledVector(fwd, G.def.speed * dt);
+    P.y = G.depth;
+    player.group.rotation.set(0, G.yaw, 0);
+    if (Math.hypot(P.x-OUR.port.x, P.z-OUR.port.z) < 130) G.hp = Math.min(G.maxHp, G.hp + 8*dt);
+  }
+
+  // ---- 攻撃（メイン武器：スペース） ----
+  fireCd -= dt; fire2Cd -= dt; G.reloadT -= dt;
+  const firing = keys['Space'] || firePressed;
+  const firing2 = keys['KeyB'] || fire2Pressed;
+  if (firing && fireCd <= 0) {
+    if (G.mode === 'fighter') {
+      fireCd = 0.12;
+      shoot({ pos: P.clone().addScaledVector(fwd, 8), vel: fwd.clone().multiplyScalar(350), color: 0xffee58, owner: 'player', dmg: G.def.gun, type: 'bullet', role: G.def.role, life: 1.6 });
+      playGun();
+    } else if (G.mode === 'ship') {
+      fireCd = 1.1;
+      const v = fwd.clone().multiplyScalar(180); v.y = 45;
+      shoot({ pos: P.clone().setY(9).addScaledVector(fwd, 20), vel: v, color: 0xffab00, size: 1.4, owner: 'player', dmg: G.def.gun, type: 'shell', gravity: 50, role: 'none', life: 4 });
+      playBoom(false);
+    } else if (G.reloadT <= 0) {
+      G.reloadT = G.def.reload;
+      shoot({ pos: P.clone().setY(-1.5).addScaledVector(fwd, 18), vel: fwd.clone().multiplyScalar(65), color: 0x80deea, size: 1.2, owner: 'player', dmg: G.def.torpDmg, type: 'torpedo', role: G.def.role, life: 9 });
+      playGun();
+      showMessage('🐟 魚雷 発射！', 1);
+    }
+    logEvent('fire', { mode: G.mode });
+  }
+  // ---- サブ武器（B）：爆弾／魚雷／爆雷 ----
+  if (firing2 && fire2Cd <= 0 && G.ammo2 > 0) {
+    fire2Cd = 0.8; G.ammo2--;
+    if (G.mode === 'fighter') {
+      shoot({ pos: P.clone(), vel: fwd.clone().multiplyScalar(G.def.speed*0.8), color: 0x37474f, size: 1.6, owner: 'player', dmg: G.def.bombDmg, type: 'bomb', gravity: 60, role: G.def.role, life: 6, area: 30 });
+      showMessage(`💣 爆弾投下！（のこり ${G.ammo2}）`, 1.2);
+    } else if (G.def.torpedoes) {
+      shoot({ pos: P.clone().setY(-1.5).addScaledVector(fwd, 24), vel: fwd.clone().multiplyScalar(65), color: 0x80deea, size: 1.2, owner: 'player', dmg: 40, type: 'torpedo', role: 'none', life: 9 });
+      showMessage(`🐟 魚雷 発射！（のこり ${G.ammo2}）`, 1.2);
+    } else if (G.def.depthCharges) {
+      shoot({ pos: P.clone().setY(2).addScaledVector(fwd, -20), vel: new THREE.Vector3(0, -10, 0), color: 0x37474f, size: 1.6, owner: 'player', dmg: 55, type: 'depth', role: 'antisub', life: 3, area: 28 });
+      showMessage(`💥 爆雷投下！（のこり ${G.ammo2}）`, 1.2);
+    } else if (G.def.escorts) {
+      spawnAIPlane('ally', P.x + 35, P.z + 10);
+      showMessage(`🛩 護衛機 発艦！（のこり ${G.ammo2}）`, 1.5);
+    }
+    logEvent('fire2', { mode: G.mode, left: G.ammo2 });
+  }
+
+  // ---- AIユニットの行動 ----
+  for (const u of units) {
+    if (u.dead) continue;
+    const up = u.group.position;
+    const distP = up.distanceTo(P);
+    // 移動
+    if (u.kind === 'ship' || u.kind === 'sub') {
+      if (u.mission === 'attack' && ourPort && !ourPort.dead) {
+        const target = ourPort.group.position;
+        const d = tmpV.copy(target).sub(up); d.y = 0;
+        if (d.length() > 300) {
+          d.normalize(); up.addScaledVector(d, u.speed*dt);
+          u.group.rotation.y = Math.atan2(d.x, d.z);
+        } else {
+          u.shellTimer -= dt;
+          if (u.shellTimer <= 0) {
+            u.shellTimer = 4;
+            shoot({ pos: up.clone().setY(u.kind==='sub' ? -1.5 : 9), vel: tmpV.copy(target).sub(up).normalize().multiplyScalar(80), color: 0xff7043, size: 1.4, owner: 'enemy', dmg: 10, type: u.kind==='sub' ? 'torpedo' : 'shell', homing: ourPort, life: 8 });
+          }
+        }
+      } else {
+        u.angle += dt*0.05;
+        up.x += Math.sin(u.angle)*dt*6;
+        up.z += Math.cos(u.angle)*dt*6;
+        u.group.rotation.y = u.angle + Math.PI/2;
+      }
+      if (u.kind === 'sub') {
+        // ハードでは敵の潜水艦がもぐって来る（監督の難易度設計 8/14）。30秒周期で20秒もぐり、10秒うかぶ
+        if (DIFF === 'hard') {
+          u.diveT = (u.diveT || 0) + dt;
+          u.submerged = (u.diveT % 30) < 20;
+          up.y += ((u.submerged ? -14 : -2) - up.y) * Math.min(1, dt*1.5);
+        } else up.y = -2;
+      }
+      // 空母は戦闘機を発艦させる（さいだい2機・しずめないかぎり出てくる：ゆうじん要望）
+      if (u.planeCap) {
+        u.planes = u.planes.filter(pl => !pl.dead);
+        u.launchT -= dt;
+        if (u.planes.length < u.planeCap && u.launchT <= 0) {
+          u.launchT = 18;
+          u.planes.push(spawnAIPlane(u.faction, up.x + 30, up.z));
+          if (u.faction === 'enemy') showMessage('⚠ 敵の空母から 戦闘機が発艦！', 2);
+        }
+      }
+      // 敵の駆逐艦は、もぐった自分に爆雷を落としてくる
+      if (u.faction === 'enemy' && u.klass === 'destroyer' && G.mode === 'sub' && distP < 70) {
+        u.aaTimer -= dt;
+        if (u.aaTimer <= 0) {
+          u.aaTimer = 3;
+          shoot({ pos: up.clone().setY(1), vel: tmpV.copy(P).sub(up).normalize().multiplyScalar(14).setY(-9), color: 0x37474f, size: 1.5, owner: 'enemy', dmg: 28, type: 'depth', role: 'antisub', life: 3.5, area: 26 });
+        }
+        continue;
+      }
+    } else if (u.kind === 'plane') {
+      // 敵の戦闘機：近くなら自分を追う、遠ければ味方の港へ／味方の護衛機：いちばん近い敵を追う
+      let target;
+      if (u.faction === 'enemy') {
+        target = (distP < 450) ? P : (ourPort && !ourPort.dead ? ourPort.group.position : P);
+      } else {
+        let tgt = null, best = 1e9;
+        for (const e of units) {
+          if (e.dead || e.faction !== 'enemy' || e.structure) continue;
+          const d = e.group.position.distanceTo(up);
+          if (d < best) { best = d; tgt = e; }
+        }
+        u.allyTarget = tgt || ((enemyPort && !enemyPort.dead) ? enemyPort : null);
+        target = u.allyTarget ? u.allyTarget.group.position : P;
+      }
+      const d = tmpV.copy(target).sub(up);
+      const targetYaw = Math.atan2(-d.x, -d.z);
+      let dy = targetYaw - u.yaw;
+      while (dy > Math.PI) dy -= Math.PI*2;
+      while (dy < -Math.PI) dy += Math.PI*2;
+      u.yaw += Math.max(-1.2*dt, Math.min(1.2*dt, dy));
+      up.x += -Math.sin(u.yaw)*u.speed*dt;
+      up.z += -Math.cos(u.yaw)*u.speed*dt;
+      up.y += Math.max(-15*dt, Math.min(15*dt, (target.y + (target===P ? 0 : 45)) - up.y));
+      up.y = Math.max(20, Math.min(120, up.y));
+      u.group.rotation.set(0, u.yaw, 0);
+    }
+    // 対空砲・機銃（プレイヤーをねらう）
+    if (u.faction === 'enemy' && u.aaRange > 0) {
+      u.aaTimer -= dt;
+      const subSafe = G.mode === 'sub' && G.depth < -6;
+      if (u.aaTimer <= 0 && distP < u.aaRange && !G.fogActive && !subSafe) {
+        u.aaTimer = u.kind === 'plane' ? 1.6 : 1.2;
+        const dir = tmpV.copy(P).sub(up).normalize();
+        dir.x += (Math.random()-0.5)*0.22; dir.y += (Math.random()-0.5)*0.22; dir.z += (Math.random()-0.5)*0.22;
+        shoot({ pos: up.clone().setY(u.kind==='plane' ? up.y : 8), vel: dir.multiplyScalar(130), color: 0xff5252, size: 0.8, owner: 'enemy', dmg: 10, type: 'tracer', life: 2.5 });
+      }
+    }
+    // 味方の護衛機のこうげき
+    if (u.faction === 'ally' && u.kind === 'plane' && u.allyTarget && !u.allyTarget.dead) {
+      u.aaTimer -= dt;
+      const dd = u.group.position.distanceTo(u.allyTarget.group.position);
+      if (u.aaTimer <= 0 && dd < 180) {
+        u.aaTimer = 1.4;
+        shoot({ pos: u.group.position.clone(), vel: tmpV.copy(u.allyTarget.group.position).sub(u.group.position).normalize().multiplyScalar(150), color: 0xfff176, size: 0.7, owner: 'ally', dmg: 4, type: 'tracer', homing: u.allyTarget, life: 2.5 });
+      }
+    }
+    // 味方の港・拠点の対空砲（こっちからも攻撃できる：ゆうじん要望）
+    if (u.faction === 'ally' && u.structure && u.aaRange > 0) {
+      u.aaTimer -= dt;
+      if (u.aaTimer <= 0) {
+        let tgt = null, best = u.aaRange;
+        for (const e of units) {
+          if (e.dead || e.faction !== 'enemy' || e.structure) continue;
+          const d = e.group.position.distanceTo(u.group.position);
+          if (d < best) { best = d; tgt = e; }
+        }
+        if (tgt) {
+          u.aaTimer = 1.4;
+          shoot({ pos: u.group.position.clone().setY(20), vel: tmpV.copy(tgt.group.position).sub(u.group.position).normalize().multiplyScalar(150), color: 0x69f0ae, size: 0.8, owner: 'ally', dmg: 7, type: 'tracer', homing: tgt, life: 3 });
+        } else u.aaTimer = 0.5;
+      }
+    }
+  }
+
+  // ---- 切り札の行動 ----
+  for (const trump of trumps) {
+    if (trump.dead) continue;
+    const tp = trump.group.position;
+    const target = tmpV.set(ENEMY.port.x - 200, 0, ENEMY.port.z);
+    const d = target.clone().sub(tp);
+    if (d.length() > 30) {
+      d.normalize(); tp.addScaledVector(d, dt*10);
+      trump.group.rotation.y = Math.atan2(d.x, d.z);
+    }
+    trump.fireTimer -= dt;
+    if (trump.fireTimer <= 0) {
+      let tgt = null, best = 650;
+      for (const e of units) {
+        if (e.dead || e.faction !== 'enemy') continue;
+        const dd = e.group.position.distanceTo(tp);
+        if (dd < best) { best = dd; tgt = e; }
+      }
+      if (tgt) {
+        trump.fireTimer = 4;
+        shoot({ pos: tp.clone().setY(12), vel: tgt.group.position.clone().sub(tp).normalize().multiplyScalar(120), color: 0xffab00, size: 1.8, owner: 'ally', dmg: 22, type: 'shell', homing: tgt, life: 7 });
+        playBoom(false, tp);   // 切り札は自分から離れた場所にいる
+      } else trump.fireTimer = 1;
+    }
+  }
+
+  // ---- 自分が船のとき、上空の敵機を対空砲でうつ（ゆうじん要望） ----
+  if (G.mode === 'ship') {
+    G.shipAAT = (G.shipAAT || 0) - dt;
+    if (G.shipAAT <= 0) {
+      let tgt = null, best = 230;
+      for (const u of units) {
+        if (u.dead || u.faction !== 'enemy' || u.kind !== 'plane') continue;
+        const d = u.group.position.distanceTo(P);
+        if (d < best) { best = d; tgt = u; }
+      }
+      if (tgt) {
+        G.shipAAT = 1.0;
+        shoot({ pos: P.clone().setY(10), vel: tmpV.copy(tgt.group.position).sub(P).normalize().multiplyScalar(160), color: 0xfff176, size: 0.8, owner: 'player', dmg: 6, type: 'tracer', homing: tgt, life: 2.5 });
+        playGun();
+      } else G.shipAAT = 0.4;
+    }
+  }
+
+  // ---- 弾のいどうとあたり判定 ----
+  for (let i = projs.length-1; i >= 0; i--) {
+    const p = projs[i];
+    p.vel.y -= p.gravity * dt;
+    if (p.homing && !p.homing.dead) {
+      const want = tmpV.copy(p.homing.group.position).sub(p.mesh.position).normalize().multiplyScalar(p.vel.length());
+      p.vel.lerp(want, dt*2);
+    }
+    p.mesh.position.addScaledVector(p.vel, dt);
+    p.life -= dt;
+    let done = false;
+    if (p.type === 'torpedo') p.mesh.position.y = Math.max(p.mesh.position.y, -2.5);
+    // 爆弾・爆雷は水面/海中で爆発（範囲こうげき）
+    const exploded = (p.type === 'bomb' && p.mesh.position.y <= 1) || (p.type === 'depth' && p.mesh.position.y <= -12) || p.life <= 0;
+    if (p.owner === 'player' || p.owner === 'ally') {
+      for (const u of units) {
+        if (u.dead || u.faction !== 'enemy') continue;
+        // ハードの敵潜水艦：もぐっている間は魚雷・爆雷・対潜攻撃しか当たらない（プレイヤーのもぐり中と同じルール）
+        if (u.submerged && !['torpedo', 'depth'].includes(p.type) && p.role !== 'antisub') continue;
+        const hitR = p.area ? 0 : u.radius;
+        const dd = p.mesh.position.distanceTo(u.group.position);
+        if (!p.area && dd < u.radius && Math.abs(p.mesh.position.y - u.group.position.y) < 34) {
+          applyDamage(u, p.dmg, p.role, p.type); explode(p.mesh.position.clone(), false); done = true; break;
+        }
+        if (p.area && exploded && dd < u.radius + p.area) {
+          applyDamage(u, p.dmg, p.role, p.type);
+        }
+      }
+    } else { // enemy の弾
+      // プレイヤー
+      const subSafe = G.mode === 'sub' && G.depth < -6 && !['torpedo','depth'].includes(p.type);
+      if (!subSafe && p.mesh.position.distanceTo(P) < player.radius + (p.area||0)) {
+        if (!p.area) { playerHit(p.dmg); done = true; }
+        else if (exploded) playerHit(p.dmg);
+      }
+      // 味方の建物と切り札
+      if (!done) for (const u of units) {
+        if (u.dead || u.faction !== 'ally') continue;
+        if (p.mesh.position.distanceTo(u.group.position) < u.radius) {
+          u.hp -= p.dmg; updateHpBar(u);
+          explode(p.mesh.position.clone(), false);
+          if (u.hp <= 0 && !u.dead) destroyUnit(u);
+          done = true; break;
+        }
+      }
+      if (!done) for (const trump of trumps) {
+        if (trump.dead) continue;
+        if (p.mesh.position.distanceTo(trump.group.position) < trump.radius) {
+          trump.hp -= p.dmg; updateHpBar(trump);
+          if (trump.hp <= 0) { trump.dead = true; explode(trump.group.position.clone(), true); showMessage(`⚠ ${trump.name}が しずんだ…`, 3); }
+          done = true; break;
+        }
+      }
+    }
+    if (p.area && exploded && !done) { explode(p.mesh.position.clone(), true); done = true; }
+    if (done || p.life <= 0 || p.mesh.position.y < -30) { scene.remove(p.mesh); projs.splice(i, 1); }
+  }
+
+  // ---- しずむ・爆発 ----
+  for (const u of units) {
+    if (!u.dead || u.sunk || u.structure) continue;
+    u.sinking = (u.sinking || 0) + dt;
+    u.group.position.y -= dt*3;
+    u.group.rotation.z += dt*0.15;
+    // v5: 残骸の当たり判定（監督の設計採用 8/17「採用します。リアルすぎるのもよくないけど、リアルすぎないのもよくないから」）
+    // 1残骸につき1回だけダメージ。playerHit経由なので調整パネルのedmg倍率がそのまま効く
+    // ponytail: 固定8ダメ, 監督が調整パネルで物足りないと言ったら専用つまみ
+    if (!u.wreckHitDone && u.group.position.distanceTo(player.group.position) < 6) {
+      u.wreckHitDone = true;
+      playerHit(8);
+      logEvent('wreck_hit', { kind: u.kind, klass: u.klass, faction: u.faction });
+      showMessage('💥 敵の残骸に せっしょく！', 2);
+    }
+    if (u.sinking > 5) { scene.remove(u.group); u.sunk = true; }
+  }
+  for (let i = explosions.length-1; i >= 0; i--) {
+    const e = explosions[i];
+    e.life -= dt;
+    e.mesh.scale.multiplyScalar(1 + dt*3);
+    e.mesh.material.opacity = Math.max(0, e.life);
+    if (e.life <= 0) { scene.remove(e.mesh); explosions.splice(i, 1); }
+  }
+
+  // ---- カメラ（のりものごとの視点：ゆうじん設計） ----
+  const co = G.camOff || new THREE.Vector3(0, 8, 20);
+  if (G.mode === 'fighter') {
+    const off = tmpV.copy(co).applyEuler(new THREE.Euler(0, G.yaw, 0));
+    camera.position.lerp(off.add(P), 1 - Math.pow(0.001, dt));
+    camera.lookAt(P.x + fwd.x*30, P.y + fwd.y*30, P.z + fwd.z*30);
+  } else if (G.mode === 'ship') {
+    // 艦橋から水平線をまっすぐ見る
+    const off = tmpV.copy(co).applyEuler(new THREE.Euler(0, G.yaw, 0));
+    camera.position.lerp(off.add(P), 1 - Math.pow(0.0005, dt));
+    camera.lookAt(P.x + fwd.x*500, 10, P.z + fwd.z*500);
+  } else {
+    const off = tmpV.copy(co).applyEuler(new THREE.Euler(0, G.yaw, 0));
+    camera.position.lerp(off.add(P), 1 - Math.pow(0.001, dt));
+    camera.lookAt(P.x + fwd.x*60, G.depth + 2, P.z + fwd.z*60);
+  }
+  if (G.shake > 0) {
+    G.shake -= dt;
+    camera.position.x += (Math.random()-0.5)*G.shake*4;
+    camera.position.y += (Math.random()-0.5)*G.shake*4;
+  }
+
+  // ---- 耳（条件Cのときだけ）。カメラのあとに置くのは、目と耳が別物だとわかるようにするため ----
+  updateEar(P, fwd);
+
+  // ---- 空ときりの色（水中なら海の色） ----
+  const underwater = camera.position.y < 0;
+  let targetFog = G.fogActive ? 0.012 : 0.003;
+  if (underwater) targetFog = Math.max(targetFog, 0.010);
+  scene.fog.density += (targetFog - scene.fog.density)*dt*1.5;
+  if (underwater) { scene.background.lerp(SKY_SEA, dt*3); }
+  else { scene.background.lerp(G.fogActive ? SKY_FOG : SKY_CLEAR, dt*1.5); }
+  scene.fog.color.copy(scene.background);
+
+  // ---- HPバーの見えるきょり ----
+  const radarOK = G.def.radarInFog;
+  for (const u of units) {
+    if (u.hpSprite) u.hpSprite.visible = !u.dead && u.group.position.distanceTo(P) < ((G.fogActive && !radarOK) ? 260 : 1000);
+  }
+
+  // ---- HUD ----
+  $('fuelFill').style.width = Math.max(0, G.fuel) + '%';
+  $('hpFill').style.width = Math.max(0, G.hp / G.maxHp * 100) + '%';
+  $('portFill').style.width = (ourPort && !ourPort.dead ? Math.max(0, ourPort.hp / ourPort.maxHp * 100) : 0) + '%';
+  const aliveTrumps = trumps.filter(t => !t.dead).length;
+  $('kills').textContent = trumps.length === 0
+    ? `☆ 撃破 ${G.kills} / 5`
+    : trumps.length === 1
+      ? `⭐ 切り札 出撃中！（あと${Math.max(0, 10-G.kills)}撃破で2せき目！）`
+      : `⭐⭐ 切り札 ${aliveTrumps}せき出撃中！`;
+  let extra = '';
+  if (G.mode === 'fighter') extra = `💣 爆弾 のこり ${G.ammo2}`;
+  else if (G.mode === 'ship') {
+    extra = `⚓ 速度 ${Math.round(G.shipSpeed)}`;
+    if (G.def.torpedoes) extra += ` ／ 🐟 魚雷 ${G.ammo2}`;
+    if (G.def.depthCharges) extra += ` ／ 💥 爆雷 ${G.ammo2}`;
+    if (G.def.escorts) extra += ` ／ 🛩 護衛機 ${G.ammo2}`;
+  } else extra = `🌊 深さ ${Math.round(-G.depth)}m ${G.depth < -6 ? '（かくれ中！弾が当たらない）' : '（浅い！見つかるぞ）'}`;
+  const nextRein = Math.max(0, REINFORCE_SEC - G.reinforceT);
+  extra += ` ／ 増援まで ${Math.floor(nextRein/60)}:${String(Math.floor(nextRein%60)).padStart(2,'0')}`;
+  $('extra').textContent = extra;
+  if (G.msgTimer > 0) { G.msgTimer -= dt; if (G.msgTimer <= 0) $('message').style.opacity = 0; }
+
+  // ---- 攻撃目標の旗矢印（ゆうじん要望） ----
+  if (enemyPort && !enemyPort.dead) {
+    const dx = enemyPort.group.position.x - P.x, dz = enemyPort.group.position.z - P.z;
+    const angleD = Math.atan2(dx, dz);
+    let rel = angleD - (G.yaw + Math.PI);
+    const deg = -rel * 180 / Math.PI;
+    $('arrowIcon').style.transform = `rotate(${deg}deg)`;
+    $('arrowDist').textContent = Math.round(Math.hypot(dx, dz)) + 'm';
+  }
+
+  drawMinimap();
+  renderer.render(scene, camera);
+}
+
+// ============ ミニマップ ============
+const mm = document.getElementById('minimap').getContext('2d');
+function drawMinimap() {
+  mm.clearRect(0, 0, 150, 150);
+  const sc = 150/3400, ox = 75, oy = 75;
+  for (const isl of islandDefs) {
+    mm.fillStyle = isl.kind === 'plain' ? '#8d6e63' : isl.side === 'ally' ? (isl.kind === 'port' ? '#29b6f6' : '#1976d2') : (isl.kind === 'port' ? '#ff1744' : '#c62828');
+    mm.beginPath();
+    mm.arc(ox + isl.x*sc, oy + isl.z*sc, Math.max(3, isl.r*sc), 0, 7);
+    mm.fill();
+  }
+  // 敵の港に旗マーク
+  mm.font = '10px sans-serif'; mm.textAlign = 'center';
+  mm.fillStyle = '#fff';
+  mm.fillText('🚩', ox + ENEMY.port.x*sc, oy + ENEMY.port.z*sc - 5);
+  const radarOK = G.def && G.def.radarInFog;
+  if (G.fogActive && !radarOK) {
+    mm.fillStyle = 'rgba(200,210,220,0.85)';
+    mm.fillRect(0, 0, 150, 150);
+    mm.fillStyle = '#fff';
+    mm.fillText('🌫 きりで見えない', 75, 78);
+  } else {
+    for (const u of units) {
+      if (u.dead || u.structure) continue;
+      mm.fillStyle = u.faction === 'enemy' ? '#ff1744' : '#00e676';
+      mm.fillRect(ox + u.group.position.x*sc - 2, oy + u.group.position.z*sc - 2, 4, 4);
+    }
+  }
+  for (const trump of trumps) {
+    if (trump.dead) continue;
+    mm.fillStyle = '#ffd600';
+    mm.fillRect(ox + trump.group.position.x*sc - 3, oy + trump.group.position.z*sc - 3, 6, 6);
+  }
+  if (player.group && G.running) {
+    mm.save();
+    mm.translate(ox + player.group.position.x*sc, oy + player.group.position.z*sc);
+    mm.rotate(-G.yaw + Math.PI);
+    mm.fillStyle = '#fff';
+    mm.beginPath();
+    mm.moveTo(0, -5); mm.lineTo(3.5, 4); mm.lineTo(-3.5, 4);
+    mm.closePath(); mm.fill();
+    mm.restore();
+  }
+}
+
+// ============ 記録用の自動スタート（?auto=allied|axis&cat=fighter|ship|sub&type=ID&demo=1） ============
+const urlP = new URLSearchParams(location.search);
+if (urlP.get('auto')) {
+  G.demo = urlP.get('demo') === '1';
+  const f = urlP.get('auto') === 'axis' ? 'axis' : 'allied';
+  const cat = ['fighter','ship','sub'].includes(urlP.get('cat')) ? urlP.get('cat') : 'fighter';
+  const tid = urlP.get('type');
+  const t = CATALOG[cat].types.find(x => (tid ? x.id === tid : (!x.faction || x.faction === f)));
+  setTimeout(() => startGame(f, cat, t), 1200);
+}
+
+tick();
+</script>
+</body>
+</html>
