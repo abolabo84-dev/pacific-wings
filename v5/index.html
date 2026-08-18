@@ -26,7 +26,10 @@
   #tutSub { position: absolute; left: 50%; bottom: 12%; transform: translateX(-50%); width: 92%; max-width: 760px;
             text-align: center; color: #fff; font-weight: bold; font-size: clamp(18px, 5vw, 34px); line-height: 1.5;
             text-shadow: 2px 2px 6px #000, 0 0 14px #000; z-index: 30; pointer-events: none; display: none; }
-  #tutBar { position: absolute; top: 8px; right: 8px; z-index: 31; display: none; }
+  /* v5: レーダー（右上・154px幅）にかぶらないよう、その左へよける（監督8/18） */
+  #tutBar { position: absolute; top: 8px; right: 170px; z-index: 31; display: none; white-space: nowrap; }
+  /* せまい画面ではレーダーの下へ回す（横に並べると画面から出てしまうため） */
+  @media (max-width: 700px) { #tutBar { right: 8px; top: 172px; } }
   #tutBar button { font-size: 15px; padding: 8px 14px; border-radius: 10px; border: 2px solid #fff;
                    background: rgba(0,0,0,.55); color: #fff; font-weight: bold; cursor: pointer; margin-left: 6px; }
   #btnAllied { background: #1565c0; }
@@ -1785,6 +1788,10 @@ function endTutorial() {
   $('titleScreen').style.display = 'flex';
   $('unitScreen').style.display = 'none';
   $('endScreen').style.display = 'none';
+  // v5: タイトルへ戻るときは、チュートリアルの曲をいったん止める。
+  // （title.mp3 がまだ無いと「曲が無いなら今の曲を続ける」規則が働いて鳴りっぱなしになるため）
+  if (bgm.current) { bgm.current.pause(); bgm.current.currentTime = 0; }
+  bgm.current = null; bgm.name = null;
   playBgm('title');
 }
 $('btnTut').onclick = startTutorial;
