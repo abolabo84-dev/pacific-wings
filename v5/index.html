@@ -419,6 +419,18 @@ function makeSubMesh(enemy) {
   scope.position.y = 8; g.add(scope);
   return g;
 }
+// v5: 星のかたちを作る（連合国のしるし用）
+function makeStarShape(outer, inner, points) {
+  const s = new THREE.Shape();
+  for (let i = 0; i < points*2; i++) {
+    const r = (i % 2 === 0) ? outer : inner;
+    const a = (i / (points*2)) * Math.PI * 2 - Math.PI/2;
+    const x = Math.cos(a)*r, y = Math.sin(a)*r;
+    if (i === 0) s.moveTo(x, y); else s.lineTo(x, y);
+  }
+  s.closePath();
+  return s;
+}
 function makePlaneMesh(color, faction) {
   const g = new THREE.Group();
   const body = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 0.6, 10, 10), new THREE.MeshLambertMaterial({ color }));
@@ -431,14 +443,18 @@ function makePlaneMesh(color, faction) {
   const fin = new THREE.Mesh(new THREE.BoxGeometry(0.4, 2.5, 2), new THREE.MeshLambertMaterial({ color: 0xf5f5f5 })); fin.position.set(0, 1.2, 4.5); g.add(fin);
   // v5: 模様を足して見分けやすくする（監督8/18「ちょっと模様をいれたりして対応できない?」）
   // ⚠ 機体の色そのものは変えない。三角の件と同じ「直さない、足す」
-  const markColor = faction === 'axis' ? 0xd32f2f : 0xffffff;   // 同盟国＝日の丸／連合国＝白まる
+  // ⚠ 同盟国＝赤いまる（日の丸）／連合国＝白い星（監督8/18「連合国は星マークとかにしといて」）
   for (const sx of [-5.2, 5.2]) {
-    const mark = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 0.2, 14), new THREE.MeshLambertMaterial({ color: markColor }));
-    mark.position.set(sx, 0.35, -0.5); g.add(mark);
-    if (faction !== 'axis') {   // 連合国は白まるの中に青い点
-      const dot = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 0.24, 12), new THREE.MeshLambertMaterial({ color: 0x1a4f8a }));
-      dot.position.set(sx, 0.4, -0.5); g.add(dot);
+    let mark;
+    if (faction === 'axis') {
+      mark = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 0.2, 14),
+        new THREE.MeshLambertMaterial({ color: 0xd32f2f }));
+    } else {
+      mark = new THREE.Mesh(new THREE.ShapeGeometry(makeStarShape(1.8, 0.72, 5)),
+        new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide }));
+      mark.rotation.x = -Math.PI/2;   // 翼の上に ねかせる
     }
+    mark.position.set(sx, 0.35, -0.5); g.add(mark);
   }
   const belt = new THREE.Mesh(new THREE.CylinderGeometry(1.28, 1.28, 0.9, 12), new THREE.MeshLambertMaterial({ color: 0xffe066 }));
   belt.rotation.x = -Math.PI/2; belt.position.z = 2.2; g.add(belt);   // 胴体のおび
@@ -533,7 +549,13 @@ function spawnAISub(side, x, z, mission) {
     hp: 55, maxHp: 55, radius: 18, speed: 14, aaRange: 0, aaTimer: 0, angle: Math.random()*Math.PI*2, mission, shellTimer: 5, barH: 12 });
 }
 function spawnAIPlane(side, x, z) {
-  const g = makePlaneMesh(side === 'enemy' ? 0x8d6e63 : 0x1565c0, side === 'enemy' ? 'axis' : 'allied');
+  // v5: しるしは「その機体がどっちの国か」で決める。
+  // 味方＝プレイヤーと同じ国／敵＝その反対（前は敵をいつも同盟国あつかいにしていて、
+  // 連合国の機体に日の丸がついてしまっていた）
+  const nation = side === 'enemy'
+    ? (G.faction === 'axis' ? 'allied' : 'axis')
+    : (G.faction || 'allied');
+  const g = makePlaneMesh(side === 'enemy' ? 0x8d6e63 : 0x1565c0, nation);
   g.position.set(x, 50, z);
   return addUnit({ group: g, kind: 'plane', klass: 'plane', faction: side, name: (side === 'enemy' ? '敵の' : '味方の') + '戦闘機',
     hp: 30, maxHp: 30, radius: 9, speed: 52, aaRange: 170, aaTimer: 1, yaw: Math.random()*Math.PI*2, barH: 8 });
