@@ -265,7 +265,7 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyP' && G.running) { togglePause(); }
 });
 
-// ============ ユニット図鑑（ゆうじん設計） ============
+// ============ ユニット図鑑（監督設計） ============
 const CATALOG = {
   fighter: { label: '🛩 戦闘機', types: [
     { id:'antisub',     role:'antisub',     name:'潜水艦撃破機',   desc:'潜水艦に大ダメージ！爆弾は爆雷にもなる', speed:60, turn:1.4, gun:2,   bombs:2, bombDmg:70,  hp:100 },
@@ -394,7 +394,7 @@ function makePortBuildings(color) {
 function makeShipMesh(klass, enemy) {
   const g = new THREE.Group();
   const col = enemy ? 0x5d4037 : 0x37474f;
-  // 水面下の船体（潜水艦からもぐって見上げたときにも、ちゃんと船の底がある：ゆうじん発見）
+  // 水面下の船体（潜水艦からもぐって見上げたときにも、ちゃんと船の底がある：監督発見）
   if (klass === 'carrier') {
     const deck = new THREE.Mesh(new THREE.BoxGeometry(16, 6, 70), new THREE.MeshLambertMaterial({ color: col })); deck.position.y = 4; g.add(deck);
     const flat = new THREE.Mesh(new THREE.BoxGeometry(18, 1.5, 74), new THREE.MeshLambertMaterial({ color: 0x263238 })); flat.position.y = 7.5; g.add(flat);
@@ -478,7 +478,7 @@ function makeTrumpMesh(faction) {
   return g;
 }
 
-// ============ HPバー（敵にも味方にも出す：ゆうじん要望） ============
+// ============ HPバー（敵にも味方にも出す：監督要望） ============
 function attachHpBar(unit, height) {
   const cv = document.createElement('canvas'); cv.width = 64; cv.height = 10;
   const tex = new THREE.CanvasTexture(cv);
@@ -572,7 +572,7 @@ const G = {
 const GAME_MIN_PER_SEC = 0.5;
 const FUEL_MINUTES = 60;
 const FOG_EVERY = 20, FOG_LASTS = 5;
-const REINFORCE_SEC = 300; // 現実時間5分ごとに増援（ゆうじんルール）
+const REINFORCE_SEC = 300; // 現実時間5分ごとに増援（監督ルール）
 
 let player = { group: null, radius: 5 };
 let trumps = [];
@@ -976,7 +976,7 @@ function startGame(faction, mode, def) {
   trumps = [];
   for (const p of projs) scene.remove(p.mesh);
   projs.length = 0;
-  // 港と拠点（両方の国にある：ゆうじん要望）
+  // 港と拠点（両方の国にある：監督要望）
   ourPort = spawnStructure('ally', 'port');
   spawnStructure('ally', 'base');
   enemyPort = spawnStructure('enemy', 'port');
@@ -1088,7 +1088,7 @@ function destroyUnit(u) {
   }
   if (u.structure) { u.group.visible = false; }
 }
-// 切り札：5撃破で1せき目、10撃破で2せき目（同盟国は武蔵！：ゆうじん要望）
+// 切り札：5撃破で1せき目、10撃破で2せき目（同盟国は武蔵！：監督要望）
 function spawnTrump(n) {
   G.trumpSpawned = true;
   const name = G.faction === 'axis'
@@ -1181,11 +1181,11 @@ function tick() {
   if (G.fogActive && !wasFog) { $('fogNotice').style.opacity = 1; playBgm('fog'); logEvent('fog', { on: true }); }
   if (!G.fogActive && wasFog) { $('fogNotice').style.opacity = 0; showMessage('☀ きりが はれた！'); playBgm('battle'); logEvent('fog', { on: false }); }
 
-  // ---- 増援（現実時間5分ごと：ゆうじんルール） ----
+  // ---- 増援（現実時間5分ごと：監督ルール） ----
   G.reinforceT += dt;
   if (!G.tutorial && G.reinforceT >= REINFORCE_SEC) {   // v5: チュートリアル中は増援を出さない
     G.reinforceT = 0;
-    // 1回の増援：ノーマル3体（飛・船・潜が1つずつ：ゆうじん調整）／
+    // 1回の増援：ノーマル3体（飛・船・潜が1つずつ：監督調整）／
     // イージー1体だけ・ハード5体で空母多め（監督の難易度設計 8/14）
     let kinds;
     if (DIFF === 'easy') kinds = [['plane', 'ship', 'sub'][Math.floor(Math.random()*3)]];
@@ -1259,7 +1259,7 @@ function tick() {
     if (P.y <= 3.2 && G.pitch > 0.3) {
       explode(P.clone(), true); showMessage('💦 うみに ついらく！', 3); logEvent('crash', {}); respawn();
     }
-    // 体当たり：爆弾を積んどるほど大爆発（ゆうじん要望）。ただし自分も大破する！
+    // 体当たり：爆弾を積んどるほど大爆発（監督要望）。ただし自分も大破する！
     for (const u of units) {
       if (u.dead || u.faction !== 'enemy') continue;
       const dh = Math.hypot(P.x - u.group.position.x, P.z - u.group.position.z);
@@ -1383,7 +1383,7 @@ function tick() {
           up.y += ((u.submerged ? -14 : -2) - up.y) * Math.min(1, dt*1.5);
         } else up.y = -2;
       }
-      // 空母は戦闘機を発艦させる（さいだい2機・しずめないかぎり出てくる：ゆうじん要望）
+      // 空母は戦闘機を発艦させる（さいだい2機・しずめないかぎり出てくる：監督要望）
       if (u.planeCap) {
         u.planes = u.planes.filter(pl => !pl.dead);
         u.launchT -= dt;
@@ -1449,7 +1449,7 @@ function tick() {
         shoot({ pos: u.group.position.clone(), vel: tmpV.copy(u.allyTarget.group.position).sub(u.group.position).normalize().multiplyScalar(150), color: 0xfff176, size: 0.7, owner: 'ally', dmg: 4, type: 'tracer', homing: u.allyTarget, life: 2.5 });
       }
     }
-    // 味方の港・拠点の対空砲（こっちからも攻撃できる：ゆうじん要望）
+    // 味方の港・拠点の対空砲（こっちからも攻撃できる：監督要望）
     if (u.faction === 'ally' && u.structure && u.aaRange > 0) {
       u.aaTimer -= dt;
       if (u.aaTimer <= 0) {
@@ -1493,7 +1493,7 @@ function tick() {
     }
   }
 
-  // ---- 自分が船のとき、上空の敵機を対空砲でうつ（ゆうじん要望） ----
+  // ---- 自分が船のとき、上空の敵機を対空砲でうつ（監督要望） ----
   if (G.mode === 'ship') {
     G.shipAAT = (G.shipAAT || 0) - dt;
     if (G.shipAAT <= 0) {
@@ -1594,7 +1594,7 @@ function tick() {
     if (e.life <= 0) { scene.remove(e.mesh); explosions.splice(i, 1); }
   }
 
-  // ---- カメラ（のりものごとの視点：ゆうじん設計） ----
+  // ---- カメラ（のりものごとの視点：監督設計） ----
   const co = G.camOff || new THREE.Vector3(0, 8, 20);
   if (G.mode === 'fighter') {
     const off = tmpV.copy(co).applyEuler(new THREE.Euler(0, G.yaw, 0));
@@ -1657,7 +1657,7 @@ function tick() {
   $('extra').textContent = extra;
   if (G.msgTimer > 0) { G.msgTimer -= dt; if (G.msgTimer <= 0) $('message').style.opacity = 0; }
 
-  // ---- 攻撃目標の旗矢印（ゆうじん要望） ----
+  // ---- 攻撃目標の旗矢印（監督要望） ----
   if (enemyPort && !enemyPort.dead) {
     const dx = enemyPort.group.position.x - P.x, dz = enemyPort.group.position.z - P.z;
     const angleD = Math.atan2(dx, dz);

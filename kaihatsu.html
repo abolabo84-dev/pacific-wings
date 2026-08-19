@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>🛩 かいはつ記</title>
+<style>
+  :root { --bg:#fff; --fg:#111; --mute:#666; --line:#ddd; --acc:#0a5cd6; --panel:#f7f7f7; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#161616; --fg:#eee; --mute:#aaa; --line:#3a3a3a; --acc:#7ab4ff; --panel:#202020; }
+  }
+  body { font-family:"BIZ UDPGothic","Hiragino Sans","Yu Gothic UI","Meiryo",system-ui,sans-serif;
+         background:var(--bg); color:var(--fg); margin:0 auto; padding:24px 20px 60px;
+         max-width:760px; font-size:17px; line-height:1.85; }
+  h1 { font-size:1.6rem; margin:.2em 0 .6em; }
+  h2 { font-size:1.3rem; margin:1.8em 0 .4em; padding-bottom:.2em; border-bottom:2px solid var(--fg); }
+  h3 { font-size:1.1rem; margin:1.4em 0 .3em; color:var(--acc); }
+  p { margin:.6em 0; }
+  ul, ol { padding-left:1.4em; margin:.5em 0; }
+  li { margin:.25em 0; }
+  hr { border:none; border-top:1px solid var(--line); margin:2em 0; }
+  blockquote { border-left:4px solid var(--acc); margin:.8em 0; padding:.2em 1em;
+               background:var(--panel); color:var(--mute); }
+  table { border-collapse:collapse; width:100%; margin:1em 0; font-size:.95rem; }
+  th, td { border:1px solid var(--line); padding:.4em .7em; text-align:left; }
+  th { background:var(--panel); }
+  code { background:var(--panel); padding:.1em .35em; border-radius:3px; font-size:.9em; }
+  .top { position:sticky; top:0; background:var(--bg); border-bottom:1px solid var(--line);
+         margin:-24px -20px 1em; padding:10px 20px; font-size:.9rem; }
+  .top a { color:var(--acc); text-decoration:none; }
+  #err { color:#b00; }
+</style>
+</head>
+<body>
+
+<div class="top"><a href="kenkyu.html">← けんきゅう入口にもどる</a></div>
+<div id="out">よみこみ中…</div>
+
+<script>
+// 開発記.md をそのまま読んで表示する。文字化けを防ぐため、
+// サーバーの指定に頼らず、こちらで UTF-8 として読み直している。
+fetch('kaihatsu.md', { cache: 'no-store' })
+  .then(r => r.arrayBuffer())
+  .then(buf => { render(new TextDecoder('utf-8').decode(buf)); })
+  .catch(e => { document.getElementById('out').innerHTML =
+    '<p id="err">よみこめませんでした。つうしんの調子がわるいかもしれません。再読みこみしてみてください。</p>'; });
+
+const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+// 太字・コード・リンクだけ拾う簡単な変換
+const inline = s => esc(s)
+  .replace(/`([^`]+)`/g, '<code>$1</code>')
+  .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+  .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+
+function render(md) {
+  const out = [];
+  const lines = md.split(/\r?\n/);
+  let list = null, tbl = null;
+
+  const closeAll = () => {
+    if (list) { out.push('</' + list + '>'); list = null; }
+    if (tbl)  { out.push('</table>'); tbl = null; }
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const L = lines[i];
+
+    // 表（| で始まる行）
+    if (/^\s*\|/.test(L)) {
+      const cells = L.split('|').slice(1, -1).map(c => c.trim());
+      if (/^[\s|:-]+$/.test(L)) continue;              // 区切り行はとばす
+      if (!tbl) { closeAll(); out.push('<table>'); tbl = 'head'; }
+      const tag = tbl === 'head' ? 'th' : 'td';
+      out.push('<tr>' + cells.map(c => `<${tag}>${inline(c)}</${tag}>`).join('') + '</tr>');
+      if (tbl === 'head') tbl = 'body';
+      continue;
+    } else if (tbl) { out.push('</table>'); tbl = null; }
+
+    const h = L.match(/^(#{1,4})\s+(.*)$/);
+    if (h) { closeAll(); out.push(`<h${h[1].length}>${inline(h[2])}</h${h[1].length}>`); continue; }
+
+    if (/^\s*(---+|\*\*\*+)\s*$/.test(L)) { closeAll(); out.push('<hr>'); continue; }
+
+    if (/^\s*>/.test(L)) { closeAll(); out.push('<blockquote>' + inline(L.replace(/^\s*>\s?/, '')) + '</blockquote>'); continue; }
+
+    const ul = L.match(/^\s*[-*]\s+(.*)$/);
+    const ol = L.match(/^\s*\d+\.\s+(.*)$/);
+    if (ul || ol) {
+      const want = ul ? 'ul' : 'ol';
+      if (list !== want) { closeAll(); out.push('<' + want + '>'); list = want; }
+      out.push('<li>' + inline((ul || ol)[1]) + '</li>');
+      continue;
+    }
+
+    if (!L.trim()) { closeAll(); continue; }
+    closeAll();
+    out.push('<p>' + inline(L) + '</p>');
+  }
+  closeAll();
+  document.getElementById('out').innerHTML = out.join('\n');
+  document.title = '🛩 かいはつ記';
+}
+</script>
+
+</body>
+</html>
