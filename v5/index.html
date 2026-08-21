@@ -41,19 +41,21 @@
   .typeBtn { display: block; width: min(90vw, 480px); text-align: left; font-size: clamp(13px, 3vw, 17px); padding: 10px 14px; margin: 5px; border: 2px solid #90a4ae; border-radius: 10px; background: #263238; color: #fff; cursor: pointer; }
   .typeBtn.sel { background: #00695c; border-color: #ffd54f; }
   .typeBtn small { color: #b0bec5; }
-  #hud { position: absolute; top: 8px; left: 8px; color: #fff; z-index: 10; text-shadow: 1px 1px 2px #000; font-size: 13px; pointer-events: none; }
-  .bar { width: 150px; height: 13px; background: rgba(0,0,0,0.5); border: 1px solid #fff; border-radius: 4px; margin: 2px 0 6px; overflow: hidden; }
+  #hud { position: absolute; top: 8px; left: 8px; color: #fff; z-index: 10; text-shadow: 1px 1px 2px #000; font-size: 12px; pointer-events: none; }
+  .bar { width: 130px; height: 11px; background: rgba(0,0,0,0.5); border: 1px solid #fff; border-radius: 4px; margin: 2px 0 5px; overflow: hidden; }
   .bar > div { height: 100%; }
   #fuelFill { background: #ffb300; width: 100%; }
   #hpFill { background: #e53935; width: 100%; }
   #portFill { background: #29b6f6; width: 100%; }
-  #clock { font-size: 15px; font-weight: bold; }
-  #kills { font-size: 15px; font-weight: bold; color: #ffd54f; }
-  #extra { font-size: 13px; color: #b3e5fc; }
-  #message { position: absolute; top: 16%; width: 100%; text-align: center; color: #ffeb3b; font-size: clamp(17px, 4.5vw, 30px); font-weight: bold; text-shadow: 2px 2px 4px #000; z-index: 10; pointer-events: none; opacity: 0; transition: opacity 0.4s; }
+  #clock { font-size: 14px; font-weight: bold; }
+  #kills { font-size: 14px; font-weight: bold; color: #ffd54f; }
+  #extra { font-size: 12px; color: #b3e5fc; }
+  /* 16%だと左上のHUD（HPバー）に字がかぶる。空の広いところまで下げる（監督報告 8/21） */
+  #message { position: absolute; top: 34%; width: 100%; text-align: center; color: #ffeb3b; font-size: clamp(17px, 4.5vw, 30px); font-weight: bold; text-shadow: 2px 2px 4px #000; z-index: 10; pointer-events: none; opacity: 0; transition: opacity 0.4s; }
   #targetArrow { position: absolute; top: 6px; left: 50%; transform: translateX(-50%); color: #fff; font-size: 15px; font-weight: bold; text-shadow: 1px 1px 3px #000; z-index: 10; pointer-events: none; text-align: center; }
   #arrowIcon { display: inline-block; font-size: 22px; }
-  #minimap { position: absolute; top: 8px; right: 8px; border: 2px solid rgba(255,255,255,0.7); border-radius: 8px; z-index: 10; background: rgba(0,30,60,0.6); }
+  /* canvasの中身は150×150のまま、見た目だけ縮める（iPhoneの横幅の4割をレーダーが占めていた） */
+  #minimap { position: absolute; top: 8px; right: 8px; width: 120px; height: 120px; border: 2px solid rgba(255,255,255,0.7); border-radius: 8px; z-index: 10; background: rgba(0,30,60,0.6); }
   #stick { position: absolute; left: 0; bottom: 0; width: 45%; height: 55%; z-index: 15; }
   #stickBase { position: absolute; width: 110px; height: 110px; border: 2px solid rgba(255,255,255,0.4); border-radius: 50%; background: rgba(255,255,255,0.08); display: none; }
   #stickKnob { position: absolute; width: 50px; height: 50px; border-radius: 50%; background: rgba(255,255,255,0.4); display: none; }
@@ -62,8 +64,52 @@
   #fireBtn2 { bottom: 140px; background: rgba(255,143,0,0.55); }
   /* 一時停止は指の届く下段に置くと、爆弾を押すつもりで誤爆する（監督報告 8/21・iPhone）。
      ミニマップの真下（右上）に逃がす＝わざと手をのばさないと押せない位置 */
-  #pauseBtn { top: 170px; right: 8px; width: 56px; height: 56px; font-size: 10px; background: rgba(0,150,200,0.45); border-width: 2px; }
-  #controlsHint { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); color: rgba(255,255,255,0.85); font-size: 12px; z-index: 10; text-shadow: 1px 1px 2px #000; pointer-events: none; text-align: center; }
+  #pauseBtn { top: 140px; right: 8px; width: 56px; height: 56px; font-size: 10px; background: rgba(0,150,200,0.45); border-width: 2px; }
+  #controlsHint { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); color: rgba(255,255,255,0.85); font-size: 11px; z-index: 10; text-shadow: 1px 1px 2px #000; pointer-events: none; text-align: center; }
+
+  /* ===== 画面のこみ具合を3段階でえらべる（監督報告 8/21「そもそも画面が混みすぎ」）=====
+     ?ui=1 ゆったり（前と同じ）／ ?ui=2 ふつう（＝なにも付けない時）／ ?ui=3 すっきり
+     縦画面のときだけ効く。横画面はこの下の専用ルールが受け持つ */
+  @media (min-height: 521px) {
+    body.ui1 #hud { font-size: 13px; }
+    body.ui1 #clock, body.ui1 #kills { font-size: 15px; }
+    body.ui1 #extra { font-size: 13px; }
+    body.ui1 .bar { width: 150px; height: 13px; margin: 2px 0 6px; }
+    body.ui1 #minimap { width: 150px; height: 150px; }
+    body.ui1 #pauseBtn { top: 170px; }
+
+    body.ui3 #hud { font-size: 10px; }
+    body.ui3 #clock, body.ui3 #kills { font-size: 12px; }
+    body.ui3 #extra { font-size: 10px; }
+    body.ui3 .bar { width: 100px; height: 9px; margin: 1px 0 4px; }
+    body.ui3 #minimap { width: 92px; height: 92px; }
+    body.ui3 #pauseBtn { top: 112px; width: 46px; height: 46px; font-size: 9px; }
+    body.ui3 .fbtn { width: 74px; height: 74px; }
+    body.ui3 #fireBtn2 { bottom: 126px; }
+    body.ui3 #controlsHint { display: none; }
+  }
+
+  /* ===== 横画面（高さが足りない）=====
+     縦むけの固定pxのままだと、一時停止が発射ボタンに、レーダーが爆弾ボタンに重なる
+     （監督報告 8/21・横にしたスクショ）。高さで判定して、全部を小さく詰め直す */
+  @media (max-height: 520px) {
+    #hud { font-size: 11px; }
+    #clock, #kills { font-size: 13px; }
+    #extra { font-size: 11px; }
+    .bar { width: 120px; height: 10px; margin: 1px 0 4px; }
+    #minimap { width: 96px; height: 96px; }
+    .fbtn { width: 62px; height: 62px; font-size: 11px; right: 12px; border-width: 2px; }
+    /* 横は高さがないので、爆弾と発射を「たて積み」から「よこ並び」に変える。
+       たて積みのままだと、上の爆弾がレーダーにめり込む */
+    #fireBtn { bottom: 10px; right: 12px; }
+    #fireBtn2 { bottom: 10px; right: 90px; }
+    #pauseBtn { top: 8px; right: 116px; width: 44px; height: 44px; font-size: 8px; letter-spacing: -0.5px; }
+    #stickBase { width: 88px; height: 88px; }
+    #stickKnob { width: 40px; height: 40px; }
+    #controlsHint { font-size: 10px; bottom: 2px; }
+    #targetArrow { font-size: 13px; }
+    #arrowIcon { font-size: 18px; }
+  }
   #fogNotice { position: absolute; top: 60px; width: 100%; text-align: center; color: #cfd8dc; font-size: 17px; font-weight: bold; text-shadow: 1px 1px 3px #000; z-index: 10; opacity: 0; transition: opacity 1s; pointer-events: none; }
 </style>
 </head>
@@ -143,6 +189,9 @@ import * as THREE from 'three';
 // 別のバージョンを開くたびに前の実験のログが消えていた。
 // ?tag=exp2_C のように条件の名前をつけると、その名前で保存される。
 const LOG_TAG = new URLSearchParams(location.search).get('tag') || 'free';
+// 画面のこみ具合。?ui=1 ゆったり / ?ui=3 すっきり（なにも付けなければ2＝ふつう）
+const UI = (new URLSearchParams(location.search).get('ui') || '2').trim();
+if (UI === '1' || UI === '3') document.body.classList.add('ui' + UI);
 const STARTED = new Date().toISOString();
 const LOG_KEY = 'yuujinGameLog_' + STARTED.replace(/[:.]/g, '-') + '_' + LOG_TAG;
 const gameLog = [];
@@ -969,7 +1018,7 @@ $('btnRetry').onclick = () => { $('endScreen').style.display = 'none'; $('titleS
 function startGame(faction, mode, def) {
   G.faction = faction; G.mode = mode; G.def = def;
   logEvent('start', { faction, mode, type: def.id, ear: EAR, off: [...OFF].join(',') || 'none', bgm: bgmOn, diff: DIFF, tune: tuneStr(),
-    platform: PLATFORM, screen: SCREEN, touch: TOUCH, word: WORD });   // 実験の条件・遊んだ機械・あいことば
+    platform: PLATFORM, screen: SCREEN, touch: TOUCH, word: WORD, ui: UI });   // 実験の条件・遊んだ機械・あいことば・画面のこみ具合
   // まえのユニットをそうじ
   for (const u of units) scene.remove(u.group);
   units = [];
