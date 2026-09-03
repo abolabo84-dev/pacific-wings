@@ -61,9 +61,18 @@
   #minimap { position: absolute; top: 8px; right: 8px; width: var(--rh); height: var(--rh); border: 2px solid rgba(255,255,255,0.7); border-radius: 8px; z-index: 10; background: rgba(0,30,60,0.6); }
   /* v6: レーダーを画面の上・まんなかへ（監督8/26「レーダを真ん中にする」）。
          タイトル画面のボタンで右上にもどせる＝どっちがいいかは監督が遊んで決める */
-  body.radarC #minimap { left: 50%; right: auto; transform: translateX(-50%); }
-  body.radarC #targetArrow { top: calc(var(--rh) + 14px); }
+  /* 🚩の行はレーダーの「上」に置く。下に置くと、せまい画面で左上のステータスの
+     行（撃破・速度…）と横にぶつかる（実測で hud/arrow=true になった）。
+     上なら、ぶつかる相手は時計だけ＝はばが狭いので当たらない */
+  body.radarC #minimap { left: 50%; right: auto; transform: translateX(-50%); top: 44px; }
   body.radarC #tutBar { right: 8px; }
+  /* v6: まんなかに置くと、せまい画面（スマホのたて）で左上のステータスと重なる（パパ報告 9/3）。
+     ステータスの幅を「レーダーの左はし」までにして、はみ出す字は折り返させる。
+     広い画面では計算結果が大きくなるので、なにも起きない */
+  body.radarC #hud { max-width: calc(50vw - var(--rh)/2 - 12px); }
+  body.radarC .bar { max-width: 100%; }
+  /* きりの知らせも、まんなかのレーダーの下へ逃がす（もとの60pxだとレーダーの裏になる） */
+  body.radarC #fogNotice { top: calc(var(--rh) + 44px); }
   #stick { position: absolute; left: 0; bottom: 0; width: 45%; height: 55%; z-index: 15; }
   #stickBase { position: absolute; width: 110px; height: 110px; border: 2px solid rgba(255,255,255,0.4); border-radius: 50%; background: rgba(255,255,255,0.08); display: none; }
   #stickKnob { position: absolute; width: 50px; height: 50px; border-radius: 50%; background: rgba(255,255,255,0.4); display: none; }
@@ -1909,22 +1918,39 @@ function tick() {
 const mm = document.getElementById('minimap').getContext('2d');
 function drawMinimap() {
   mm.clearRect(0, 0, 150, 150);
-  const sc = 150/(3400*WORLD), ox = 75, oy = 75;   // v6: 場所を広げたぶん、レーダーの縮尺も同じだけ小さく
+  // v6: 自分をいつも まんなか に置く方式に変えた。
+  // とみさわさん（プロのゲームデザイナー・8/16の感想フォーム）の指摘：
+  // 「その中の白い三角が自機だと思うのですが、遊んでいるとマップから消えてしまい、
+  //   自分がどこにいるのかがわからなくなります。
+  //   この自機表示は、常にマップの中央に表示してはどうでしょうか。」
+  // ⚠ 自分が動かず まわりが動く形になるので、画面の外に出た「行き先」（港・基地）は
+  //   ふちに寄せて残す。でないと監督の「その方角え行くと」（8/26）が成り立たない。
+  const sc = 150/(3400*WORLD), ox = 75, oy = 75;   // 縮尺はv5から変えていない
+  const px = (player.group && G.running) ? player.group.position.x : 0;
+  const pz = (player.group && G.running) ? player.group.position.z : 0;
+  const sx = x => ox + (x - px)*sc, sy = z => oy + (z - pz)*sc;
+  const M = 7;   // ふちからの余白
+  const clamp = v => Math.max(M, Math.min(150 - M, v));
+  const isOut = (x, y) => x < M || x > 150 - M || y < M || y > 150 - M;
   for (const isl of islandDefs) {
     // v6: 監督8/26「白は、日本 赤は、アメリカ」
     mm.fillStyle = isl.tag === 'japan' ? '#ffffff'
                  : isl.tag === 'america' ? '#ff1744'
                  : isl.kind === 'plain' ? '#8d6e63' : isl.side === 'ally' ? (isl.kind === 'port' ? '#29b6f6' : '#1976d2') : (isl.kind === 'port' ? '#ff1744' : '#c62828');
-    mm.beginPath();
-    mm.arc(ox + isl.x*sc, oy + isl.z*sc, Math.max(3, isl.r*sc), 0, 7);
-    mm.fill();
-    // 白と赤の2つは「行き先」なので、ふちを付けて他の島より目立たせる
-    if (isl.tag) { mm.strokeStyle = '#000'; mm.lineWidth = 1.5; mm.stroke(); }
+    const x = sx(isl.x), y = sy(isl.z);
+    if (isl.kind === 'plain') {                       // ただの島は、外に出たら消えていい
+      if (isOut(x, y)) continue;
+      mm.beginPath(); mm.arc(x, y, Math.max(2, isl.r*sc), 0, 7); mm.fill();
+      continue;
+    }
+    const out = isOut(x, y);                          // 港と基地は、外に出てもふちに残す＝方角がわかる
+    mm.beginPath(); mm.arc(clamp(x), clamp(y), out ? 4 : Math.max(3, isl.r*sc), 0, 7); mm.fill();
+    mm.strokeStyle = out ? '#ffffff' : '#000000'; mm.lineWidth = 1.5; mm.stroke();
   }
-  // 敵の港に旗マーク
+  // 敵の港に旗マーク（外に出ていても、ふちに出す）
   mm.font = '10px sans-serif'; mm.textAlign = 'center';
   mm.fillStyle = '#fff';
-  mm.fillText('🚩', ox + ENEMY.port.x*sc, oy + ENEMY.port.z*sc - 5);
+  mm.fillText('🚩', clamp(sx(ENEMY.port.x)), clamp(sy(ENEMY.port.z)) - 5);
   const radarOK = G.def && G.def.radarInFog;
   if (G.fogActive && !radarOK) {
     mm.fillStyle = 'rgba(200,210,220,0.85)';
@@ -1934,18 +1960,21 @@ function drawMinimap() {
   } else {
     for (const u of units) {
       if (u.dead || u.structure) continue;
+      const x = sx(u.group.position.x), y = sy(u.group.position.z);
+      if (isOut(x, y)) continue;                      // 遠すぎる敵は出さない（ふちにためない）
       mm.fillStyle = u.faction === 'enemy' ? '#ff1744' : '#00e676';
-      mm.fillRect(ox + u.group.position.x*sc - 2, oy + u.group.position.z*sc - 2, 4, 4);
+      mm.fillRect(x - 2, y - 2, 4, 4);
     }
   }
   for (const trump of trumps) {
     if (trump.dead) continue;
+    const x = sx(trump.group.position.x), y = sy(trump.group.position.z);
     mm.fillStyle = '#ffd600';
-    mm.fillRect(ox + trump.group.position.x*sc - 3, oy + trump.group.position.z*sc - 3, 6, 6);
+    mm.fillRect(clamp(x) - 3, clamp(y) - 3, 6, 6);    // 切り札は味方の目じるしなので、ふちに残す
   }
   if (player.group && G.running) {
     mm.save();
-    mm.translate(ox + player.group.position.x*sc, oy + player.group.position.z*sc);
+    mm.translate(ox, oy);                             // ← いつも まんなか（とみさわさんの案）
     mm.rotate(-G.yaw + Math.PI);
     // 三角（いままでのまま。直さない）
     mm.fillStyle = '#fff';
