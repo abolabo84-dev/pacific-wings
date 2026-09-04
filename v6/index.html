@@ -1030,9 +1030,18 @@ function playBgm(name) {
   const token = ++bgm.seq;
   bgm.name = name;
   bgm.current = t;
+  // v6: 1回だけの曲（切り札・勝ち・負け）は、いつも頭から鳴らす。
+  // ⚠ 前に途中まで鳴って止まっていると、そこから再開して すぐ終わってしまう
+  if (!t.loop) { try { t.currentTime = 0; } catch (e) {} }
   t.play().then(() => {
     if (token !== bgm.seq) return;                 // もっと新しい切りかえが来ていたら何もしない
-    if (prev && prev !== t) { prev.pause(); prev.currentTime = 0; }
+    if (prev && prev !== t) {
+      prev.pause();
+      // v6: ずっと流れる曲（タイトル・戦闘・きり）は**巻き戻さない**＝もどってきたら続きから。
+      // ⚠ 巻き戻していたので、きりが40秒ごとに来るこのゲームでは
+      //    戦闘曲は「頭の30秒」しか鳴っていなかった（3分の曲でも後半が誰にも聞かれない）。
+      if (!prev.loop) prev.currentTime = 0;
+    }
   }).catch(() => {
     if (token !== bgm.seq) return;
     bgm.name = prevName; bgm.current = prev;       // 鳴らせなかった＝前の曲のまま続ける
