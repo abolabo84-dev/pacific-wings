@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>太平洋の翼 〜敵の港を撃破せよ！〜 第6号（ガチャと基地）</title>
+<title>太平洋の翼 〜敵の港を撃破せよ！〜 第6号（ガチャ・基地・みんなでルーム）</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: "Meiryo", sans-serif; touch-action: none; }
@@ -164,7 +164,13 @@
   <p style="font-size:.9rem; opacity:.9">🆕 <b>第6号であたらしいこと</b><br>
   🎁 敵をたおすと <b>3チール</b>、勝つと <b>5チール</b>。<b>15チール</b>でガチャが1回ひける<br>
   🏝 海が広くなった。<b>基地がふえた</b>（レーダーの ⚪ が日本、🔴 がアメリカ）<br>
-  ⛽ 日本の基地でも、ねんりょうと爆弾をほきゅうできる</p>
+  ⛽ 日本の基地でも、ねんりょうと爆弾をほきゅうできる<br>
+  👥 <b>みんなでルーム</b>。あいことば（数字だけ）で、おなじ海に あつまれる</p>
+  <p style="margin-bottom:.2em">ひとりで あそぶ？ みんなで あそぶ？</p>
+  <div style="display:flex; flex-wrap:wrap; justify-content:center;">
+    <button class="btn dbtn on" id="btnSolo">👤 こじんルーム<br><span style="font-size:60%">いままでどおり</span></button>
+    <button class="btn dbtn" id="btnRoomOpen">👥 みんなでルーム<br><span style="font-size:60%">あいことばで あつまる</span></button>
+  </div>
   <p style="margin-bottom:.2em">むずかしさを えらぼう</p>
   <div style="display:flex; flex-wrap:wrap; justify-content:center;">
     <button class="btn dbtn" id="btnEasy" data-d="easy">🟢 イージー<br><span style="font-size:60%">はじめての人むけ</span></button>
@@ -196,6 +202,28 @@
   <p style="margin:.6em 0 .1em; font-size:.95rem">もってるもの（<span id="gachaCount">0</span>／<span id="gachaAll">0</span>）</p>
   <div id="gachaList" style="max-height:34vh; overflow-y:auto; width:min(92vw,520px)"></div>
   <button class="btn" id="btnGachaBack" style="font-size:.95rem; padding:.45em 1.2em">← もどる</button>
+</div>
+
+<div class="overlay" id="roomScreen" style="display:none">
+  <h2>👥 みんなでルーム</h2>
+  <p style="margin:.1em 16px">おなじ <b>あいことば</b> を打った人と、おなじ海に出られる。<br>
+  あいことばは <b>数字だけ</b>。</p>
+  <p style="margin:.6em 0 .1em; font-size:.95rem">なまえ（かかなくてもいい）</p>
+  <input id="roomName" maxlength="8" placeholder="なまえ" style="font-size:clamp(16px,4vw,22px); padding:.4em .6em; border-radius:10px; border:2px solid #fff; background:#102b40; color:#fff; text-align:center; width:min(60vw,240px)">
+  <p style="margin:.8em 0 .1em; font-size:.95rem">あいことば（数字だけ）</p>
+  <input id="roomWord" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="1234" style="font-size:clamp(24px,7vw,38px); font-weight:bold; letter-spacing:.15em; padding:.3em .5em; border-radius:10px; border:2px solid #fff; background:#102b40; color:#ffe066; text-align:center; width:min(60vw,240px)">
+  <div style="display:flex; flex-wrap:wrap; justify-content:center;">
+    <button class="btn" id="btnRoomMake" style="background:#00695c; font-size:1rem; padding:.5em 1.1em">🆕 ルームを作る</button>
+    <button class="btn" id="btnRoomJoin" style="background:#1565c0; font-size:1rem; padding:.5em 1.1em">🚪 はいる</button>
+  </div>
+  <p id="roomStatus" style="min-height:2.6em; font-weight:bold; color:#69f0ae; margin:.2em 16px"></p>
+  <p style="font-size:.82rem; opacity:.8; margin:0 16px">
+    ⚠ いまできること：おなじ海にいる なかまが <b>見える</b>・レーダーに出る・撃破や勝ちが つたわる。<br>
+    ⚠ まだできないこと：<b>敵はそれぞれの海で うごいている</b>（あなたが倒した敵は、あいての画面ではまだ生きている）。つぎに直す。</p>
+  <div style="display:flex; flex-wrap:wrap; justify-content:center;">
+    <button class="btn" id="btnRoomBack" style="font-size:.95rem; padding:.45em 1.2em">← もどる</button>
+    <button class="btn" id="btnRoomLeave" style="background:#5d4037; font-size:.95rem; padding:.45em 1.2em">🚪 ルームを出る</button>
+  </div>
 </div>
 
 <div class="overlay" id="unitScreen" style="display:none">
@@ -1257,6 +1285,7 @@ function startGame(faction, mode, def) {
   $('hpLabel').textContent = mode === 'fighter' ? 'きたい（HP）' : mode === 'ship' ? 'ふね（HP）' : 'せんすいかん（HP）';
   setupControlsUI();
   showMessage(`${def.name} 出撃！ 🚩の方角へすすめ！`, 4);
+  if (!G.tutorial) netEvent('go', def.name);   // v6: みんなでルームの なかまに「出たよ」と知らせる
 }
 function setupControlsUI() {
   const m = G.mode;
@@ -1322,6 +1351,7 @@ function destroyUnit(u) {
     // v6: 監督「敵を倒すと3チール」。⚠ チュートリアルではもらえない（見せるための時間なので）
     if (!G.tutorial) { addCheer(CHEER_KILL, 'kill'); G.cheerRun += CHEER_KILL; }
     showMessage(`🎯 ${u.name} 撃破！ (${Math.min(G.kills,5)}/5)　🎁+${CHEER_KILL}チール`, 2.5);
+    if (!G.tutorial) netEvent('kill', u.name);   // v6: みんなでルームの なかまにも知らせる
     if (G.kills >= 5 && trumps.length === 0) spawnTrump(1);
     if (G.kills >= 10 && trumps.length === 1) spawnTrump(2);
   } else {
@@ -1364,6 +1394,7 @@ function win() {
   playBgm('victory');
   addCheer(CHEER_WIN, 'win'); G.cheerRun += CHEER_WIN;   // v6: 監督「勝つと5チール」
   logEvent('win', { kills: G.kills, cheerRun: G.cheerRun });
+  netEvent('win');
   $('endTitle').textContent = '🏆 だいしょうり！！';
   $('endText').innerHTML = `敵の港を撃破した！ ${G.faction === 'axis' ? '同盟国' : '連合国'}のかち！<br>撃破数：${G.kills}`
     + `<br>🎁 このかいで <b>${G.cheerRun}</b> チール（ぜんぶで <b>${cheer}</b> チール）`;
@@ -1377,6 +1408,7 @@ function lose() {
   G.running = false;
   playBgm('defeat');
   logEvent('lose', { kills: G.kills, cheerRun: G.cheerRun });
+  netEvent('lose');
   $('endTitle').textContent = '😢 はいぼく…';
   $('endText').innerHTML = `味方の港が撃破されてしまった…<br>つぎは港をまもりながら攻めよう！`
     + `<br>🎁 このかいで <b>${G.cheerRun}</b> チール（ぜんぶで <b>${cheer}</b> チール）`;
@@ -1409,7 +1441,8 @@ function tick() {
   }
   pos.needsUpdate = true;
 
-  if (!G.running) { renderer.render(scene, camera); return; }
+  // v6: タイトルに戻っているあいだも、なかまの位置は動かしておく（うしろの海に置きざりにしない）
+  if (!G.running) { netTick(dt, null); renderer.render(scene, camera); return; }
   const P = player.group.position;
 
   // ---- 時計 ----
@@ -1897,6 +1930,7 @@ function tick() {
   } else extra = `🌊 深さ ${Math.round(-G.depth)}m ${G.depth < -6 ? '（かくれ中！弾が当たらない）' : '（浅い！見つかるぞ）'}`;
   const nextRein = Math.max(0, REINFORCE_SEC - G.reinforceT);
   extra += ` ／ 増援まで ${Math.floor(nextRein/60)}:${String(Math.floor(nextRein%60)).padStart(2,'0')}`;
+  if (NET.on) extra += ` ／ 👥 ${NET.word}（なかま ${NET.peers.size}）`;   // v6: みんなでルーム
   $('extra').textContent = extra;
   if (G.msgTimer > 0) { G.msgTimer -= dt; if (G.msgTimer <= 0) $('message').style.opacity = 0; }
 
@@ -1910,6 +1944,7 @@ function tick() {
     $('arrowDist').textContent = Math.round(Math.hypot(dx, dz)) + 'm';
   }
 
+  netTick(dt, P);   // v6: みんなでルーム（自分の場所を送る／なかまを動かす）
   drawMinimap();
   renderer.render(scene, camera);
 }
@@ -1972,6 +2007,14 @@ function drawMinimap() {
     mm.fillStyle = '#ffd600';
     mm.fillRect(clamp(x) - 3, clamp(y) - 3, 6, 6);    // 切り札は味方の目じるしなので、ふちに残す
   }
+  // v6: みんなでルームの なかま（水色の丸）。ふちに残す＝どっちにいるかが わかる。
+  // ⚠ きりの中でも消さない。切り札とおなじあつかい（味方の目じるしは、はぐれないために残す）
+  for (const p of NET.peers.values()) {
+    const x = sx(p.group.position.x), y = sy(p.group.position.z);
+    mm.fillStyle = '#00e5ff';
+    mm.beginPath(); mm.arc(clamp(x), clamp(y), 3.5, 0, 7); mm.fill();
+    mm.strokeStyle = '#ffffff'; mm.lineWidth = 1; mm.stroke();
+  }
   if (player.group && G.running) {
     mm.save();
     mm.translate(ox, oy);                             // ← いつも まんなか（とみさわさんの案）
@@ -1992,6 +2035,142 @@ function drawMinimap() {
     mm.moveTo(0, 12); mm.lineTo(4.5, 5); mm.lineTo(-4.5, 5);
     mm.closePath(); mm.fill();
     mm.restore();
+  }
+}
+
+// ============ 👥 みんなでルーム（監督の設計 8/25 SMS） ============
+// 「みんなでルームだっらルームを作成という所を押したら作成される、そして合言葉を決める
+//   それで合言葉を打つと入れる。[数字だけ]」
+// サーバーを持たずに、ブラウザどうしを直接つなぐ（WebRTC）。GitHub Pages（静的）のままで動く。
+// ⚠ バージョンは固定する。8/25の実測で、版によってイベントの形（代入式／関数）が違った。
+//    その両方に対応する書き方は下の mk()。
+// ponytail: 敵はそれぞれの海で動く（同期していない）, 「倒した敵が相手の画面でも沈む」が要るなら
+//           ホスト1人が敵を動かして配る形に変える（v6検討メモの①の項）
+const TRYSTERO_URL = 'https://esm.run/trystero@0.25.4';
+const NET_HZ = 10;                      // 位置を送る回数（毎秒）。8/25の実測とおなじ
+const NET_TIMEOUT = 8000;               // これだけ音さたが無い相手は消す（ミリ秒）
+const NET = { on: false, word: '', me: '', name: localStorage.getItem('pw_name') || '',
+              room: null, send: null, sendEv: null, peers: new Map(), t: 0 };
+const netV = new THREE.Vector3();       // tick の tmpV とは別にする（使い回しの取りちがえ防止）
+
+function netMakeMesh(mode, klass, faction) {
+  if (mode === 'ship') return makeShipMesh(klass === 'carrier' ? 'carrier' : 'destroyer', false);
+  if (mode === 'sub') return makeSubMesh(false);
+  return makePlaneMesh(0x00c853, faction === 'axis' ? 'axis' : 'allied');   // なかまは みどり
+}
+function netLabel(text) {
+  const cv = document.createElement('canvas'); cv.width = 256; cv.height = 56;
+  const c = cv.getContext('2d');
+  c.font = 'bold 32px Meiryo, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.lineWidth = 7; c.strokeStyle = '#000'; c.strokeText(text, 128, 28);
+  c.fillStyle = '#69f0ae'; c.fillText(text, 128, 28);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), depthTest: false }));
+  sp.scale.set(52, 11, 1); sp.position.y = 28;
+  return sp;
+}
+function netPeerCount() {
+  try { return Object.keys(NET.room.getPeers()).length; } catch (e) { return NET.peers.size; }
+}
+function netStatus(msg) {
+  const e = $('roomStatus');
+  if (msg != null) { e.textContent = msg; }
+  else if (NET.on) e.textContent = `✅ あいことば ${NET.word} でつながった／いま ${netPeerCount()}人`;
+  else e.textContent = '';
+  $('btnSolo').classList.toggle('on', !NET.on);
+  $('btnRoomOpen').classList.toggle('on', NET.on);
+  $('btnRoomOpen').innerHTML = NET.on
+    ? `👥 みんなでルーム<br><span style="font-size:60%">あいことば ${NET.word}</span>`
+    : '👥 みんなでルーム<br><span style="font-size:60%">あいことばで あつまる</span>';
+}
+function netDropPeer(id) {
+  const p = NET.peers.get(id);
+  if (p) scene.remove(p.group);
+  NET.peers.delete(id);
+}
+function netLeave() {
+  for (const id of [...NET.peers.keys()]) netDropPeer(id);
+  if (NET.room) { try { NET.room.leave(); } catch (e) {} }
+  NET.room = null; NET.send = null; NET.sendEv = null; NET.on = false; NET.word = '';
+  netStatus();
+}
+async function netJoin(word) {
+  word = String(word || '').trim();
+  if (!/^\d{1,8}$/.test(word)) { netStatus('あいことばは 数字だけ／1〜8けたで 打ってね'); return; }
+  netLeave();
+  netStatus('つないでいます…（すこし まってね）');
+  try {
+    const mod = await import(TRYSTERO_URL);
+    const room = mod.joinRoom({ appId: 'taiheiyo-no-tsubasa', password: 'pw' + word }, 'room' + word);
+    NET.room = room; NET.me = mod.selfId || ''; NET.word = word; NET.on = true;
+    // 版による差を吸収：makeAction は [send, get] のことも {send, onMessage} のこともある
+    const mk = n => {
+      const a = room.makeAction(n);
+      return Array.isArray(a)
+        ? { send: a[0], on: fn => a[1]((d, id) => fn(d, id)) }
+        : { send: a.send.bind(a), on: fn => { a.onMessage = (d, m) => fn(d, (m && m.peerId != null) ? m.peerId : m); } };
+    };
+    const st = mk('st'), ev = mk('ev');
+    NET.send = st.send; NET.sendEv = ev.send;
+    st.on(netOnState); ev.on(netOnEvent);
+    // イベントも版により「関数を呼ぶ」or「プロパティに代入」
+    const on = (k, fn) => typeof room[k] === 'function' ? room[k](fn) : (room[k] = fn);
+    on('onPeerJoin', id => { logEvent('net_peer_join', { id }); netStatus(); });
+    on('onPeerLeave', id => { netDropPeer(id); logEvent('net_peer_leave', { id }); netStatus(); });
+    localStorage.setItem('pw_room', word);
+    logEvent('net_join', { word, me: NET.me });
+    netStatus();
+  } catch (e) {
+    const msg = String((e && e.message) || e);
+    NET.on = false; NET.room = null;
+    netStatus('つながらなかった…（' + msg + '）\nもういちど「はいる」を おしてみて');
+    logEvent('net_error', { msg });
+  }
+}
+function netOnState(d, id) {
+  if (!Array.isArray(d) || d.length < 8) return;
+  const [x, y, z, ry, mode, klass, faction, hp, name] = d;
+  let p = NET.peers.get(id);
+  if (!p || p.mode !== mode || p.klass !== klass || p.name !== (name || 'なかま')) {
+    if (p) scene.remove(p.group);
+    const g = netMakeMesh(mode, klass, faction);
+    g.add(netLabel(name || 'なかま'));
+    g.position.set(x, y, z);
+    scene.add(g);
+    p = { group: g, mode, klass, name: name || 'なかま' };
+    NET.peers.set(id, p);
+  }
+  p.tx = x; p.ty = y; p.tz = z; p.ry = ry; p.hp = hp; p.last = performance.now();
+}
+function netOnEvent(d) {
+  if (!Array.isArray(d)) return;
+  const [kind, text, who] = d;
+  const nm = who || 'なかま';
+  if (kind === 'kill') showMessage(`👥 ${nm} が ${text} を撃破！`, 2.5);
+  else if (kind === 'win') showMessage(`👥 ${nm} が かった！ 🏆`, 3);
+  else if (kind === 'lose') showMessage(`👥 ${nm} の港が やられた…`, 3);
+  else if (kind === 'go') showMessage(`👥 ${nm} が ${text} で 出撃！`, 2.5);
+}
+function netEvent(kind, text) {
+  if (NET.on && NET.sendEv) { try { NET.sendEv([kind, text || '', NET.name || 'なかま']); } catch (e) {} }
+}
+// 自分の場所を送る＋なかまの場所を なめらかに追う（tick から毎フレーム呼ぶ）
+function netTick(dt, P) {
+  if (!NET.on) return;
+  NET.t += dt;
+  if (NET.t >= 1/NET_HZ && NET.send && G.running) {
+    NET.t = 0;
+    try {
+      NET.send([Math.round(P.x), Math.round(P.y*10)/10, Math.round(P.z), Math.round(G.yaw*100)/100,
+                G.mode, (G.def && G.def.klass) || '', G.faction,
+                Math.round(G.hp / G.maxHp * 100), NET.name || 'なかま']);
+    } catch (e) {}
+  }
+  const now = performance.now();
+  const k = 1 - Math.pow(0.002, dt);      // カクつきをならす（通信は毎秒10回しか来ない）
+  for (const [id, p] of NET.peers) {
+    if (now - p.last > NET_TIMEOUT) { netDropPeer(id); continue; }
+    p.group.position.lerp(netV.set(p.tx, p.ty, p.tz), k);
+    p.group.rotation.y = p.ry;
   }
 }
 
@@ -2025,7 +2204,11 @@ const TUT_LAST = [
   '⛽ ねんりょうに 気をつけて',
   '🌫 きりが出たら レーダーが きかない',
 ];
-const LINE_SEC = 3.4;            // 字幕1行の表示時間
+const LINE_SEC = 3.4;            // 字幕1行の表示時間（みじかい行の目安）
+// v6: 監督が転送してきた感想（8/30「チュートリアルがはやすぎるって」）。
+// 1行いくらの固定だと、長い行ほど読み切れない＝長い行から先に落ちる。字の数で時間を伸ばす。
+// ⚠ 上限を置かないと、長い1行でずっと待たされる。
+const lineSec = s => Math.min(9, Math.max(LINE_SEC + 1.1, 1.8 + String(s).length * 0.3));
 let tutTimer = null, tutScene = 0, tutFinished = false;
 // ponytail: 字幕はsetTimeoutベースの素朴な進行, 秒数をBGMと同期したくなったら初めてタイムライン化
 
@@ -2057,8 +2240,9 @@ function runTutScene() {
   const step = () => {
     if (!G.tutorial) return;
     if (i >= sc.lines.length) { tutScene++; return runTutScene(); }
-    tutSay(sc.lines[i++]);
-    tutTimer = setTimeout(step, LINE_SEC*1000);
+    const line = sc.lines[i++];
+    tutSay(line);
+    tutTimer = setTimeout(step, lineSec(line)*1000);
   };
   step();
 }
@@ -2074,8 +2258,9 @@ function tutFinale() {
       tutSay('これで おわり！　右上の「🏁 タイトルへ」を おしてね');
       return;   // タイマーを止めて、ここで待つ
     }
-    tutSay(TUT_LAST[i++]);
-    tutTimer = setTimeout(step, LINE_SEC*1000);
+    const line = TUT_LAST[i++];
+    tutSay(line);
+    tutTimer = setTimeout(step, lineSec(line)*1000);
   };
   step();
 }
@@ -2105,6 +2290,38 @@ $('tutSkip').onclick = () => {
   tutClearTimers(); tutScene++; runTutScene();
 };
 $('tutClose').onclick = () => { logEvent('tutorial_skip', { scene: tutScene, closed: true }); endTutorial(); };
+
+// ============ 👥 みんなでルームの画面 ============
+$('roomName').value = NET.name;
+$('roomWord').value = localStorage.getItem('pw_room') || '';
+$('roomName').oninput = () => {
+  NET.name = $('roomName').value.trim().slice(0, 8);
+  localStorage.setItem('pw_name', NET.name);
+};
+$('btnSolo').onclick = () => { netLeave(); logEvent('room_solo', {}); };
+$('btnRoomOpen').onclick = () => {
+  $('titleScreen').style.display = 'none';
+  $('roomScreen').style.display = 'flex';
+  netStatus();
+};
+$('btnRoomBack').onclick = () => {
+  $('roomScreen').style.display = 'none';
+  $('titleScreen').style.display = 'flex';
+};
+$('btnRoomMake').onclick = () => {
+  // 監督の設計：「ルームを作成という所を押したら作成される、そして合言葉を決める」
+  // ⚠ 数字だけ（監督指定）。4けたなら電話のテンキーで打てる＝書くのが少なくて済む
+  const w = String(1000 + Math.floor(Math.random()*9000));
+  $('roomWord').value = w;
+  netJoin(w);
+};
+$('btnRoomJoin').onclick = () => netJoin($('roomWord').value);
+$('btnRoomLeave').onclick = () => { netLeave(); logEvent('room_leave', {}); };
+netStatus();   // ボタンの見た目を、いまの状態（＝ひとりで）に合わせる
+// ?dev=1 のときだけ、通信の中身をコンソールから触れるようにする（つながらない時の調べ用）。
+// ⚠ 裏タブは requestAnimationFrame が止まる＝位置を送らなくなる。2枚のタブで試すときは
+//    両方を「見えている」状態（べつのウィンドウ）にすること。8/21のHANABIと同じ罠。
+if (DEV) window.NET = NET;
 
 // ============ 記録用の自動スタート（?auto=allied|axis&cat=fighter|ship|sub&type=ID&demo=1） ============
 const urlP = new URLSearchParams(location.search);
