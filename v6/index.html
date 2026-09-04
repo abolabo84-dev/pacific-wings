@@ -2261,7 +2261,19 @@ function drawMinimap() {
 //    その両方に対応する書き方は下の mk()。
 // ponytail: 敵はそれぞれの海で動く（同期していない）, 「倒した敵が相手の画面でも沈む」が要るなら
 //           ホスト1人が敵を動かして配る形に変える（v6検討メモの①の項）
-const TRYSTERO_URL = 'https://esm.run/trystero@0.25.4';
+// 相手さがしの中継所（シグナリング）。既定は nostr。
+// ⚠ パパの実測（9/5・別デバイス間）で、相手は見つかるのに **SDPのやり取りが成立しない**
+//    （ICEの状態が一度も動かず、つなぎ口だけ80個できていた）＝中継所でつまずいている。
+//    中継所は差し替えられるので ?net=mqtt / torrent / nostr で試せるようにした。
+// ⚠ 同一PCの2タブで成功しても、別のデバイス間の証拠にはならない（同じIPだと通ってしまう）
+// ⚠ 0.25.4 では nostr 以外は別パッケージに分かれている（trystero/mqtt は deprecated）。
+//    正しい名前は @trystero-p2p/mqtt など。実在とバージョンは叩いて確認ずみ（すべて 0.25.4）
+const NET_WAY = (new URLSearchParams(location.search).get('net') || 'nostr').toLowerCase();
+const TRYSTERO_URL = ({
+  nostr:   'https://esm.run/trystero@0.25.4',
+  mqtt:    'https://esm.run/@trystero-p2p/mqtt@0.25.4',
+  torrent: 'https://esm.run/@trystero-p2p/torrent@0.25.4',
+})[NET_WAY] || 'https://esm.run/trystero@0.25.4';
 const NET_HZ = 10;                      // 位置を送る回数（毎秒）。8/25の実測とおなじ
 const NET_TIMEOUT = 8000;               // これだけ音さたが無い相手は消す（ミリ秒）
 const NET = { on: false, word: '', me: '', name: localStorage.getItem('pw_name') || '',
@@ -2270,7 +2282,7 @@ const NET = { on: false, word: '', me: '', name: localStorage.getItem('pw_name')
 // ⚠ つながらない時に「どこで止まったか」を画面に出す（パパ 9/5・PC×スマホ4Gで入れなかった）。
 // 口で往復するより、1回開けば分かる形にする。止まりうる場所は3つあって、直し方が全部ちがう：
 //   ① リレー（相手さがし）に届かない ② 相手は見つかったがNAT越えできない ③ データが来ない
-const BUILD = 'v6-0905g';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
+const BUILD = 'v6-0905i';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
 const NETDIAG = { lib: '', joined: false, peerJoin: 0, packets: 0, ice: '', srflx: 0, relay: 0, err: '',
                   t0: 0, states: [], pcs: 0 };   // t0=部屋に入った時刻／states=ICEがたどった状態
 // ⚠ ICEの様子は Trystero の内側にあるので、RTCPeerConnection を包んで のぞく
@@ -2332,7 +2344,7 @@ function netPeerCount() {
 // ⚠ 「つながらない」を1つの言葉にまとめない。止まる場所ごとに直し方がちがう
 function netDiagText() {
   if (!NET.on && !NETDIAG.err) return '';
-  const L = ['版:' + BUILD];
+  const L = ['版:' + BUILD + ' / 中継所:' + NET_WAY];
   if (NETDIAG.err) L.push('⚠ ' + NETDIAG.err);
   L.push((NETDIAG.joined ? '✅' : '❌') + ' ①へやに入る（相手さがしの場所につながった）');
   L.push((NETDIAG.peerJoin > 0 ? '✅' : '⏳') + ' ②あいてを見つけた：' + NETDIAG.peerJoin + '人');
@@ -2340,7 +2352,8 @@ function netDiagText() {
   const secs = NETDIAG.t0 ? Math.round((Date.now() - NETDIAG.t0)/1000) : 0;
   L.push((iceOk ? '✅' : NETDIAG.ice === 'failed' ? '❌' : '⏳') + ' ③あいてと道がつながった：'
     + (NETDIAG.ice || 'まだ') + '（' + secs + '秒たった）');
-  if (NETDIAG.states.length) L.push('　 たどった道すじ：' + NETDIAG.states.join(' → '));
+  L.push('　 たどった道すじ：' + (NETDIAG.states.length ? NETDIAG.states.join(' → ')
+    : '一度も動いていない＝あいての手紙がとどいていない'));
   L.push((NETDIAG.packets > 0 ? '✅' : '⏳') + ' ④データが来た：' + NETDIAG.packets + '回');
   if ((NETDIAG.ice === 'failed' || (NETDIAG.peerJoin > 0 && secs > 25 && !iceOk)) && NETDIAG.relay === 0) {
     L.push('👉 ②はできて③がダメ＝**中継サーバー（TURN）が要る**組み合わせ。');
@@ -2770,7 +2783,7 @@ $('btnRoomJoin').onclick = () => netJoin($('roomWord').value);
 $('btnRoomLeave').onclick = () => { netLeave(); logEvent('room_leave', {}); };
 // スマホから状態を貼って送れるように（口で往復するより速い）
 $('btnDiagCopy').onclick = async () => {
-  const t = ['【みんなでルームの状態】', '版:' + BUILD, 'あいことば:' + (NET.word || 'なし'),
+  const t = ['【みんなでルームの状態】', '版:' + BUILD, '中継所:' + NET_WAY, 'あいことば:' + (NET.word || 'なし'),
     '機械:' + PLATFORM + ' / ' + navigator.userAgent.slice(0, 90),
     netDiagText() || '（まだ部屋に入っていない）'].join(String.fromCharCode(10));
   try { await navigator.clipboard.writeText(t); netStatus('📋 コピーした。そのまま貼って送って'); }
