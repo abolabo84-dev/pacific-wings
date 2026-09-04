@@ -2268,7 +2268,11 @@ function drawMinimap() {
 // ⚠ 同一PCの2タブで成功しても、別のデバイス間の証拠にはならない（同じIPだと通ってしまう）
 // ⚠ 0.25.4 では nostr 以外は別パッケージに分かれている（trystero/mqtt は deprecated）。
 //    正しい名前は @trystero-p2p/mqtt など。実在とバージョンは叩いて確認ずみ（すべて 0.25.4）
-const NET_WAY = (new URLSearchParams(location.search).get('net') || 'nostr').toLowerCase();
+// ⚠ 既定を mqtt にした。パパの実測（9/5・PC × iPhone）で
+//    nostr＝相手は見つかるが**SDPが1通も届かず**道が作れない（つなぎ口だけ80個できた）
+//    mqtt ＝ checking → connected で**道がつながった**（12秒）
+//    → 実測で通ったほうを既定にする。nostr は ?net=nostr で残す
+const NET_WAY = (new URLSearchParams(location.search).get('net') || 'mqtt').toLowerCase();
 const TRYSTERO_URL = ({
   nostr:   'https://esm.run/trystero@0.25.4',
   mqtt:    'https://esm.run/@trystero-p2p/mqtt@0.25.4',
@@ -2282,7 +2286,7 @@ const NET = { on: false, word: '', me: '', name: localStorage.getItem('pw_name')
 // ⚠ つながらない時に「どこで止まったか」を画面に出す（パパ 9/5・PC×スマホ4Gで入れなかった）。
 // 口で往復するより、1回開けば分かる形にする。止まりうる場所は3つあって、直し方が全部ちがう：
 //   ① リレー（相手さがし）に届かない ② 相手は見つかったがNAT越えできない ③ データが来ない
-const BUILD = 'v6-0905i';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
+const BUILD = 'v6-0905j';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
 const NETDIAG = { lib: '', joined: false, peerJoin: 0, packets: 0, ice: '', srflx: 0, relay: 0, err: '',
                   t0: 0, states: [], pcs: 0 };   // t0=部屋に入った時刻／states=ICEがたどった状態
 // ⚠ ICEの様子は Trystero の内側にあるので、RTCPeerConnection を包んで のぞく
