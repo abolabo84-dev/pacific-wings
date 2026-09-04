@@ -2270,7 +2270,8 @@ const NET = { on: false, word: '', me: '', name: localStorage.getItem('pw_name')
 // ⚠ つながらない時に「どこで止まったか」を画面に出す（パパ 9/5・PC×スマホ4Gで入れなかった）。
 // 口で往復するより、1回開けば分かる形にする。止まりうる場所は3つあって、直し方が全部ちがう：
 //   ① リレー（相手さがし）に届かない ② 相手は見つかったがNAT越えできない ③ データが来ない
-const NETDIAG = { lib: '', joined: false, peerJoin: 0, packets: 0, ice: '', srflx: 0, relay: 0, err: '' };
+const NETDIAG = { lib: '', joined: false, peerJoin: 0, packets: 0, ice: '', srflx: 0, relay: 0, err: '',
+                  t0: 0, states: [], pcs: 0 };   // t0=部屋に入った時刻／states=ICEがたどった状態
 // ⚠ ICEの様子は Trystero の内側にあるので、RTCPeerConnection を包んで のぞく
 (() => {
   const O = window.RTCPeerConnection;
@@ -2282,8 +2283,11 @@ const NETDIAG = { lib: '', joined: false, peerJoin: 0, packets: 0, ice: '', srfl
       if (e.candidate.type === 'srflx') NETDIAG.srflx++;      // 外から見える自分の住所が取れた
       if (e.candidate.type === 'relay') NETDIAG.relay++;      // 中継（TURN）が使えている
     });
+    NETDIAG.pcs++;
     pc.addEventListener('iceconnectionstatechange', () => {
       NETDIAG.ice = pc.iceConnectionState;
+      // どの状態をたどったか残す（checking止まりなのか failed まで行ったのかで話がちがう）
+      if (!NETDIAG.states.includes(pc.iceConnectionState)) NETDIAG.states.push(pc.iceConnectionState);
       if (typeof netStatus === 'function') netStatus();
     });
     return pc;
@@ -2332,15 +2336,18 @@ function netDiagText() {
   L.push((NETDIAG.joined ? '✅' : '❌') + ' ①へやに入る（相手さがしの場所につながった）');
   L.push((NETDIAG.peerJoin > 0 ? '✅' : '⏳') + ' ②あいてを見つけた：' + NETDIAG.peerJoin + '人');
   const iceOk = NETDIAG.ice === 'connected' || NETDIAG.ice === 'completed';
-  L.push((iceOk ? '✅' : NETDIAG.ice === 'failed' ? '❌' : '⏳') + ' ③あいてと道がつながった：' + (NETDIAG.ice || 'まだ'));
+  const secs = NETDIAG.t0 ? Math.round((Date.now() - NETDIAG.t0)/1000) : 0;
+  L.push((iceOk ? '✅' : NETDIAG.ice === 'failed' ? '❌' : '⏳') + ' ③あいてと道がつながった：'
+    + (NETDIAG.ice || 'まだ') + '（' + secs + '秒たった）');
+  if (NETDIAG.states.length) L.push('　 たどった道すじ：' + NETDIAG.states.join(' → '));
   L.push((NETDIAG.packets > 0 ? '✅' : '⏳') + ' ④データが来た：' + NETDIAG.packets + '回');
-  if (NETDIAG.ice === 'failed' && NETDIAG.relay === 0) {
+  if ((NETDIAG.ice === 'failed' || (NETDIAG.peerJoin > 0 && secs > 25 && !iceOk)) && NETDIAG.relay === 0) {
     L.push('👉 ②はできて③がダメ＝**中継サーバー（TURN）が要る**組み合わせ。');
     L.push('　 スマホの4Gと家のWiFiの間だと起きやすい。同じWiFiに入れば つながるはず');
   } else if (NETDIAG.joined && NETDIAG.peerJoin === 0) {
     L.push('👉 ①はできて②がまだ＝あいことばが同じか、相手も「はいる」を押したか確かめて');
   }
-  L.push('（外に出られた:' + NETDIAG.srflx + ' 中継:' + NETDIAG.relay + '）');
+  L.push('（外に出られた:' + NETDIAG.srflx + ' 中継:' + NETDIAG.relay + ' つなぎ口:' + NETDIAG.pcs + '）');
   return L.join(String.fromCharCode(10));
 }
 function netStatus(msg) {
@@ -2379,7 +2386,7 @@ async function netJoin(word) {
     const cfg = { appId: 'taiheiyo-no-tsubasa', password: 'pw' + word };
     if (RTC_CONFIG) cfg.rtcConfig = RTC_CONFIG;
     const room = mod.joinRoom(cfg, 'room' + word);
-    NETDIAG.joined = true;
+    NETDIAG.joined = true; NETDIAG.t0 = Date.now();
     NET.room = room; NET.me = mod.selfId || ''; NET.word = word; NET.on = true;
     // 版による差を吸収：makeAction は [send, get] のことも {send, onMessage} のこともある
     const mk = n => {
@@ -2770,6 +2777,8 @@ $('btnDiagCopy').onclick = async () => {
   setTimeout(netStatus, 2500);
 };
 netStatus();   // ボタンの見た目を、いまの状態（＝ひとりで）に合わせる
+// 診断の秒数が進むように、ルーム画面を開いているあいだは1秒ごとに書きかえる
+setInterval(() => { if ($('roomScreen').style.display !== 'none') netStatus(); }, 1000);
 // ?dev=1 のときだけ、通信の中身をコンソールから触れるようにする（つながらない時の調べ用）。
 // ⚠ 裏タブは requestAnimationFrame が止まる＝位置を送らなくなる。2枚のタブで試すときは
 //    両方を「見えている」状態（べつのウィンドウ）にすること。8/21のHANABIと同じ罠。
