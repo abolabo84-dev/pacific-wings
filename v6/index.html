@@ -2566,13 +2566,21 @@ const TUT_LAST = [
   'じぶんの港が やられたら 負け…',
   '⛽ ねんりょうに 気をつけて',
   '🌫 きりが出たら レーダーが きかない',
+  // v6: みんなでルームの説明（パパ 9/5）。
+  // ⚠ チュートリアルの作りは監督の設計（8/18）なので、場面は増やさず
+  //    最後の説明パートに足すだけにした。通信は目で見せられないので ことばで伝える
+  '👥 ともだちと いっしょに あそぶこともできる',
+  'タイトルの「みんなでルーム」で あいことば（数字）をきめる',
+  'おなじ あいことばの人と おなじ海に出られる',
+  'なかまは みどりの のりもの。レーダーでは 水色のまる',
+  '敵もいっしょ！ しずめたら なかまの画面でも しずむ',
 ];
 const LINE_SEC = 3.4;            // 字幕1行の表示時間（みじかい行の目安）
 // v6: 監督が転送してきた感想（8/30「チュートリアルがはやすぎるって」）。
 // 1行いくらの固定だと、長い行ほど読み切れない＝長い行から先に落ちる。字の数で時間を伸ばす。
 // ⚠ 上限を置かないと、長い1行でずっと待たされる。
 const lineSec = s => Math.min(9, Math.max(LINE_SEC + 1.1, 1.8 + String(s).length * 0.3));
-let tutTimer = null, tutScene = 0, tutFinished = false;
+let tutTimer = null, tutScene = 0, tutFinished = false, tutInFinale = false;
 // ponytail: 字幕はsetTimeoutベースの素朴な進行, 秒数をBGMと同期したくなったら初めてタイムライン化
 
 function tutSay(text) { const e = $('tutSub'); e.textContent = text; e.style.display = 'block'; }
@@ -2583,7 +2591,7 @@ function startTutorial() {
   initAudio();
   diffBeforeTut = DIFF; DIFF = 'easy';   // チュートリアル中はやさしい条件で（見せるための時間）
   G.tutorial = true; G.demo = true;
-  tutScene = 0; tutFinished = false;
+  tutScene = 0; tutFinished = false; tutInFinale = false;
   $('tutSkip').textContent = 'つぎへ ▶';
   $('tutBar').style.display = 'block';
   logEvent('tutorial_start', {});
@@ -2609,18 +2617,19 @@ function runTutScene() {
   };
   step();
 }
+// v5: 勝手にタイトルへ戻らない（監督8/18「ボタンを押すかスキップを選ぶまでタイトルにいかないように」）
+function tutFinaleEnd() {
+  logEvent('tutorial_done', {});
+  tutFinished = true;
+  $('tutSkip').textContent = '🏁 タイトルへ ▶';
+  tutSay('これで おわり！　右上の「🏁 タイトルへ」を おしてね');
+}
 function tutFinale() {
+  tutInFinale = true;
   let i = 0;
   const step = () => {
     if (!G.tutorial) return;
-    if (i >= TUT_LAST.length) {
-      // v5: 勝手にタイトルへ戻らない（監督8/18「ボタンを押すかスキップを選ぶまでタイトルにいかないように」）
-      logEvent('tutorial_done', {});
-      tutFinished = true;
-      $('tutSkip').textContent = '🏁 タイトルへ ▶';
-      tutSay('これで おわり！　右上の「🏁 タイトルへ」を おしてね');
-      return;   // タイマーを止めて、ここで待つ
-    }
+    if (i >= TUT_LAST.length) return tutFinaleEnd();   // ここで待つ
     const line = TUT_LAST[i++];
     tutSay(line);
     tutTimer = setTimeout(step, lineSec(line)*1000);
@@ -2629,6 +2638,7 @@ function tutFinale() {
 }
 function endTutorial() {
   tutClearTimers();
+  tutInFinale = false;
   G.tutorial = false; G.demo = false; G.running = false;
   setDiff(diffBeforeTut);   // えらんでいたむずかしさに もどす
   $('tutSub').style.display = 'none';
@@ -2649,8 +2659,13 @@ function endTutorial() {
 $('btnTut').onclick = startTutorial;
 $('tutSkip').onclick = () => {
   if (tutFinished) return endTutorial();   // さいごまで見たとき＝「タイトルへ」ボタンになっている
-  logEvent('tutorial_skip', { scene: tutScene });
-  tutClearTimers(); tutScene++; runTutScene();
+  logEvent('tutorial_skip', { scene: tutScene, finale: tutInFinale });
+  tutClearTimers();
+  // ⚠ さいごの説明の途中で「つぎへ」を押すと、説明の最初に戻ってしまっていた
+  //    （tutScene がもう最後まで行っているので runTutScene がまた tutFinale を呼ぶ）。
+  //    説明の途中なら、そのまま終わりへ進める
+  if (tutInFinale) return tutFinaleEnd();
+  tutScene++; runTutScene();
 };
 $('tutClose').onclick = () => { logEvent('tutorial_skip', { scene: tutScene, closed: true }); endTutorial(); };
 
