@@ -2294,22 +2294,28 @@ const NET = { on: false, word: '', me: '', name: localStorage.getItem('pw_name')
 // ⚠ つながらない時に「どこで止まったか」を画面に出す（パパ 9/5・PC×スマホ4Gで入れなかった）。
 // 口で往復するより、1回開けば分かる形にする。止まりうる場所は3つあって、直し方が全部ちがう：
 //   ① リレー（相手さがし）に届かない ② 相手は見つかったがNAT越えできない ③ データが来ない
-const BUILD = 'v6-0905n';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
+const BUILD = 'v6-0905p';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
 const NETDIAG = { lib: '', joined: false, peerJoin: 0, packets: 0, ice: '', srflx: 0, relay: 0, err: '',
-                  t0: 0, states: [], pcs: 0, tries: 0 };   // t0=部屋に入った時刻／states=ICEがたどった状態
+                  t0: 0, states: [], pcs: 0, tries: 0, gen: 0 };   // gen=入り直しの世代   // t0=部屋に入った時刻／states=ICEがたどった状態
 // ⚠ ICEの様子は Trystero の内側にあるので、RTCPeerConnection を包んで のぞく
 (() => {
   const O = window.RTCPeerConnection;
   if (!O) { NETDIAG.err = 'このブラウザは WebRTC に対応していない'; return; }
   function Wrapped(cfg) {
     const pc = new O(cfg);
+    // ⚠ 入り直すと、前の接続の ICE イベントが**あとから**届く。
+    //    それを今の回のものとして表示すると「②0人なのに③checking」という
+    //    ありえない見た目になる（パパの動画 9/5 で実際に起きた）。世代で切り分ける
+    const gen = NETDIAG.gen;
     pc.addEventListener('icecandidate', e => {
+      if (gen !== NETDIAG.gen) return;
       if (!e.candidate) return;
       if (e.candidate.type === 'srflx') NETDIAG.srflx++;      // 外から見える自分の住所が取れた
       if (e.candidate.type === 'relay') NETDIAG.relay++;      // 中継（TURN）が使えている
     });
     NETDIAG.pcs++;
     pc.addEventListener('iceconnectionstatechange', () => {
+      if (gen !== NETDIAG.gen) return;                  // 前の回の残り＝いまの表示に混ぜない
       NETDIAG.ice = pc.iceConnectionState;
       // どの状態をたどったか残す（checking止まりなのか failed まで行ったのかで話がちがう）
       if (!NETDIAG.states.includes(pc.iceConnectionState)) NETDIAG.states.push(pc.iceConnectionState);
@@ -2418,6 +2424,7 @@ async function netJoin(word) {
   if (!/^\d{1,8}$/.test(word)) { netStatus('あいことばは 数字だけ／1〜8けたで 打ってね'); return; }
   netLeave();
   // ⚠ 入り直したら、その回ぶんの記録は作りなおす（前の回の道すじが残ると読み違える）
+  NETDIAG.gen++;   // ここから先が「いまの回」
   NETDIAG.peerJoin = 0; NETDIAG.packets = 0; NETDIAG.ice = ''; NETDIAG.states = []; NETDIAG.t0 = 0; NETDIAG.pcs = 0;
   netStatus('つないでいます…（すこし まってね）');
   try {
