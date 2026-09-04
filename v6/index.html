@@ -769,7 +769,10 @@ const GAME_MIN_PER_SEC = 0.5;
 // 燃料をそのままにすると「広くした」だけで届かなくなるので、同じ倍率で増やして
 // 「行って帰れる感じ」を v5 と同じに保つ。⚠ 研究の「ゲーム内1時間」はv5までの話。
 const FUEL_MINUTES = 60 * WORLD;
-const FOG_EVERY = 20, FOG_LASTS = 5;
+const FOG_EVERY = 20;   // きりの周期（ゲーム内の分）。実時間だと40秒に1周
+// v6: 続く長さは監督のつまみ（実時間の秒）から毎回もとめる。
+// ⚠ 定数にしてしまうと、パネルを動かしても次のゲームまで効かない
+const fogLasts = () => Math.max(0, Math.min(FOG_EVERY - 1, TUNE.fog * GAME_MIN_PER_SEC));
 const REINFORCE_SEC = 300; // 現実時間5分ごとに増援（監督ルール）
 
 let player = { group: null, radius: 5 };
@@ -822,9 +825,13 @@ const TUNE = (() => {
     // v5: 監督の設計（8/14）「爆弾の数は 0個を最小限にした。マックスっていうのが無制限」
     bomb: num('tn_bomb', -1),   // 爆弾の数（-1＝のりもののまま／0〜9＝その数／10＝無制限）
     life: num('tn_life', 1),    // 自分のHPの倍率（監督の言う「ライフ」）
+    // v6: きりが続く長さ（実時間の秒）。パパ 9/5「霧になってる時間はもう10秒とか15秒
+    // ながくても面白いと思った」→ ⚠ 霧の長さは監督が決めた数字なので、勝手に変えず
+    // **監督が自分で回せるつまみ**にした。0にすると霧が出ない（実験①の引き算と同じ状態）
+    fog:  num('tn_fog', 10),
   };
 })();
-function tuneStr() { return `fuel${TUNE.fuel}_rein${TUNE.rein}_ehp${TUNE.ehp}_edmg${TUNE.edmg}_bomb${TUNE.bomb}_life${TUNE.life}`; }
+function tuneStr() { return `fuel${TUNE.fuel}_rein${TUNE.rein}_ehp${TUNE.ehp}_edmg${TUNE.edmg}_bomb${TUNE.bomb}_life${TUNE.life}_fog${TUNE.fog}`; }
 if (DEV) {
   const defs = [
     ['fuel', '⛽ 燃料のもち（＝とべる時間）', 0.3, 3, 0.1],
@@ -833,6 +840,7 @@ if (DEV) {
     ['edmg', '💥 敵の攻撃の強さ', 0,   3, 0.1],
     ['bomb', '💣 爆弾の数',       -1, 10, 1],
     ['life', '❤ 自分のつよさ',    0.3, 3, 0.1],
+    ['fog',  '🌫 きりの長さ',       0,  30, 1],
   ];
   // ponytail: 時間つまみは燃料と同義のため未実装, 監督が「燃料と別の時間がほしい」と言ったら別変数で実装
   const pane = document.createElement('div');
@@ -847,6 +855,7 @@ if (DEV) {
     let t;
     if (k === 'rein') t = TUNE.rein < 0 ? 'モードのまま' : TUNE.rein + '体';
     else if (k === 'bomb') t = TUNE.bomb < 0 ? 'のりもののまま' : TUNE.bomb >= 10 ? '∞ 無制限' : TUNE.bomb + '発';
+    else if (k === 'fog') t = TUNE.fog <= 0 ? 'きりが出ない' : TUNE.fog + '秒（40秒ごと）';
     else t = '×' + TUNE[k].toFixed(1);
     el(`tv_${k}`).textContent = t;
   };
@@ -1639,7 +1648,8 @@ function tick() {
   G.fogCycle += GAME_MIN_PER_SEC * dt;
   const wasFog = G.fogActive;
   // v5: きりはイージーでは出ない（監督8/15「ハードとノーマルだけ霧を出せばいいかな」）／チュートリアル中も出さない
-  G.fogActive = !OFF.has('fog') && DIFF !== 'easy' && !G.tutorial && (G.fogCycle % FOG_EVERY) > (FOG_EVERY - FOG_LASTS);
+  G.fogActive = !OFF.has('fog') && DIFF !== 'easy' && !G.tutorial && fogLasts() > 0
+                && (G.fogCycle % FOG_EVERY) > (FOG_EVERY - fogLasts());
   // v6: 霧でも「いま何が鳴るべきか」に任せる。切り札が出ていれば切り札の曲のまま
   if (G.fogActive && !wasFog) { $('fogNotice').style.opacity = 1; playBgm(bgmScene()); logEvent('fog', { on: true }); }
   if (!G.fogActive && wasFog) { $('fogNotice').style.opacity = 0; showMessage('☀ きりが はれた！'); playBgm(bgmScene()); logEvent('fog', { on: false }); }
