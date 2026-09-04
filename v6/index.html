@@ -992,10 +992,13 @@ const FADE = (() => {
 const bgm = { tracks: {}, current: null, name: null, seq: 0 };
 for (const [k, src] of Object.entries(BGM_FILES)) {
   const a = new Audio(src);
-  a.loop = (k === 'title' || k === 'battle' || k === 'fog');
+  // v6: 切り札の曲は**切り札が生きているあいだ ずっと**鳴らす（監督の父の案 9/5）。
+  // ＝「出た瞬間の効果音」ではなく「いま切り札が海に出ている」という状態の音にした。
+  a.loop = (k === 'title' || k === 'battle' || k === 'fog' || k === 'trump');
+  // ファンファーレ系＝いつも頭から・フェードインせず一発で出る（ごほうびの一撃を弱めない）
+  a.fanfare = (k === 'trump' || k === 'victory' || k === 'defeat');
   a.volume = BGM_VOL;
   a.addEventListener('error', () => { bgm.tracks[k] = null; });
-  if (k === 'trump') a.addEventListener('ended', () => { if (G.running) playBgm(G.fogActive ? 'fog' : 'battle'); });
   bgm.tracks[k] = a;
 }
 // 【自由研究・実験②の条件D】音楽は ?bgm=on のときだけ鳴る。
@@ -1040,7 +1043,7 @@ function playBgm(name) {
   bgm.current = t;
   // v6: 1回だけの曲（切り札・勝ち・負け）は、いつも頭から鳴らす。
   // ⚠ 前に途中まで鳴って止まっていると、そこから再開して すぐ終わってしまう
-  if (!t.loop) { try { t.currentTime = 0; } catch (e) {} }
+  if (t.fanfare) { try { t.currentTime = 0; } catch (e) {} }   // ファンファーレはいつも頭から
   if (FADE > 0 && prev && prev !== t) t.volume = 0;   // これから ゆっくり上げる
   t.play().then(() => {
     if (token !== bgm.seq) return;                 // もっと新しい切りかえが来ていたら何もしない
@@ -1055,19 +1058,30 @@ function playBgm(name) {
 // ⚠ 1回だけの曲（切り札・勝ち・負け）は**すぐ最大音量**にする。
 //    ファンファーレがじわっと出てくると、5撃破のごほうびの一撃が弱くなる。
 // ⚠ 止めるのはフェードが終わってから。ループする曲は巻き戻さない（続きから鳴らすため）。
+// v6: 「いま何が鳴るべきか」を1か所で決める。
+// ⚠ 呼ぶ場所ごとに if を書くと、切り札が出ているのに霧の曲へ切りかわる、が必ず起きる。
+//    場面が増えるたびに全部の呼び出し元を直すはめになるので、ここだけを見る形にした。
+function bgmScene() {
+  if (!G.running) return 'title';
+  if (myTrumpAlive()) return 'trump';   // 切り札が生きているあいだは ずっと切り札の曲
+  return G.fogActive ? 'fog' : 'battle';
+}
+const myId = () => (NET.on ? NET.me : 'me');
+const myTrumpAlive = () => units.some(u => u.klass === 'trump' && !u.dead && u.owner === myId());
+
 let fadeTimer = null;
 function bgmCrossfade(from, to, token) {
   if (fadeTimer) { clearInterval(fadeTimer); fadeTimer = null; }
   const finish = () => {
     if (from) {
       from.pause();
-      if (!from.loop) from.currentTime = 0;
+      if (from.fanfare) from.currentTime = 0;   // ファンファーレは次に頭から鳴らせるよう巻き戻す
       from.volume = BGM_VOL;
     }
     if (to) to.volume = BGM_VOL;
   };
   const outSec = FADE;
-  const inSec = (to && !to.loop) ? 0 : FADE;       // 1回ものは即・ループものはゆっくり
+  const inSec = (to && to.fanfare) ? 0 : FADE;     // ファンファーレは即・ふつうの曲はゆっくり
   if (outSec <= 0 && inSec <= 0) return finish();
   const STEP = 50;
   const nOut = Math.max(1, Math.round(outSec*1000/STEP));
@@ -1480,6 +1494,8 @@ function destroyUnit(u, attacker) {
     else showMessage(`💥 ${u.name} が しずんだ`, 2);
   } else {
     showMessage(`⚠ ${u.name} がやられた！`, 2.5);
+    // v6: 自分の切り札が沈んだら、曲を戦闘（または霧）へもどす
+    if (u.klass === 'trump' && u.owner === myId()) playBgm(bgmScene());
   }
   if (u.structure) { u.group.visible = false; }
 }
@@ -1499,21 +1515,21 @@ function requestTrump(n) {
   logEvent('trump_spawn', { name });
   netEvent('trump', name);                                        // なかまの画面にも知らせる
   if (netSyncing() && !NET.isHost) netSend('tr', [nation, n]);    // あずかり役に作ってもらう
-  else spawnTrump(nation, n);
+  else spawnTrump(nation, n, myId());
 }
 // 実体を作る（ひとり遊び／あずかり役）。作られた切り札は units に入るので、
 // そのまま みんなの画面へ配られる
-function spawnTrump(nation, n) {
+function spawnTrump(nation, n, owner) {
   // 出る場所は、いま出ている切り札のぶんだけ ずらす（なかまのと重ならないように）
   const slot = trumpList().length;
-  const t = makeTrumpUnit(nation, trumpName(nation, n), OUR.port.x + 150, OUR.port.z + slot*90);
-  return t;
+  return makeTrumpUnit(nation, trumpName(nation, n), OUR.port.x + 150, OUR.port.z + slot*90, owner);
 }
-function makeTrumpUnit(nation, name, x, z) {
+function makeTrumpUnit(nation, name, x, z, owner) {
   const g = makeTrumpMesh(nation === 'axis' ? 'axis' : 'allied');
   g.position.set(x, 0, z);
+  // owner ＝ だれのごほうびか。曲を鳴らすのは自分の切り札が生きているあいだだけなので必要
   return addUnit({ group: g, hp: 500, maxHp: 500, radius: 50, name, fireTimer: 2,
-                   faction: 'ally', kind: 'ship', klass: 'trump', nation, barH: 26 });
+                   faction: 'ally', kind: 'ship', klass: 'trump', nation, owner: owner || '', barH: 26 });
 }
 function playerHit(dmg) {
   if (G.tutorial) return;   // v5: チュートリアル中は やられない（見せるための時間）
@@ -1614,8 +1630,9 @@ function tick() {
   const wasFog = G.fogActive;
   // v5: きりはイージーでは出ない（監督8/15「ハードとノーマルだけ霧を出せばいいかな」）／チュートリアル中も出さない
   G.fogActive = !OFF.has('fog') && DIFF !== 'easy' && !G.tutorial && (G.fogCycle % FOG_EVERY) > (FOG_EVERY - FOG_LASTS);
-  if (G.fogActive && !wasFog) { $('fogNotice').style.opacity = 1; playBgm('fog'); logEvent('fog', { on: true }); }
-  if (!G.fogActive && wasFog) { $('fogNotice').style.opacity = 0; showMessage('☀ きりが はれた！'); playBgm('battle'); logEvent('fog', { on: false }); }
+  // v6: 霧でも「いま何が鳴るべきか」に任せる。切り札が出ていれば切り札の曲のまま
+  if (G.fogActive && !wasFog) { $('fogNotice').style.opacity = 1; playBgm(bgmScene()); logEvent('fog', { on: true }); }
+  if (!G.fogActive && wasFog) { $('fogNotice').style.opacity = 0; showMessage('☀ きりが はれた！'); playBgm(bgmScene()); logEvent('fog', { on: false }); }
 
   // ---- 増援（現実時間5分ごと：監督ルール） ----
   G.reinforceT += dt;
@@ -2295,7 +2312,7 @@ async function netJoin(word) {
     const es = mk('es'), eh = mk('eh'), ed = mk('ed'), ef = mk('ef'), sp = mk('sp'), tr = mk('tr');
     NET.act = { es: es.send, eh: eh.send, ed: ed.send, ef: ef.send, sp: sp.send, tr: tr.send };
     // なかまの「切り札を出して」のお願い（護衛機の sp とおなじ形）
-    tr.on((d) => { if (NET.isHost && Array.isArray(d)) spawnTrump(d[0], d[1]); });
+    tr.on((d, id) => { if (NET.isHost && Array.isArray(d)) spawnTrump(d[0], d[1], id); });
     es.on(netApplySnapshot);
     eh.on(netOnHit);
     ed.on(netOnDead);
@@ -2427,7 +2444,7 @@ function netSnapshot() {
     out.push([u.nid, u.kind, u.klass || '', u.faction,
               Math.round(p.x), Math.round(p.y*10)/10, Math.round(p.z),
               Math.round(u.group.rotation.y*100)/100, Math.round(u.hp), Math.round(u.maxHp),
-              u.nation || '', u.klass === 'trump' ? u.name : '']);
+              u.nation || '', u.klass === 'trump' ? u.name : '', u.owner || '']);
   }
   netSend('es', out);
 }
@@ -2435,14 +2452,14 @@ function netApplySnapshot(list) {
   if (!Array.isArray(list) || NET.isHost) return;
   const seen = new Set();
   for (const d of list) {
-    const [nid, kind, klass, faction, x, y, z, ry, hp, maxHp, nation, tname] = d;
+    const [nid, kind, klass, faction, x, y, z, ry, hp, maxHp, nation, tname, owner] = d;
     seen.add(nid);
     let u = findByNid(nid);
     if (!u) {
       // 港と拠点は、みんなが最初から同じ名札で持っている＝作らない（二重になる）
       if (kind === 'port' || kind === 'base') continue;
       // 切り札（なかまの大和・武蔵など）。ふつうの船より先に見る
-      if (klass === 'trump') u = makeTrumpUnit(nation, tname || '切り札', x, z);
+      if (klass === 'trump') u = makeTrumpUnit(nation, tname || '切り札', x, z, owner);
       else if (kind === 'ship') u = spawnAIShip(faction, klass || 'destroyer', x, z, 'patrol');
       else if (kind === 'sub') u = spawnAISub(faction, x, z, 'patrol');
       else if (kind === 'plane') u = spawnAIPlane(faction, x, z);
