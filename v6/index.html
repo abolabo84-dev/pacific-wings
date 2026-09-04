@@ -989,6 +989,15 @@ const FADE = (() => {
   const v = parseFloat(new URLSearchParams(location.search).get('fade'));
   return Number.isFinite(v) ? Math.max(0, Math.min(6, v)) : 1.5;
 })();
+// v6: パパ 9/5「フェードはきりからの切り替わりだけゆったりで、あとは規定でいい」
+// ⚠ 入る側も長くすると、10秒しかない霧のうち何秒も薄いまま＝「霧になった」の合図が鈍る。
+//    出る側だけ長くすれば、霧は最初からしっかり鳴って、晴れる時だけゆっくり戻る。
+const FADE_FOG = (() => {
+  const v = parseFloat(new URLSearchParams(location.search).get('fogfade'));
+  return Number.isFinite(v) ? Math.max(0, Math.min(6, v)) : 3.0;
+})();
+// フェードの長さは「どこから どこへ」で決める
+const fadeSecFor = (fromName) => (fromName === 'fog' ? FADE_FOG : FADE);
 const bgm = { tracks: {}, current: null, name: null, seq: 0 };
 for (const [k, src] of Object.entries(BGM_FILES)) {
   const a = new Audio(src);
@@ -1044,10 +1053,10 @@ function playBgm(name) {
   // v6: 1回だけの曲（切り札・勝ち・負け）は、いつも頭から鳴らす。
   // ⚠ 前に途中まで鳴って止まっていると、そこから再開して すぐ終わってしまう
   if (t.fanfare) { try { t.currentTime = 0; } catch (e) {} }   // ファンファーレはいつも頭から
-  if (FADE > 0 && prev && prev !== t) t.volume = 0;   // これから ゆっくり上げる
+  if (fadeSecFor(prevName) > 0 && prev && prev !== t) t.volume = 0;   // これから ゆっくり上げる
   t.play().then(() => {
     if (token !== bgm.seq) return;                 // もっと新しい切りかえが来ていたら何もしない
-    bgmCrossfade(prev !== t ? prev : null, t, token);
+    bgmCrossfade(prev !== t ? prev : null, t, token, prevName);
   }).catch(() => {
     if (token !== bgm.seq) return;
     t.volume = BGM_VOL;                            // 下げたままにしない
@@ -1070,7 +1079,7 @@ const myId = () => (NET.on ? NET.me : 'me');
 const myTrumpAlive = () => units.some(u => u.klass === 'trump' && !u.dead && u.owner === myId());
 
 let fadeTimer = null;
-function bgmCrossfade(from, to, token) {
+function bgmCrossfade(from, to, token, fromName) {
   if (fadeTimer) { clearInterval(fadeTimer); fadeTimer = null; }
   const finish = () => {
     if (from) {
@@ -1080,8 +1089,9 @@ function bgmCrossfade(from, to, token) {
     }
     if (to) to.volume = BGM_VOL;
   };
-  const outSec = FADE;
-  const inSec = (to && to.fanfare) ? 0 : FADE;     // ファンファーレは即・ふつうの曲はゆっくり
+  const sec = fadeSecFor(fromName);               // きりから出る時だけ ゆったり
+  const outSec = sec;
+  const inSec = (to && to.fanfare) ? 0 : sec;     // ファンファーレは即・ふつうの曲はゆっくり
   if (outSec <= 0 && inSec <= 0) return finish();
   const STEP = 50;
   const nOut = Math.max(1, Math.round(outSec*1000/STEP));
