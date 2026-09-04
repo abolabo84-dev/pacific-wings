@@ -981,11 +981,19 @@ function playBoom(big, pos) {
 // ============ 音楽（パパ作曲スロット：musicフォルダにmp3を置くだけで流れる） ============
 // v5はサブフォルダなので1つ上へ。tutorial は作曲スロット（パパが tutorial.mp3 を置いたら勝手に鳴る）
 const BGM_FILES = { title: '../music/title.mp3', battle: '../music/battle.mp3', fog: '../music/fog.mp3', trump: '../music/trump.mp3', victory: '../music/victory.mp3', defeat: '../music/defeat.mp3', tutorial: '../music/tutorial.mp3' };
+const BGM_VOL = 0.45;
+// v6: 曲の切りかえのフェード（秒）。パパ 9/5「霧の音楽のきりかわり、もうすこしフェードがながくていい」
+// それまでは **フェードなし＝ぶつ切り** だった。?fade=1.5 のように後ろに付けて長さを試せる。
+// ⚠ 上限6秒。きりは10秒しか続かないので、長すぎるとフェードだけで霧が終わる
+const FADE = (() => {
+  const v = parseFloat(new URLSearchParams(location.search).get('fade'));
+  return Number.isFinite(v) ? Math.max(0, Math.min(6, v)) : 1.5;
+})();
 const bgm = { tracks: {}, current: null, name: null, seq: 0 };
 for (const [k, src] of Object.entries(BGM_FILES)) {
   const a = new Audio(src);
   a.loop = (k === 'title' || k === 'battle' || k === 'fog');
-  a.volume = 0.45;
+  a.volume = BGM_VOL;
   a.addEventListener('error', () => { bgm.tracks[k] = null; });
   if (k === 'trump') a.addEventListener('ended', () => { if (G.running) playBgm(G.fogActive ? 'fog' : 'battle'); });
   bgm.tracks[k] = a;
@@ -1033,19 +1041,47 @@ function playBgm(name) {
   // v6: 1回だけの曲（切り札・勝ち・負け）は、いつも頭から鳴らす。
   // ⚠ 前に途中まで鳴って止まっていると、そこから再開して すぐ終わってしまう
   if (!t.loop) { try { t.currentTime = 0; } catch (e) {} }
+  if (FADE > 0 && prev && prev !== t) t.volume = 0;   // これから ゆっくり上げる
   t.play().then(() => {
     if (token !== bgm.seq) return;                 // もっと新しい切りかえが来ていたら何もしない
-    if (prev && prev !== t) {
-      prev.pause();
-      // v6: ずっと流れる曲（タイトル・戦闘・きり）は**巻き戻さない**＝もどってきたら続きから。
-      // ⚠ 巻き戻していたので、きりが40秒ごとに来るこのゲームでは
-      //    戦闘曲は「頭の30秒」しか鳴っていなかった（3分の曲でも後半が誰にも聞かれない）。
-      if (!prev.loop) prev.currentTime = 0;
-    }
+    bgmCrossfade(prev !== t ? prev : null, t, token);
   }).catch(() => {
     if (token !== bgm.seq) return;
+    t.volume = BGM_VOL;                            // 下げたままにしない
     bgm.name = prevName; bgm.current = prev;       // 鳴らせなかった＝前の曲のまま続ける
   });
+}
+// v6: 前の曲を下げながら、次の曲を上げる（クロスフェード）。
+// ⚠ 1回だけの曲（切り札・勝ち・負け）は**すぐ最大音量**にする。
+//    ファンファーレがじわっと出てくると、5撃破のごほうびの一撃が弱くなる。
+// ⚠ 止めるのはフェードが終わってから。ループする曲は巻き戻さない（続きから鳴らすため）。
+let fadeTimer = null;
+function bgmCrossfade(from, to, token) {
+  if (fadeTimer) { clearInterval(fadeTimer); fadeTimer = null; }
+  const finish = () => {
+    if (from) {
+      from.pause();
+      if (!from.loop) from.currentTime = 0;
+      from.volume = BGM_VOL;
+    }
+    if (to) to.volume = BGM_VOL;
+  };
+  const outSec = FADE;
+  const inSec = (to && !to.loop) ? 0 : FADE;       // 1回ものは即・ループものはゆっくり
+  if (outSec <= 0 && inSec <= 0) return finish();
+  const STEP = 50;
+  const nOut = Math.max(1, Math.round(outSec*1000/STEP));
+  const nIn  = Math.max(1, Math.round(inSec*1000/STEP));
+  const from0 = from ? from.volume : 0;
+  const to0 = to ? to.volume : 0;
+  let i = 0;
+  fadeTimer = setInterval(() => {
+    if (token !== bgm.seq) { clearInterval(fadeTimer); fadeTimer = null; return; }
+    i++;
+    if (from) from.volume = Math.max(0, from0 * (1 - i/nOut));
+    if (to)   to.volume   = Math.min(BGM_VOL, to0 + (BGM_VOL - to0) * (i/nIn));
+    if (i >= Math.max(nOut, nIn)) { clearInterval(fadeTimer); fadeTimer = null; finish(); }
+  }, STEP);
 }
 
 // v5: 画面が見えなくなったら音を止める（タブを切りかえた・ウィンドウを閉じた・最小化した とき）。
