@@ -336,8 +336,9 @@ function makeSoldier(color, dark, isMe) {
   const c = new THREE.Color(color);
   if (dark) c.multiplyScalar(0.55);   // 敵は同じ国の色でも 暗くする＝見分けがつく
   // ⚠ カプセルの高さは 中心 + 胴の半分 + 丸い先。ここを間違えると頭が体にうまる（最初そうなった）
-  const R = 0.5, LEN = 1.0, CY = 1.15;
-  const top = CY + LEN/2 + R;                       // = 2.15
+  // ⚠ 下端 = CY - LEN/2 - R。ここを0にしないと体が地面から浮く（1.15だと0.15浮いていた）
+  const R = 0.5, LEN = 1.0, CY = R + LEN/2;         // = 1.0 → 下端ちょうど0
+  const top = CY + LEN/2 + R;                       // = 2.0
   const body = new THREE.Mesh(new THREE.CapsuleGeometry(R, LEN, 3, 8), new THREE.MeshLambertMaterial({ color: c }));
   body.position.y = CY;
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.34, 10, 10), new THREE.MeshLambertMaterial({ color: 0xe8c39e }));
@@ -347,18 +348,19 @@ function makeSoldier(color, dark, isMe) {
   const gun = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 1.5), new THREE.MeshLambertMaterial({ color: 0x2b2b2b }));
   gun.position.set(0.42, 1.35, -0.65);
   g.add(body, head, helmet, gun);
-  if (isMe) {
-    // ⚠ 自分も味方も おなじ国の色なので、そのままだと どれが自分か分からない。
-    //    ⚠ 最初は頭の上に白い輪をつけたが「死んだみたい（天使の輪）」だった（パパ 9/5）。
-    //    足もとの光る輪にする＝しゃがんでも見えるし、坂でも埋まらない（奥行き判定を切る）
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.8, 0.09, 6, 20),
-      new THREE.MeshBasicMaterial({ color: 0xffe066, transparent: true, opacity: 0.9, depthTest: false }));
-    ring.rotation.x = Math.PI/2;
-    ring.position.y = 0.08;
-    ring.renderOrder = 2;
-    g.add(ring);
-    g.userData.ring = ring;
-  }
+  // 足もとの影。⚠ パパ 9/5「身体との重なり方がおかしい。このゲーム影が出てる人いないから、
+  //   いわゆる影の出方で、色だけこの色にすればいい」——これが正解だった。
+  //   経過：頭上の白い輪→「死んだみたい」／足もとの輪を前面に描画→「ズレ感」。
+  //   原因は depthTest を切って**体を貫通して手前に描いていた**こと＋
+  //   ほかの兵に影が無いので、自分のしるしだけが浮いた異物に見えていたこと。
+  // → **全員に影を出す**。自分のだけ色を変える。奥行きはふつうに扱う（体に隠れる）
+  const shadow = new THREE.Mesh(new THREE.CircleGeometry(0.8, 20),
+    new THREE.MeshBasicMaterial({ color: isMe ? 0xffe066 : 0x101008,
+      transparent: true, opacity: isMe ? 0.5 : 0.28, depthWrite: false }));
+  shadow.rotation.x = -Math.PI/2;
+  shadow.position.y = 0.03;      // 地面とけんかしない ぎりぎりの高さ
+  g.add(shadow);
+  g.userData.shadow = shadow;
   return g;
 }
 
@@ -366,7 +368,9 @@ function makeSoldier(color, dark, isMe) {
 function attachHpBar(u, height) {
   const cv = document.createElement('canvas'); cv.width = 64; cv.height = 10;
   const tex = new THREE.CanvasTexture(cv);
-  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false }));
+  // ⚠ depthTest を切ると、兵が丘や建物のうしろにいてもバーだけ宙に浮いて見える
+  //    （パパ 9/5「レイヤーの上下が間違ったときみたく」と同じ症状）。ふつうに奥行きを見る
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: true, depthWrite: false }));
   sp.scale.set(1.1, 0.19, 1);  // ⚠ 大きいと画面が札だらけになる（3.2→1.9→1.1と詰めた）
   sp.position.y = height;
   u.group.add(sp);
@@ -911,6 +915,8 @@ function tick() {
   // 遠い兵のHPバーは消す（近くの戦いだけ見えればいい／画面が札だらけになるのを防ぐ）
   for (const s of soldiers) {
     if (s.hpSprite) s.hpSprite.visible = s.state === 'fight' && s.group.position.distanceTo(P) < 70;
+    // ⚠ 倒れた兵は横向きに寝るので、影も一緒に立ってしまう。そのときは消す
+    if (s.group.userData.shadow) s.group.userData.shadow.visible = s.state === 'fight';
   }
 
   drawMinimap();
