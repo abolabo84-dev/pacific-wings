@@ -773,7 +773,10 @@ const FOG_EVERY = 20, FOG_LASTS = 5;
 const REINFORCE_SEC = 300; // 現実時間5分ごとに増援（監督ルール）
 
 let player = { group: null, radius: 5 };
-let trumps = [];
+// v6: 切り札は units の中に入れる（＝みんなでルームの同期にそのまま乗る）。
+// ⚠ 別の配列で持っていると、なかまの画面には出ない。「自分だけの山場」になってしまう。
+// 数えなおすのは1フレームに2回だけ・ユニットは十数個なので、ずれる心配のない この形にした。
+const trumpList = () => units.filter(u => u.klass === 'trump');
 let ourPort = null, enemyPort = null;
 const projs = [];   // すべての弾（弾丸・砲弾・魚雷・爆弾・爆雷）
 const explosions = [];
@@ -1256,8 +1259,7 @@ function startGame(faction, mode, def) {
   for (const u of units) scene.remove(u.group);
   units = [];
   if (player.group) scene.remove(player.group);
-  for (const t of trumps) scene.remove(t.group);
-  trumps = [];
+  G.myTrumps = 0;   // v6: 切り札は units の中なので、上の units そうじで一緒に消えている
   for (const p of projs) scene.remove(p.mesh);
   projs.length = 0;
   // 港と拠点（両方の国にある：監督要望）
@@ -1380,8 +1382,10 @@ function grantKill(name) {
   if (!G.tutorial) { addCheer(CHEER_KILL, 'kill'); G.cheerRun += CHEER_KILL; }
   showMessage(`🎯 ${name} 撃破！ (${Math.min(G.kills,5)}/5)　🎁+${CHEER_KILL}チール`, 2.5);
   if (!G.tutorial) netEvent('kill', name);   // v6: みんなでルームの なかまにも知らせる
-  if (G.kills >= 5 && trumps.length === 0) spawnTrump(1);
-  if (G.kills >= 10 && trumps.length === 1) spawnTrump(2);
+  // v6: 「自分が何せき出したか」で数える。units の切り札には なかまのぶんも入っているので、
+  // そこを数えると、なかまが先に出した時に 自分のごほうびが出なくなる
+  if (G.kills >= 5 && G.myTrumps === 0) requestTrump(1);
+  if (G.kills >= 10 && G.myTrumps === 1) requestTrump(2);
 }
 function destroyUnit(u, attacker) {
   u.dead = true;
@@ -1401,20 +1405,36 @@ function destroyUnit(u, attacker) {
   if (u.structure) { u.group.visible = false; }
 }
 // 切り札：5撃破で1せき目、10撃破で2せき目（同盟国は武蔵！：監督要望）
-function spawnTrump(n) {
+const trumpName = (nation, n) => nation === 'axis'
+  ? (n === 1 ? '戦艦 大和' : '戦艦 武蔵')
+  : (n === 1 ? '巨大原子力潜水艦' : '巨大原子力潜水艦・2番艦');
+
+// ごほうびを受け取る側（＝5撃破した本人）の処理。見た目と音は自分の画面ですぐ出す。
+// ⚠ 実体を作るのは あずかり役の仕事なので、ゲストは「作って」とお願いするだけ。
+function requestTrump(n) {
+  G.myTrumps = n;
   G.trumpSpawned = true;
-  const name = G.faction === 'axis'
-    ? (n === 1 ? '戦艦 大和' : '戦艦 武蔵')
-    : (n === 1 ? '巨大原子力潜水艦' : '巨大原子力潜水艦・2番艦');
-  const g = makeTrumpMesh(G.faction);
-  g.position.set(OUR.port.x + 150, 0, OUR.port.z + (n-1)*90);
-  const t = { group: g, hp: 500, maxHp: 500, radius: 50, name, fireTimer: 2, faction: 'ally', kind: 'ship', klass: 'trump' };
-  scene.add(g);
-  attachHpBar(t, 26);
-  trumps.push(t);
+  const nation = G.faction, name = trumpName(nation, n);
   setTimeout(() => showMessage(`⭐ ${name}、出撃！！ ⭐`, 4), 1200);
   playBgm('trump');
   logEvent('trump_spawn', { name });
+  netEvent('trump', name);                                        // なかまの画面にも知らせる
+  if (netSyncing() && !NET.isHost) netSend('tr', [nation, n]);    // あずかり役に作ってもらう
+  else spawnTrump(nation, n);
+}
+// 実体を作る（ひとり遊び／あずかり役）。作られた切り札は units に入るので、
+// そのまま みんなの画面へ配られる
+function spawnTrump(nation, n) {
+  // 出る場所は、いま出ている切り札のぶんだけ ずらす（なかまのと重ならないように）
+  const slot = trumpList().length;
+  const t = makeTrumpUnit(nation, trumpName(nation, n), OUR.port.x + 150, OUR.port.z + slot*90);
+  return t;
+}
+function makeTrumpUnit(nation, name, x, z) {
+  const g = makeTrumpMesh(nation === 'axis' ? 'axis' : 'allied');
+  g.position.set(x, 0, z);
+  return addUnit({ group: g, hp: 500, maxHp: 500, radius: 50, name, fireTimer: 2,
+                   faction: 'ally', kind: 'ship', klass: 'trump', nation, barH: 26 });
 }
 function playerHit(dmg) {
   if (G.tutorial) return;   // v5: チュートリアル中は やられない（見せるための時間）
@@ -1696,6 +1716,8 @@ function tick() {
   for (const u of units) {
     if (u.dead) continue;
     if (!aiOn) { netLerpUnit(u, dt); continue; }
+    // v6: 切り札は下の専用ブロックで動かす。ここを通すと「味方の船」としてぐるぐる回ってしまう
+    if (u.klass === 'trump') continue;
     const up = u.group.position;
     // v6: ねらう相手は「いちばん近い人」。自分だけをねらうと、なかまが撃たれない＝
     //     ゲストにとっては見ているだけのゲームになる
@@ -1815,8 +1837,8 @@ function tick() {
     }
   }
 
-  // ---- 切り札の行動 ----
-  for (const trump of trumps) {
+  // ---- 切り札の行動 ---- （v6: うごかすのは あずかり役だけ。ほかの人は届いた場所へ寄せる）
+  if (aiOn) for (const trump of trumpList()) {
     if (trump.dead) continue;
     const tp = trump.group.position;
     const target = tmpV.set(ENEMY.port.x - 200, 0, ENEMY.port.z);
@@ -1908,14 +1930,8 @@ function tick() {
           done = true; break;
         }
       }
-      if (!done) for (const trump of trumps) {
-        if (trump.dead) continue;
-        if (p.mesh.position.distanceTo(trump.group.position) < trump.radius) {
-          trump.hp -= p.dmg; updateHpBar(trump);
-          if (trump.hp <= 0) { trump.dead = true; explode(trump.group.position.clone(), true); showMessage(`⚠ ${trump.name}が しずんだ…`, 3); }
-          done = true; break;
-        }
-      }
+      // v6: 切り札も units に入ったので、上の「味方」のループがそのまま面倒を見る。
+      // ここに別のループを残すと、同じ弾で2回ダメージが入る
     }
     if (p.area && exploded && !done) { explode(p.mesh.position.clone(), true); done = true; }
     if (done || p.life <= 0 || p.mesh.position.y < -30) { scene.remove(p.mesh); projs.splice(i, 1); }
@@ -1934,7 +1950,9 @@ function tick() {
       u.wreckHitDone = true;
       playerHit(8);
       logEvent('wreck_hit', { kind: u.kind, klass: u.klass, faction: u.faction });
-      showMessage('💥 敵の残骸に せっしょく！', 2);
+      // v6: 切り札も沈むようになったので、味方の残骸に当たることがある。
+      // 「敵の残骸」と出すと、目の前のものと言葉が合わない
+      showMessage(u.faction === 'enemy' ? '💥 敵の残骸に せっしょく！' : '💥 味方の残骸に せっしょく！', 2);
     }
     if (u.sinking > 5) { scene.remove(u.group); u.sunk = true; }
   }
@@ -1990,10 +2008,11 @@ function tick() {
   $('fuelFill').style.width = Math.max(0, G.fuel) + '%';
   $('hpFill').style.width = Math.max(0, G.hp / G.maxHp * 100) + '%';
   $('portFill').style.width = (ourPort && !ourPort.dead ? Math.max(0, ourPort.hp / ourPort.maxHp * 100) : 0) + '%';
-  const aliveTrumps = trumps.filter(t => !t.dead).length;
-  $('kills').textContent = trumps.length === 0
+  // v6: 「あと何撃破で2せき目」は自分の話なので G.myTrumps で数える（なかまのぶんは入れない）
+  const aliveTrumps = trumpList().filter(t => !t.dead).length;
+  $('kills').textContent = G.myTrumps === 0
     ? `☆ 撃破 ${G.kills} / 5`
-    : trumps.length === 1
+    : G.myTrumps === 1
       ? `⭐ 切り札 出撃中！（あと${Math.max(0, 10-G.kills)}撃破で2せき目！）`
       : `⭐⭐ 切り札 ${aliveTrumps}せき出撃中！`;
   let extra = '';
@@ -2078,7 +2097,7 @@ function drawMinimap() {
       mm.fillRect(x - 2, y - 2, 4, 4);
     }
   }
-  for (const trump of trumps) {
+  for (const trump of trumpList()) {
     if (trump.dead) continue;
     const x = sx(trump.group.position.x), y = sy(trump.group.position.z);
     mm.fillStyle = '#ffd600';
@@ -2194,8 +2213,10 @@ async function netJoin(word) {
     NET.send = st.send; NET.sendEv = ev.send;
     st.on(netOnState); ev.on(netOnEvent);
     // 敵をみんなで同じにするための4本＋護衛機のお願い
-    const es = mk('es'), eh = mk('eh'), ed = mk('ed'), ef = mk('ef'), sp = mk('sp');
-    NET.act = { es: es.send, eh: eh.send, ed: ed.send, ef: ef.send, sp: sp.send };
+    const es = mk('es'), eh = mk('eh'), ed = mk('ed'), ef = mk('ef'), sp = mk('sp'), tr = mk('tr');
+    NET.act = { es: es.send, eh: eh.send, ed: ed.send, ef: ef.send, sp: sp.send, tr: tr.send };
+    // なかまの「切り札を出して」のお願い（護衛機の sp とおなじ形）
+    tr.on((d) => { if (NET.isHost && Array.isArray(d)) spawnTrump(d[0], d[1]); });
     es.on(netApplySnapshot);
     eh.on(netOnHit);
     ed.on(netOnDead);
@@ -2238,6 +2259,7 @@ function netOnEvent(d) {
   else if (kind === 'win') showMessage(`👥 ${nm} が かった！ 🏆`, 3);
   else if (kind === 'lose') showMessage(`👥 ${nm} の港が やられた…`, 3);
   else if (kind === 'go') showMessage(`👥 ${nm} が ${text} で 出撃！`, 2.5);
+  else if (kind === 'trump') showMessage(`⭐ ${nm} の ${text} が 出撃！！ ⭐`, 4);
 }
 // あずかり役だけが受ける：なかまが「当てた」と言ってきたので、ここでダメージを決める
 function netOnHit(d, id) {
@@ -2322,9 +2344,11 @@ function netSnapshot() {
   for (const u of units) {
     if (u.dead) continue;
     const p = u.group.position;
+    // 切り札だけは、国と名前も配る（大和なのか武蔵なのかが なかまの画面でも要るため）
     out.push([u.nid, u.kind, u.klass || '', u.faction,
               Math.round(p.x), Math.round(p.y*10)/10, Math.round(p.z),
-              Math.round(u.group.rotation.y*100)/100, Math.round(u.hp), Math.round(u.maxHp)]);
+              Math.round(u.group.rotation.y*100)/100, Math.round(u.hp), Math.round(u.maxHp),
+              u.nation || '', u.klass === 'trump' ? u.name : '']);
   }
   netSend('es', out);
 }
@@ -2332,13 +2356,15 @@ function netApplySnapshot(list) {
   if (!Array.isArray(list) || NET.isHost) return;
   const seen = new Set();
   for (const d of list) {
-    const [nid, kind, klass, faction, x, y, z, ry, hp, maxHp] = d;
+    const [nid, kind, klass, faction, x, y, z, ry, hp, maxHp, nation, tname] = d;
     seen.add(nid);
     let u = findByNid(nid);
     if (!u) {
       // 港と拠点は、みんなが最初から同じ名札で持っている＝作らない（二重になる）
       if (kind === 'port' || kind === 'base') continue;
-      if (kind === 'ship') u = spawnAIShip(faction, klass || 'destroyer', x, z, 'patrol');
+      // 切り札（なかまの大和・武蔵など）。ふつうの船より先に見る
+      if (klass === 'trump') u = makeTrumpUnit(nation, tname || '切り札', x, z);
+      else if (kind === 'ship') u = spawnAIShip(faction, klass || 'destroyer', x, z, 'patrol');
       else if (kind === 'sub') u = spawnAISub(faction, x, z, 'patrol');
       else if (kind === 'plane') u = spawnAIPlane(faction, x, z);
       else continue;
@@ -2542,7 +2568,7 @@ netStatus();   // ボタンの見た目を、いまの状態（＝ひとりで�
 // ?dev=1 のときだけ、通信の中身をコンソールから触れるようにする（つながらない時の調べ用）。
 // ⚠ 裏タブは requestAnimationFrame が止まる＝位置を送らなくなる。2枚のタブで試すときは
 //    両方を「見えている」状態（べつのウィンドウ）にすること。8/21のHANABIと同じ罠。
-if (DEV) { window.NET = NET; window.dbg = () => ({ units, trumps, projs, G, player, dealDamage, netElect }); }
+if (DEV) { window.NET = NET; window.dbg = () => ({ units, trumps: trumpList(), projs, G, player, dealDamage, netElect, requestTrump, shoot, THREE }); }
 
 // ============ 記録用の自動スタート（?auto=allied|axis&cat=fighter|ship|sub&type=ID&demo=1） ============
 const urlP = new URLSearchParams(location.search);
