@@ -218,8 +218,10 @@
   </div>
   <p id="roomStatus" style="min-height:2.6em; font-weight:bold; color:#69f0ae; margin:.2em 16px"></p>
   <p style="font-size:.82rem; opacity:.8; margin:0 16px">
-    ⚠ いまできること：おなじ海にいる なかまが <b>見える</b>・レーダーに出る・撃破や勝ちが つたわる。<br>
-    ⚠ まだできないこと：<b>敵はそれぞれの海で うごいている</b>（あなたが倒した敵は、あいての画面ではまだ生きている）。つぎに直す。</p>
+    ✅ なかまが <b>見える</b>・レーダーに出る・撃破や勝ちが つたわる<br>
+    ✅ <b>敵もいっしょ</b>。あなたが沈めた敵は、なかまの画面でも沈む。敵は近いほうの人をねらう<br>
+    ⚠ 敵をうごかす係（あずかり役）は、出撃している人のうち1人が じどうで受けもつ。<br>
+    ⚠ まだできないこと：自分の人間で 島や船の上を あるく</p>
   <div style="display:flex; flex-wrap:wrap; justify-content:center;">
     <button class="btn" id="btnRoomBack" style="font-size:.95rem; padding:.45em 1.2em">← もどる</button>
     <button class="btn" id="btnRoomLeave" style="background:#5d4037; font-size:.95rem; padding:.45em 1.2em">🚪 ルームを出る</button>
@@ -701,8 +703,14 @@ for (const d of islandDefs) d.group = makeIsland(d.x, d.z, d.r, d.kind === 'plai
 
 // ============ ユニット管理 ============
 let units = [];   // AIユニット＋港＋拠点（playerはべつ）
+let ENID = 1;     // v6: 通しばんごう。みんなでルームで「どの子の話か」を伝えるのに使う
+const NID_TAG = Math.random().toString(36).slice(2, 6) + '_';   // この画面だけの印
 function addUnit(u) {
   if (u.faction === 'enemy' && TUNE.ehp !== 1) { u.hp *= TUNE.ehp; u.maxHp *= TUNE.ehp; }   // 調整パネル：敵のかたさ（敵の全ユニットに1箇所で効く）
+  // v6: どのユニットにも名札（nid）をつける。みんなでルームで「どの子の話か」を伝えるのに使う。
+  // ⚠ 頭に自分だけの印（NID_TAG）を付ける。ただの通し番号だと、2人が同時に出した子が
+  //    おなじ名札になって、別の子を同じ子だとまちがえる
+  if (!u.nid) u.nid = NID_TAG + (u.faction === 'enemy' ? 'e' : 'a') + (ENID++);
   units.push(u); scene.add(u.group); attachHpBar(u, u.barH || 20); return u;
 }
 
@@ -715,7 +723,9 @@ function spawnStructure(side, kind, at, name) { // kind: 'port' | 'base'（at �
   return addUnit({ group: g, kind, klass: kind, faction: side === 'enemy' ? 'enemy' : 'ally',
     name: name || ((side === 'enemy' ? '敵の' : '味方の') + (kind === 'port' ? '港' : '拠点')),
     hp: kind === 'port' ? 250 : 160, maxHp: kind === 'port' ? 250 : 160,
-    radius: kind === 'port' ? 36 : 30, aaRange: kind === 'port' ? 260 : 220, aaTimer: 1, barH: 42, structure: true });
+    radius: kind === 'port' ? 36 : 30, aaRange: kind === 'port' ? 260 : 220, aaTimer: 1, barH: 42, structure: true,
+    // v6: 建物の名札は場所から作る＝全員の画面で同じになる（みんなでルームでHPを共有するため）
+    nid: 'st_' + kind + '_' + side + '_' + Math.round(at.x) });
 }
 function spawnAIShip(side, klass, x, z, mission) {
   const g = makeShipMesh(klass, side === 'enemy');
@@ -1228,6 +1238,16 @@ $('btnLaunch').onclick = () => {
 $('btnRetry').onclick = () => { $('endScreen').style.display = 'none'; $('titleScreen').style.display = 'flex'; updateCheerLabels(); };
 
 // ============ ゲーム開始 ============
+// v6: 敵の艦隊を出すところだけ切り出した（みんなでルームでは、あずかり役になった人が
+// あとから呼ぶことがあるため。startGame の中に埋めたままだと そこだけ呼べない）
+function spawnInitialFleet() {
+  spawnAIShip('enemy', 'destroyer', 700*WORLD, -100*WORLD, 'patrol');
+  spawnAIShip('enemy', 'destroyer', 850*WORLD, 250*WORLD, 'patrol');
+  spawnAIShip('enemy', 'destroyer', 500*WORLD, 100*WORLD, 'patrol');
+  spawnAIShip('enemy', 'carrier', 950*WORLD, -50*WORLD, 'patrol');
+  spawnAISub('enemy', 400*WORLD, -200*WORLD, 'patrol');
+  spawnAIPlane('enemy', 800*WORLD, 100*WORLD);
+}
 function startGame(faction, mode, def) {
   G.faction = faction; G.mode = mode; G.def = def;
   logEvent('start', { faction, mode, type: def.id, ear: EAR, off: [...OFF].join(',') || 'none', bgm: bgmOn, diff: DIFF, tune: tuneStr(),
@@ -1248,13 +1268,15 @@ function startGame(faction, mode, def) {
   // v6: 増やした基地（監督8/26「基地を増やす」「日本とアメリカに作って」）
   spawnStructure('ally', 'base', JAPAN, '日本の基地');
   spawnStructure('enemy', 'base', AMERICA, 'アメリカの基地');
-  // 敵の艦隊（v6: 場所を広くしたので、いる場所も同じだけ広げる）
-  spawnAIShip('enemy', 'destroyer', 700*WORLD, -100*WORLD, 'patrol');
-  spawnAIShip('enemy', 'destroyer', 850*WORLD, 250*WORLD, 'patrol');
-  spawnAIShip('enemy', 'destroyer', 500*WORLD, 100*WORLD, 'patrol');
-  spawnAIShip('enemy', 'carrier', 950*WORLD, -50*WORLD, 'patrol');
-  spawnAISub('enemy', 400*WORLD, -200*WORLD, 'patrol');
-  spawnAIPlane('enemy', 800*WORLD, 100*WORLD);
+  // 敵の艦隊。v6: みんなでルームでは「あずかり役（ホスト）」だけが出す。
+  // それぞれが出すと、みんなの海がバラバラになるため（乱数と敵AIは必ずズレる）
+  G.netFleetDone = !NET.on || G.tutorial;
+  // なかまがいる時だけ、ちょっと待ってから敵を出す。
+  // ⚠ ここで NET.peers（＝位置が届いている人）を見てはいけない。位置は出撃してからしか
+  //    流れないので、2人が同時に出撃すると両方「ひとりだ」と思って、敵を2組ずつ出してしまう。
+  //    部屋につながっている人数（getPeers）なら、出撃する前から わかる。
+  G.fleetWait = (NET.on && netPeerCount() > 0) ? 2.0 : 0.3;
+  if (G.netFleetDone) spawnInitialFleet();
   // 自分ののりもの
   const color = faction === 'axis' ? 0x9e9d24 : 0x1565c0;
   if (mode === 'fighter') { player.group = makePlaneMesh(color, faction); player.radius = 5; }
@@ -1274,6 +1296,7 @@ function startGame(faction, mode, def) {
   respawn();
   playBgm('battle');
   G.running = true;
+  netElect();   // v6: 出撃したので、あずかり役（ホスト）を決めなおす
   $('titleScreen').style.display = 'none';
   $('unitScreen').style.display = 'none';
   $('endScreen').style.display = 'none';
@@ -1333,27 +1356,45 @@ function explode(pos, big) {
 }
 
 // ============ ダメージ処理 ============
-function applyDamage(unit, dmg, role, wtype) {
+// v6: みんなでルームでは「生死を決めるのは あずかり役（ホスト）1人」。
+// なので、敵にダメージを与えたい所は ぜんぶ dealDamage() を通す。
+// ⚠ 呼ぶ側ごとに if を書かない。1か所にまとめておけば、あとから足した武器も自動で乗る。
+function dealDamage(unit, dmg, role, wtype) {
+  if (netSyncing() && !NET.isHost && unit.nid) {
+    netHit(unit.nid, dmg, role, wtype);   // ゲストは「当てたよ」と伝えるだけ
+    return;
+  }
+  applyDamage(unit, dmg, role, wtype, NET.on ? NET.me : null);
+}
+function applyDamage(unit, dmg, role, wtype, attacker) {
   let mult = roleMult(role, unit);
   if (unit.kind === 'sub' && !['torpedo','depth','bomb'].includes(wtype) && role !== 'antisub') mult *= 0.3;
   unit.hp -= dmg * mult;
   updateHpBar(unit);
-  if (unit.hp <= 0 && !unit.dead) destroyUnit(unit);
+  if (unit.hp <= 0 && !unit.dead) destroyUnit(unit, attacker);
 }
-function destroyUnit(u) {
+// 撃破のごほうび（チール・撃破数・切り札）。v6: 誰の手柄かで分けるので、ここだけ切り出した
+function grantKill(name) {
+  G.kills++;
+  // v6: 監督「敵を倒すと3チール」。⚠ チュートリアルではもらえない（見せるための時間なので）
+  if (!G.tutorial) { addCheer(CHEER_KILL, 'kill'); G.cheerRun += CHEER_KILL; }
+  showMessage(`🎯 ${name} 撃破！ (${Math.min(G.kills,5)}/5)　🎁+${CHEER_KILL}チール`, 2.5);
+  if (!G.tutorial) netEvent('kill', name);   // v6: みんなでルームの なかまにも知らせる
+  if (G.kills >= 5 && trumps.length === 0) spawnTrump(1);
+  if (G.kills >= 10 && trumps.length === 1) spawnTrump(2);
+}
+function destroyUnit(u, attacker) {
   u.dead = true;
   explode(u.group.position.clone().setY(8), true);
-  logEvent('destroy', { name: u.name, by: 'player-side' });
+  logEvent('destroy', { name: u.name, by: attacker || 'player-side' });
+  // v6: あずかり役は「この敵が沈んだ・倒したのはこの人」をみんなに配る
+  if (netSyncing() && NET.isHost && u.nid) netSend('ed', [u.nid, attacker || NET.me]);
   if (u === enemyPort) { win(); return; }
   if (u === ourPort) { lose(); return; }
   if (u.faction === 'enemy') {
-    G.kills++;
-    // v6: 監督「敵を倒すと3チール」。⚠ チュートリアルではもらえない（見せるための時間なので）
-    if (!G.tutorial) { addCheer(CHEER_KILL, 'kill'); G.cheerRun += CHEER_KILL; }
-    showMessage(`🎯 ${u.name} 撃破！ (${Math.min(G.kills,5)}/5)　🎁+${CHEER_KILL}チール`, 2.5);
-    if (!G.tutorial) netEvent('kill', u.name);   // v6: みんなでルームの なかまにも知らせる
-    if (G.kills >= 5 && trumps.length === 0) spawnTrump(1);
-    if (G.kills >= 10 && trumps.length === 1) spawnTrump(2);
+    // ひとりで遊んでいる時は attacker が null＝自分の手柄。みんなでルームでは自分が当てた時だけ
+    if (!NET.on || !attacker || attacker === NET.me) grantKill(u.name);
+    else showMessage(`💥 ${u.name} が しずんだ`, 2);
   } else {
     showMessage(`⚠ ${u.name} がやられた！`, 2.5);
   }
@@ -1424,8 +1465,27 @@ const tmpV = new THREE.Vector3();
 let lastT = performance.now(), fireCd = 0, fire2Cd = 0, PAUSED = false;
 let pausedAt = 0;
 
+// v6: ?dev=1 のときだけ、画面が裏でも ループを止めない。
+// ⚠ ふつうの遊びでは止めたまま（裏で電池を食わない・v5の「見えなくなったら音を止める」と同じ考え）。
+// これが要る理由：**ブラウザは裏の画面で requestAnimationFrame を止める**ので、
+// 2画面つないで通信を試すとき「つながっているのに何も起きない」ように見えてしまう。
+// setTimeout も裏では毎秒1回に絞られるので、絞られない MessageChannel を使う。
+const devPump = (() => {
+  if (!DEV) return null;
+  // ⚠ ここで setTimeout を使ってはいけない。**裏の画面では毎秒1回に絞られる**ので、
+  //    「動いているつもりで 1コマ／秒」になり、テストの結果を読みまちがえる。
+  //    MessageChannel は絞られないので、こっちで次のコマを呼ぶ。
+  const mc = new MessageChannel();
+  let pending = null;
+  mc.port1.onmessage = () => { const f = pending; pending = null; if (f) f(performance.now()); };
+  return fn => { pending = fn; mc.port2.postMessage(0); };
+})();
+function nextFrame(fn) {
+  if (devPump && document.hidden) devPump(fn);
+  else requestAnimationFrame(fn);
+}
 function tick() {
-  requestAnimationFrame(tick);
+  nextFrame(tick);
   const now = performance.now();
   if (PAUSED) {
     renderer.render(scene, camera);
@@ -1460,7 +1520,8 @@ function tick() {
 
   // ---- 増援（現実時間5分ごと：監督ルール） ----
   G.reinforceT += dt;
-  if (!G.tutorial && G.reinforceT >= REINFORCE_SEC) {   // v5: チュートリアル中は増援を出さない
+  // v6: みんなでルームでは、増援を出すのも あずかり役だけ（みんなが出すと敵が人数ぶん増える）
+  if (!G.tutorial && G.reinforceT >= REINFORCE_SEC && (!netSyncing() || NET.isHost)) {   // v5: チュートリアル中は増援を出さない
     G.reinforceT = 0;
     // 1回の増援：ノーマル3体（飛・船・潜が1つずつ：監督調整）／
     // イージー1体だけ・ハード5体で空母多め（監督の難易度設計 8/14）
@@ -1543,7 +1604,7 @@ function tick() {
       const dv = Math.abs(P.y - u.group.position.y);
       if (dh < u.radius && dv < (u.structure ? 30 : (u.kind === 'plane' ? 8 : 14))) {
         const ramDmg = 25 + G.ammo2 * (G.def.bombDmg || 50) * 0.8;
-        applyDamage(u, ramDmg, G.def.role, 'bomb');
+        dealDamage(u, ramDmg, G.def.role, 'bomb');
         explode(P.clone(), true);
         showMessage(G.ammo2 > 0 ? `💥💥 爆弾もろとも体当たり！！（${Math.round(ramDmg)}ダメージ）` : '💥 体当たり！', 3);
         logEvent('ram', { target: u.name, bombs: G.ammo2, dmg: Math.round(ramDmg) });
@@ -1619,17 +1680,27 @@ function tick() {
       shoot({ pos: P.clone().setY(2).addScaledVector(fwd, -20), vel: new THREE.Vector3(0, -10, 0), color: 0x37474f, size: 1.6, owner: 'player', dmg: 55, type: 'depth', role: 'antisub', life: 3, area: 28 });
       showMessage(`💥 爆雷投下！（のこり ${G.ammo2}）`, 1.2);
     } else if (G.def.escorts) {
-      spawnAIPlane('ally', P.x + 35, P.z + 10);
+      // v6: 護衛機も「あずかり役が出して、みんなに配る」。ゲストは お願いを送るだけ
+      if (netSyncing() && !NET.isHost) netSend('sp', [Math.round(P.x + 35), Math.round(P.z + 10)]);
+      else spawnAIPlane('ally', P.x + 35, P.z + 10);
       showMessage(`🛩 護衛機 発艦！（のこり ${G.ammo2}）`, 1.5);
     }
     logEvent('fire2', { mode: G.mode, left: G.ammo2 });
   }
 
   // ---- AIユニットの行動 ----
+  // v6: みんなでルームでは、うごかすのは あずかり役（ホスト）だけ。
+  // ほかの人は、あずかり役から届いた場所へ なめらかに寄せるだけ。
+  // ⚠ みんなが自分で計算すると、乱数と敵AIのせいで ぜったいにズレる（同じ海に見えなくなる）
+  const aiOn = !netSyncing() || NET.isHost;
   for (const u of units) {
     if (u.dead) continue;
+    if (!aiOn) { netLerpUnit(u, dt); continue; }
     const up = u.group.position;
-    const distP = up.distanceTo(P);
+    // v6: ねらう相手は「いちばん近い人」。自分だけをねらうと、なかまが撃たれない＝
+    //     ゲストにとっては見ているだけのゲームになる
+    const near = nearestHuman(up, P);
+    const distP = near.dist;
     // 移動
     if (u.kind === 'ship' || u.kind === 'sub') {
       if (u.mission === 'attack' && ourPort && !ourPort.dead) {
@@ -1642,7 +1713,7 @@ function tick() {
           u.shellTimer -= dt;
           if (u.shellTimer <= 0) {
             u.shellTimer = 4;
-            shoot({ pos: up.clone().setY(u.kind==='sub' ? -1.5 : 9), vel: tmpV.copy(target).sub(up).normalize().multiplyScalar(80), color: 0xff7043, size: 1.4, owner: 'enemy', dmg: 10, type: u.kind==='sub' ? 'torpedo' : 'shell', homing: ourPort, life: 8 });
+            netEnemyFire({ pos: up.clone().setY(u.kind==='sub' ? -1.5 : 9), vel: tmpV.copy(target).sub(up).normalize().multiplyScalar(80), color: 0xff7043, size: 1.4, owner: 'enemy', dmg: 10, type: u.kind==='sub' ? 'torpedo' : 'shell', homing: ourPort, life: 8 });
           }
         }
       } else {
@@ -1669,12 +1740,12 @@ function tick() {
           if (u.faction === 'enemy') showMessage('⚠ 敵の空母から 戦闘機が発艦！', 2);
         }
       }
-      // 敵の駆逐艦は、もぐった自分に爆雷を落としてくる
-      if (u.faction === 'enemy' && u.klass === 'destroyer' && G.mode === 'sub' && distP < 70) {
+      // 敵の駆逐艦は、もぐった人に爆雷を落としてくる（v6: 自分でも なかまでも）
+      if (u.faction === 'enemy' && u.klass === 'destroyer' && near.mode === 'sub' && distP < 70) {
         u.aaTimer -= dt;
         if (u.aaTimer <= 0) {
           u.aaTimer = 3;
-          shoot({ pos: up.clone().setY(1), vel: tmpV.copy(P).sub(up).normalize().multiplyScalar(14).setY(-9), color: 0x37474f, size: 1.5, owner: 'enemy', dmg: 28, type: 'depth', role: 'antisub', life: 3.5, area: 26 });
+          netEnemyFire({ pos: up.clone().setY(1), vel: tmpV.copy(near.pos).sub(up).normalize().multiplyScalar(14).setY(-9), color: 0x37474f, size: 1.5, owner: 'enemy', dmg: 28, type: 'depth', role: 'antisub', life: 3.5, area: 26 });
         }
         continue;
       }
@@ -1682,7 +1753,7 @@ function tick() {
       // 敵の戦闘機：近くなら自分を追う、遠ければ味方の港へ／味方の護衛機：いちばん近い敵を追う
       let target;
       if (u.faction === 'enemy') {
-        target = (distP < 450) ? P : (ourPort && !ourPort.dead ? ourPort.group.position : P);
+        target = (distP < 450) ? near.pos : (ourPort && !ourPort.dead ? ourPort.group.position : near.pos);
       } else {
         let tgt = null, best = 1e9;
         for (const e of units) {
@@ -1691,7 +1762,7 @@ function tick() {
           if (d < best) { best = d; tgt = e; }
         }
         u.allyTarget = tgt || ((enemyPort && !enemyPort.dead) ? enemyPort : null);
-        target = u.allyTarget ? u.allyTarget.group.position : P;
+        target = u.allyTarget ? u.allyTarget.group.position : near.pos;
       }
       const d = tmpV.copy(target).sub(up);
       const targetYaw = Math.atan2(-d.x, -d.z);
@@ -1701,19 +1772,20 @@ function tick() {
       u.yaw += Math.max(-1.2*dt, Math.min(1.2*dt, dy));
       up.x += -Math.sin(u.yaw)*u.speed*dt;
       up.z += -Math.cos(u.yaw)*u.speed*dt;
-      up.y += Math.max(-15*dt, Math.min(15*dt, (target.y + (target===P ? 0 : 45)) - up.y));
+      up.y += Math.max(-15*dt, Math.min(15*dt, (target.y + (target === near.pos ? 0 : 45)) - up.y));
       up.y = Math.max(20, Math.min(120, up.y));
       u.group.rotation.set(0, u.yaw, 0);
     }
     // 対空砲・機銃（プレイヤーをねらう）
     if (u.faction === 'enemy' && u.aaRange > 0) {
       u.aaTimer -= dt;
-      const subSafe = G.mode === 'sub' && G.depth < -6;
+      // もぐっている潜水艦は見つからない（v6: なかまがもぐっている時も同じあつかい）
+      const subSafe = near.mode === 'sub' && near.pos.y < -6;
       if (u.aaTimer <= 0 && distP < u.aaRange && !G.fogActive && !subSafe) {
         u.aaTimer = u.kind === 'plane' ? 1.6 : 1.2;
-        const dir = tmpV.copy(P).sub(up).normalize();
+        const dir = tmpV.copy(near.pos).sub(up).normalize();
         dir.x += (Math.random()-0.5)*0.22; dir.y += (Math.random()-0.5)*0.22; dir.z += (Math.random()-0.5)*0.22;
-        shoot({ pos: up.clone().setY(u.kind==='plane' ? up.y : 8), vel: dir.multiplyScalar(130), color: 0xff5252, size: 0.8, owner: 'enemy', dmg: 10, type: 'tracer', life: 2.5 });
+        netEnemyFire({ pos: up.clone().setY(u.kind==='plane' ? up.y : 8), vel: dir.multiplyScalar(130), color: 0xff5252, size: 0.8, owner: 'enemy', dmg: 10, type: 'tracer', life: 2.5 });
       }
     }
     // 味方の護衛機のこうげき
@@ -1809,10 +1881,10 @@ function tick() {
         const hitR = p.area ? 0 : u.radius;
         const dd = p.mesh.position.distanceTo(u.group.position);
         if (!p.area && dd < u.radius && Math.abs(p.mesh.position.y - u.group.position.y) < 34) {
-          applyDamage(u, p.dmg, p.role, p.type); explode(p.mesh.position.clone(), false); done = true; break;
+          dealDamage(u, p.dmg, p.role, p.type); explode(p.mesh.position.clone(), false); done = true; break;
         }
         if (p.area && exploded && dd < u.radius + p.area) {
-          applyDamage(u, p.dmg, p.role, p.type);
+          dealDamage(u, p.dmg, p.role, p.type);
         }
       }
     } else { // enemy の弾
@@ -1826,9 +1898,13 @@ function tick() {
       if (!done) for (const u of units) {
         if (u.dead || u.faction !== 'ally') continue;
         if (p.mesh.position.distanceTo(u.group.position) < u.radius) {
-          u.hp -= p.dmg; updateHpBar(u);
+          // v6: 味方の港・拠点のHPも あずかり役が決める。
+          // ⚠ ゲストが自分で減らすと、先に0になって「まだ負けていないのに負け」が起きる
+          if (!netSyncing() || NET.isHost) {
+            u.hp -= p.dmg; updateHpBar(u);
+            if (u.hp <= 0 && !u.dead) destroyUnit(u, 'enemy');
+          }
           explode(p.mesh.position.clone(), false);
-          if (u.hp <= 0 && !u.dead) destroyUnit(u);
           done = true; break;
         }
       }
@@ -1930,7 +2006,8 @@ function tick() {
   } else extra = `🌊 深さ ${Math.round(-G.depth)}m ${G.depth < -6 ? '（かくれ中！弾が当たらない）' : '（浅い！見つかるぞ）'}`;
   const nextRein = Math.max(0, REINFORCE_SEC - G.reinforceT);
   extra += ` ／ 増援まで ${Math.floor(nextRein/60)}:${String(Math.floor(nextRein%60)).padStart(2,'0')}`;
-  if (NET.on) extra += ` ／ 👥 ${NET.word}（なかま ${NET.peers.size}）`;   // v6: みんなでルーム
+  // v6: みんなでルーム。あずかり役かどうかも出す（敵が止まった時に、どこを見ればいいかわかる）
+  if (NET.on) extra += ` ／ 👥 ${NET.word}（なかま ${NET.peers.size}${NET.peers.size ? (NET.isHost ? '・あずかり役' : '') : ''}）`;
   $('extra').textContent = extra;
   if (G.msgTimer > 0) { G.msgTimer -= dt; if (G.msgTimer <= 0) $('message').style.opacity = 0; }
 
@@ -2050,7 +2127,10 @@ const TRYSTERO_URL = 'https://esm.run/trystero@0.25.4';
 const NET_HZ = 10;                      // 位置を送る回数（毎秒）。8/25の実測とおなじ
 const NET_TIMEOUT = 8000;               // これだけ音さたが無い相手は消す（ミリ秒）
 const NET = { on: false, word: '', me: '', name: localStorage.getItem('pw_name') || '',
-              room: null, send: null, sendEv: null, peers: new Map(), t: 0 };
+              room: null, send: null, sendEv: null, act: {}, peers: new Map(),
+              isHost: true, hostId: '', t: 0, st: 0, elect: 0 };
+const NET_SNAP_HZ = 5;                  // 敵の場所を配る回数（毎秒）。位置より少なめでいい
+const NET_MISS_GONE = 15;               // これだけ続けて届かなかった敵は、そっと消す（約3秒）
 const netV = new THREE.Vector3();       // tick の tmpV とは別にする（使い回しの取りちがえ防止）
 
 function netMakeMesh(mode, klass, faction) {
@@ -2090,7 +2170,8 @@ function netDropPeer(id) {
 function netLeave() {
   for (const id of [...NET.peers.keys()]) netDropPeer(id);
   if (NET.room) { try { NET.room.leave(); } catch (e) {} }
-  NET.room = null; NET.send = null; NET.sendEv = null; NET.on = false; NET.word = '';
+  NET.room = null; NET.send = null; NET.sendEv = null; NET.act = {};
+  NET.on = false; NET.word = ''; NET.isHost = true; NET.hostId = '';
   netStatus();
 }
 async function netJoin(word) {
@@ -2112,6 +2193,14 @@ async function netJoin(word) {
     const st = mk('st'), ev = mk('ev');
     NET.send = st.send; NET.sendEv = ev.send;
     st.on(netOnState); ev.on(netOnEvent);
+    // 敵をみんなで同じにするための4本＋護衛機のお願い
+    const es = mk('es'), eh = mk('eh'), ed = mk('ed'), ef = mk('ef'), sp = mk('sp');
+    NET.act = { es: es.send, eh: eh.send, ed: ed.send, ef: ef.send, sp: sp.send };
+    es.on(netApplySnapshot);
+    eh.on(netOnHit);
+    ed.on(netOnDead);
+    ef.on(netOnEnemyFire);
+    sp.on((d) => { if (NET.isHost && Array.isArray(d)) spawnAIPlane('ally', d[0], d[1]); });
     // イベントも版により「関数を呼ぶ」or「プロパティに代入」
     const on = (k, fn) => typeof room[k] === 'function' ? room[k](fn) : (room[k] = fn);
     on('onPeerJoin', id => { logEvent('net_peer_join', { id }); netStatus(); });
@@ -2150,12 +2239,144 @@ function netOnEvent(d) {
   else if (kind === 'lose') showMessage(`👥 ${nm} の港が やられた…`, 3);
   else if (kind === 'go') showMessage(`👥 ${nm} が ${text} で 出撃！`, 2.5);
 }
+// あずかり役だけが受ける：なかまが「当てた」と言ってきたので、ここでダメージを決める
+function netOnHit(d, id) {
+  if (!NET.isHost || !Array.isArray(d)) return;
+  const u = findByNid(d[0]);
+  if (u && !u.dead) applyDamage(u, d[1], d[2], d[3], id);
+}
+// みんなが受ける：あずかり役が「この子は沈んだ」と配ってきた
+function netOnDead(d) {
+  if (NET.isHost || !Array.isArray(d)) return;
+  const u = findByNid(d[0]);
+  if (u && !u.dead) { u.hp = 0; updateHpBar(u); destroyUnit(u, d[1]); }
+}
+// みんなが受ける：あずかり役の敵が撃った弾を、自分の画面でも飛ばす
+function netOnEnemyFire(d) {
+  if (NET.isHost || !Array.isArray(d) || d.length < 15) return;
+  shoot({ pos: new THREE.Vector3(d[0], d[1], d[2]), vel: new THREE.Vector3(d[3], d[4], d[5]),
+          color: d[6], size: d[7], owner: 'enemy', dmg: d[8], type: d[9], gravity: d[10],
+          role: d[11], life: d[12], area: d[13], homing: d[14] ? findByNid(d[14]) : null });
+}
 function netEvent(kind, text) {
   if (NET.on && NET.sendEv) { try { NET.sendEv([kind, text || '', NET.name || 'なかま']); } catch (e) {} }
 }
+// ============ 敵をみんなで同じにする（あずかり役＝ホスト方式） ============
+// 監督が気づくところ：「おれが沈めた敵が、相手の画面ではまだ生きてる」。
+// 直し方は「みんなで別々に計算する」のをやめて、**1人が敵を動かして、みんなに配る**。
+// ⚠ 全員が計算する形は絶対にズレる（乱数と敵AIがあるので、同じ手順でも同じ結果にならない）
+const netSyncing = () => NET.on && !G.tutorial;
+function netSend(kind, data) {
+  const a = NET.act[kind];
+  if (a) { try { a(data); } catch (e) {} }
+}
+// あずかり役を決める：つながっている人のうち、IDがいちばん小さい人。
+// ⚠ 名前や早い者順で決めない。**全員が同じ答えを出せる決め方**でないと、2人が同時に
+//    あずかり役になって敵が2倍出る。IDの大小なら、誰が計算しても同じ答えになる。
+function netElect() {
+  if (!NET.on) { NET.isHost = true; NET.hostId = ''; return; }
+  let host = NET.me;
+  const now = performance.now();
+  // ⚠ 出撃している人だけで決める。タイトル画面の人があずかり役になると、敵が止まる。
+  //    位置は出撃中しか送らないので、「さっき位置が届いた人」＝出撃中の人
+  for (const [id, p] of NET.peers) if (now - p.last < 3000 && id < host) host = id;
+  const was = NET.isHost;
+  NET.isHost = (host === NET.me); NET.hostId = host;
+  if (NET.isHost && !was && G.running) {
+    showMessage('👥 あずかり役に なった（敵をうごかす係）', 2.5);
+    logEvent('net_host', { host });
+  }
+}
+// 敵がねらう相手＝いちばん近い人（自分となかま）。自分だけをねらうと、なかまは撃たれない
+function nearestHuman(up, P) {
+  let pos = P, dist = up.distanceTo(P), mode = G.mode;
+  if (netSyncing()) for (const p of NET.peers.values()) {
+    const d = up.distanceTo(p.group.position);
+    if (d < dist) { dist = d; pos = p.group.position; mode = p.mode; }
+  }
+  return { pos, dist, mode };
+}
+// ゲスト側：あずかり役から届いた場所へ なめらかに寄せる（自分では動かさない）
+function netLerpUnit(u, dt) {
+  if (!u.nt || u.structure) return;
+  const k = 1 - Math.pow(0.002, dt);
+  u.group.position.lerp(u.nt, k);
+  if (u.ry != null) u.group.rotation.y = u.ry;
+}
+// 敵の弾：あずかり役が撃ち、そのままみんなに配る（配らないと、なかまは撃たれない）
+function netEnemyFire(opt) {
+  shoot(opt);
+  if (netSyncing() && NET.isHost) {
+    netSend('ef', [opt.pos.x, opt.pos.y, opt.pos.z, opt.vel.x, opt.vel.y, opt.vel.z,
+                   opt.color, opt.size || 0.6, opt.dmg, opt.type, opt.gravity || 0,
+                   opt.role || 'none', opt.life || 2, opt.area || 0,
+                   (opt.homing && opt.homing.nid) || '']);
+  }
+}
+const findByNid = nid => units.find(u => u.nid === nid);
+// ゲスト：当てたことを あずかり役に伝える（生死を決めるのは あずかり役1人）
+function netHit(nid, dmg, role, wtype) { netSend('eh', [nid, dmg, role || 'none', wtype || '']); }
+
+function netSnapshot() {
+  const out = [];
+  for (const u of units) {
+    if (u.dead) continue;
+    const p = u.group.position;
+    out.push([u.nid, u.kind, u.klass || '', u.faction,
+              Math.round(p.x), Math.round(p.y*10)/10, Math.round(p.z),
+              Math.round(u.group.rotation.y*100)/100, Math.round(u.hp), Math.round(u.maxHp)]);
+  }
+  netSend('es', out);
+}
+function netApplySnapshot(list) {
+  if (!Array.isArray(list) || NET.isHost) return;
+  const seen = new Set();
+  for (const d of list) {
+    const [nid, kind, klass, faction, x, y, z, ry, hp, maxHp] = d;
+    seen.add(nid);
+    let u = findByNid(nid);
+    if (!u) {
+      // 港と拠点は、みんなが最初から同じ名札で持っている＝作らない（二重になる）
+      if (kind === 'port' || kind === 'base') continue;
+      if (kind === 'ship') u = spawnAIShip(faction, klass || 'destroyer', x, z, 'patrol');
+      else if (kind === 'sub') u = spawnAISub(faction, x, z, 'patrol');
+      else if (kind === 'plane') u = spawnAIPlane(faction, x, z);
+      else continue;
+      u.nid = nid;
+      u.group.position.set(x, y, z);
+      if (faction === 'enemy') G.netFleetDone = true;
+    }
+    u.nt = u.nt || new THREE.Vector3();
+    u.nt.set(x, y, z);
+    u.ry = ry; u.miss = 0;
+    if (u.structure) u.group.position.set(x, y, z);   // 港は動かないので すぐ合わせる
+    if (u.hp !== hp || u.maxHp !== maxHp) { u.hp = hp; u.maxHp = maxHp; updateHpBar(u); }
+  }
+  // 届かなくなった子は、しばらく待ってから そっと消す（通信のぬけで消さないため）
+  for (const u of units) {
+    if (u.dead || u.structure || !u.nid || seen.has(u.nid)) continue;
+    u.miss = (u.miss || 0) + 1;
+    if (u.miss > NET_MISS_GONE) { u.dead = true; u.sunk = true; scene.remove(u.group); }
+  }
+}
+
 // 自分の場所を送る＋なかまの場所を なめらかに追う（tick から毎フレーム呼ぶ）
 function netTick(dt, P) {
   if (!NET.on) return;
+  NET.elect += dt;
+  if (NET.elect >= 1) { NET.elect = 0; netElect(); }   // 1秒ごとに あずかり役を決めなおす
+  // 敵の艦隊は あずかり役だけが出す。
+  // ⚠ 2人が同時に出撃すると、一瞬だけ両方が「自分があずかり役」に見えることがある。
+  //    なかまがいる時は少し待ってから出す＝待つあいだに本物のあずかり役の敵が届くので、
+  //    二重に出さずに済む。（それでも出てしまった子は、届かない子として自然に消える）
+  if (netSyncing() && G.running && !G.netFleetDone) {
+    G.fleetWait -= dt;
+    if (G.fleetWait <= 0 && NET.isHost) { G.netFleetDone = true; spawnInitialFleet(); }
+  }
+  if (netSyncing() && NET.isHost && G.running) {
+    NET.st += dt;
+    if (NET.st >= 1/NET_SNAP_HZ) { NET.st = 0; netSnapshot(); }
+  }
   NET.t += dt;
   if (NET.t >= 1/NET_HZ && NET.send && G.running) {
     NET.t = 0;
@@ -2321,7 +2542,7 @@ netStatus();   // ボタンの見た目を、いまの状態（＝ひとりで�
 // ?dev=1 のときだけ、通信の中身をコンソールから触れるようにする（つながらない時の調べ用）。
 // ⚠ 裏タブは requestAnimationFrame が止まる＝位置を送らなくなる。2枚のタブで試すときは
 //    両方を「見えている」状態（べつのウィンドウ）にすること。8/21のHANABIと同じ罠。
-if (DEV) window.NET = NET;
+if (DEV) { window.NET = NET; window.dbg = () => ({ units, trumps, projs, G, player, dealDamage, netElect }); }
 
 // ============ 記録用の自動スタート（?auto=allied|axis&cat=fighter|ship|sub&type=ID&demo=1） ============
 const urlP = new URLSearchParams(location.search);
