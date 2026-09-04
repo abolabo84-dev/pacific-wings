@@ -217,6 +217,9 @@
     <button class="btn" id="btnRoomJoin" style="background:#1565c0; font-size:1rem; padding:.5em 1.1em">🚪 はいる</button>
   </div>
   <p id="roomStatus" style="min-height:2.6em; font-weight:bold; color:#69f0ae; margin:.2em 16px"></p>
+  <pre id="roomDiag" style="display:none; white-space:pre-wrap; text-align:left; font-size:.78rem; line-height:1.5;
+       background:rgba(0,0,0,.35); border-radius:8px; padding:8px 10px; margin:0 16px; max-width:min(92vw,520px)"></pre>
+  <button class="btn" id="btnDiagCopy" style="font-size:.85rem; padding:.35em 1em; background:#37474f">📋 じょうたいをコピー</button>
   <p style="font-size:.82rem; opacity:.8; margin:0 16px">
     ✅ なかまが <b>見える</b>・レーダーに出る・撃破や勝ちが つたわる<br>
     ✅ <b>敵もいっしょ</b>。あなたが沈めた敵は、なかまの画面でも沈む。敵は近いほうの人をねらう<br>
@@ -2264,6 +2267,40 @@ const NET_TIMEOUT = 8000;               // これだけ音さたが無い相手�
 const NET = { on: false, word: '', me: '', name: localStorage.getItem('pw_name') || '',
               room: null, send: null, sendEv: null, act: {}, peers: new Map(),
               isHost: true, hostId: '', t: 0, st: 0, elect: 0 };
+// ⚠ つながらない時に「どこで止まったか」を画面に出す（パパ 9/5・PC×スマホ4Gで入れなかった）。
+// 口で往復するより、1回開けば分かる形にする。止まりうる場所は3つあって、直し方が全部ちがう：
+//   ① リレー（相手さがし）に届かない ② 相手は見つかったがNAT越えできない ③ データが来ない
+const NETDIAG = { lib: '', joined: false, peerJoin: 0, packets: 0, ice: '', srflx: 0, relay: 0, err: '' };
+// ⚠ ICEの様子は Trystero の内側にあるので、RTCPeerConnection を包んで のぞく
+(() => {
+  const O = window.RTCPeerConnection;
+  if (!O) { NETDIAG.err = 'このブラウザは WebRTC に対応していない'; return; }
+  function Wrapped(cfg) {
+    const pc = new O(cfg);
+    pc.addEventListener('icecandidate', e => {
+      if (!e.candidate) return;
+      if (e.candidate.type === 'srflx') NETDIAG.srflx++;      // 外から見える自分の住所が取れた
+      if (e.candidate.type === 'relay') NETDIAG.relay++;      // 中継（TURN）が使えている
+    });
+    pc.addEventListener('iceconnectionstatechange', () => {
+      NETDIAG.ice = pc.iceConnectionState;
+      if (typeof netStatus === 'function') netStatus();
+    });
+    return pc;
+  }
+  Wrapped.prototype = O.prototype;
+  if (O.generateCertificate) Wrapped.generateCertificate = O.generateCertificate.bind(O);
+  window.RTCPeerConnection = Wrapped;
+})();
+// ?turn=turn:ホスト:ポート|ユーザー|パスワード で中継サーバーを足せる（別の家どうしで要る場合）
+const TURN_Q = new URLSearchParams(location.search).get('turn');
+const RTC_CONFIG = (() => {
+  const base = [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' }, { urls: 'stun:stun.cloudflare.com:3478' }];
+  if (!TURN_Q) return null;
+  const [urls, username, credential] = TURN_Q.split('|');
+  return { iceServers: [...base, { urls, username, credential }] };
+})();
 const NET_SNAP_HZ = 5;                  // 敵の場所を配る回数（毎秒）。位置より少なめでいい
 const NET_MISS_GONE = 15;               // これだけ続けて届かなかった敵は、そっと消す（約3秒）
 const netV = new THREE.Vector3();       // tick の tmpV とは別にする（使い回しの取りちがえ防止）
@@ -2286,11 +2323,33 @@ function netLabel(text) {
 function netPeerCount() {
   try { return Object.keys(NET.room.getPeers()).length; } catch (e) { return NET.peers.size; }
 }
+// つながらない時、どこで止まったかを ことばで出す。
+// ⚠ 「つながらない」を1つの言葉にまとめない。止まる場所ごとに直し方がちがう
+function netDiagText() {
+  if (!NET.on && !NETDIAG.err) return '';
+  const L = [];
+  if (NETDIAG.err) L.push('⚠ ' + NETDIAG.err);
+  L.push((NETDIAG.joined ? '✅' : '❌') + ' ①へやに入る（相手さがしの場所につながった）');
+  L.push((NETDIAG.peerJoin > 0 ? '✅' : '⏳') + ' ②あいてを見つけた：' + NETDIAG.peerJoin + '人');
+  const iceOk = NETDIAG.ice === 'connected' || NETDIAG.ice === 'completed';
+  L.push((iceOk ? '✅' : NETDIAG.ice === 'failed' ? '❌' : '⏳') + ' ③あいてと道がつながった：' + (NETDIAG.ice || 'まだ'));
+  L.push((NETDIAG.packets > 0 ? '✅' : '⏳') + ' ④データが来た：' + NETDIAG.packets + '回');
+  if (NETDIAG.ice === 'failed' && NETDIAG.relay === 0) {
+    L.push('👉 ②はできて③がダメ＝**中継サーバー（TURN）が要る**組み合わせ。');
+    L.push('　 スマホの4Gと家のWiFiの間だと起きやすい。同じWiFiに入れば つながるはず');
+  } else if (NETDIAG.joined && NETDIAG.peerJoin === 0) {
+    L.push('👉 ①はできて②がまだ＝あいことばが同じか、相手も「はいる」を押したか確かめて');
+  }
+  L.push('（外に出られた:' + NETDIAG.srflx + ' 中継:' + NETDIAG.relay + '）');
+  return L.join(String.fromCharCode(10));
+}
 function netStatus(msg) {
   const e = $('roomStatus');
   if (msg != null) { e.textContent = msg; }
   else if (NET.on) e.textContent = `✅ あいことば ${NET.word} でつながった／いま ${netPeerCount()}人`;
   else e.textContent = '';
+  const dg = $('roomDiag');
+  if (dg) { const t = netDiagText(); dg.textContent = t; dg.style.display = t ? 'block' : 'none'; }
   $('btnSolo').classList.toggle('on', !NET.on);
   $('btnRoomOpen').classList.toggle('on', NET.on);
   $('btnRoomOpen').innerHTML = NET.on
@@ -2316,7 +2375,11 @@ async function netJoin(word) {
   netStatus('つないでいます…（すこし まってね）');
   try {
     const mod = await import(TRYSTERO_URL);
-    const room = mod.joinRoom({ appId: 'taiheiyo-no-tsubasa', password: 'pw' + word }, 'room' + word);
+    NETDIAG.lib = 'ok';
+    const cfg = { appId: 'taiheiyo-no-tsubasa', password: 'pw' + word };
+    if (RTC_CONFIG) cfg.rtcConfig = RTC_CONFIG;
+    const room = mod.joinRoom(cfg, 'room' + word);
+    NETDIAG.joined = true;
     NET.room = room; NET.me = mod.selfId || ''; NET.word = word; NET.on = true;
     // 版による差を吸収：makeAction は [send, get] のことも {send, onMessage} のこともある
     const mk = n => {
@@ -2340,19 +2403,21 @@ async function netJoin(word) {
     sp.on((d) => { if (NET.isHost && Array.isArray(d)) spawnAIPlane('ally', d[0], d[1]); });
     // イベントも版により「関数を呼ぶ」or「プロパティに代入」
     const on = (k, fn) => typeof room[k] === 'function' ? room[k](fn) : (room[k] = fn);
-    on('onPeerJoin', id => { logEvent('net_peer_join', { id }); netStatus(); });
+    on('onPeerJoin', id => { NETDIAG.peerJoin++; logEvent('net_peer_join', { id }); netStatus(); });
     on('onPeerLeave', id => { netDropPeer(id); logEvent('net_peer_leave', { id }); netStatus(); });
     localStorage.setItem('pw_room', word);
     logEvent('net_join', { word, me: NET.me });
     netStatus();
   } catch (e) {
     const msg = String((e && e.message) || e);
+    NETDIAG.err = msg;
     NET.on = false; NET.room = null;
     netStatus('つながらなかった…（' + msg + '）\nもういちど「はいる」を おしてみて');
     logEvent('net_error', { msg });
   }
 }
 function netOnState(d, id) {
+  NETDIAG.packets++;
   if (!Array.isArray(d) || d.length < 8) return;
   const [x, y, z, ry, mode, klass, faction, hp, name] = d;
   let p = NET.peers.get(id);
@@ -2695,6 +2760,15 @@ $('btnRoomMake').onclick = () => {
 };
 $('btnRoomJoin').onclick = () => netJoin($('roomWord').value);
 $('btnRoomLeave').onclick = () => { netLeave(); logEvent('room_leave', {}); };
+// スマホから状態を貼って送れるように（口で往復するより速い）
+$('btnDiagCopy').onclick = async () => {
+  const t = ['【みんなでルームの状態】', 'あいことば:' + (NET.word || 'なし'),
+    '機械:' + PLATFORM + ' / ' + navigator.userAgent.slice(0, 90),
+    netDiagText() || '（まだ部屋に入っていない）'].join(String.fromCharCode(10));
+  try { await navigator.clipboard.writeText(t); netStatus('📋 コピーした。そのまま貼って送って'); }
+  catch (e) { $('roomDiag').textContent = t; }   // コピーできない時は画面に出す（読んで写せる）
+  setTimeout(netStatus, 2500);
+};
 netStatus();   // ボタンの見た目を、いまの状態（＝ひとりで）に合わせる
 // ?dev=1 のときだけ、通信の中身をコンソールから触れるようにする（つながらない時の調べ用）。
 // ⚠ 裏タブは requestAnimationFrame が止まる＝位置を送らなくなる。2枚のタブで試すときは
