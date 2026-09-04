@@ -981,7 +981,7 @@ function playBoom(big, pos) {
 // ============ 音楽（パパ作曲スロット：musicフォルダにmp3を置くだけで流れる） ============
 // v5はサブフォルダなので1つ上へ。tutorial は作曲スロット（パパが tutorial.mp3 を置いたら勝手に鳴る）
 const BGM_FILES = { title: '../music/title.mp3', battle: '../music/battle.mp3', fog: '../music/fog.mp3', trump: '../music/trump.mp3', victory: '../music/victory.mp3', defeat: '../music/defeat.mp3', tutorial: '../music/tutorial.mp3' };
-const bgm = { tracks: {}, current: null, name: null };
+const bgm = { tracks: {}, current: null, name: null, seq: 0 };
 for (const [k, src] of Object.entries(BGM_FILES)) {
   const a = new Audio(src);
   a.loop = (k === 'title' || k === 'battle' || k === 'fog');
@@ -1022,10 +1022,21 @@ function playBgm(name) {
   // v5: その曲のファイルがまだ無いときは、いま鳴っている曲をそのまま続ける。
   // （前は曲が無いと止まってしまい、きりが出るたびにBGMが切れていた）
   if (!t) return;
-  if (bgm.current) { bgm.current.pause(); bgm.current.currentTime = 0; }
+  // v6: 前の曲を止めるのは、**新しい曲がほんとうに鳴りはじめてから**。
+  // ⚠ 先に止めると、ファイルが無い場面（まだ作っていない曲）で無音になる。
+  //    「無ければ今の曲を続ける」という規則は、止める順番を直さないと成り立たない。
+  //    ファイルの有無は、鳴らそうとして初めてわかる（それまで tracks は Audio のまま）。
+  const prev = bgm.current, prevName = bgm.name;
+  const token = ++bgm.seq;
   bgm.name = name;
   bgm.current = t;
-  t.play().catch(() => {});
+  t.play().then(() => {
+    if (token !== bgm.seq) return;                 // もっと新しい切りかえが来ていたら何もしない
+    if (prev && prev !== t) { prev.pause(); prev.currentTime = 0; }
+  }).catch(() => {
+    if (token !== bgm.seq) return;
+    bgm.name = prevName; bgm.current = prev;       // 鳴らせなかった＝前の曲のまま続ける
+  });
 }
 
 // v5: 画面が見えなくなったら音を止める（タブを切りかえた・ウィンドウを閉じた・最小化した とき）。
@@ -1193,6 +1204,23 @@ function setDiff(d) {
   for (const b of document.querySelectorAll('.dbtn')) b.classList.toggle('on', b.dataset.d === d);
   logEvent('diff_select', { diff: d });
 }
+// v6: タイトル画面でも曲を鳴らす。
+// ⚠ ブラウザは「ページを1回さわるまで」音を出させてくれない決まりがある。
+//    なので読みこんだ瞬間には鳴らせない。最初のひとさわりで始める。
+// ⚠ 遊んでいる最中に呼ぶと戦闘の曲を消してしまうので、タイトル画面にいる時だけ。
+let titleBgmStarted = false;
+function startTitleBgm() {
+  if (titleBgmStarted || G.running || G.tutorial) return;
+  if ($('titleScreen').style.display === 'none') return;
+  titleBgmStarted = true;
+  initAudio(); playBgm('title');
+}
+// ⚠ 機械やブラウザによって、さわった時に出るイベントの種類がちがう。
+//    1種類だけだと「あの機械では鳴らない」が起きるので、まとめて受ける
+for (const ev of ['pointerdown', 'mousedown', 'touchstart', 'click', 'keydown']) {
+  addEventListener(ev, startTitleBgm);
+}
+
 for (const b of document.querySelectorAll('.dbtn')) b.onclick = () => setDiff(b.dataset.d);
 setDiff(DIFF);   // URLの ?diff= があればそれが初期値（研究の起動リンクとの互換）
 function openUnitScreen(f) {
@@ -1238,7 +1266,13 @@ $('btnLaunch').onclick = () => {
   // v6: ガチャの のりものは「どのそうじゅう方法か」を自分で持っている（船か・潜水艦か・飛行機か）
   startGame(selFaction, selType.mode || selCat, selType);
 };
-$('btnRetry').onclick = () => { $('endScreen').style.display = 'none'; $('titleScreen').style.display = 'flex'; updateCheerLabels(); };
+$('btnRetry').onclick = () => {
+  $('endScreen').style.display = 'none'; $('titleScreen').style.display = 'flex'; updateCheerLabels();
+  // v6: タイトルへ戻ったらタイトルの曲にする。
+  // ⚠ 勝ち・負けの曲はループしないので、これが無いと「もういちど」を押したあとも
+  //    負けの曲が最後まで鳴りつづける（曲が長いほど目立つ）
+  playBgm('title');
+};
 
 // ============ ゲーム開始 ============
 // v6: 敵の艦隊を出すところだけ切り出した（みんなでルームでは、あずかり役になった人が
@@ -2568,7 +2602,7 @@ netStatus();   // ボタンの見た目を、いまの状態（＝ひとりで�
 // ?dev=1 のときだけ、通信の中身をコンソールから触れるようにする（つながらない時の調べ用）。
 // ⚠ 裏タブは requestAnimationFrame が止まる＝位置を送らなくなる。2枚のタブで試すときは
 //    両方を「見えている」状態（べつのウィンドウ）にすること。8/21のHANABIと同じ罠。
-if (DEV) { window.NET = NET; window.dbg = () => ({ units, trumps: trumpList(), projs, G, player, dealDamage, netElect, requestTrump, shoot, THREE }); }
+if (DEV) { window.NET = NET; window.dbg = () => ({ units, trumps: trumpList(), projs, G, player, dealDamage, netElect, requestTrump, shoot, THREE, bgm, playBgm }); }
 
 // ============ 記録用の自動スタート（?auto=allied|axis&cat=fighter|ship|sub&type=ID&demo=1） ============
 const urlP = new URLSearchParams(location.search);
