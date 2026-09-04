@@ -2270,6 +2270,7 @@ const NET = { on: false, word: '', me: '', name: localStorage.getItem('pw_name')
 // ⚠ つながらない時に「どこで止まったか」を画面に出す（パパ 9/5・PC×スマホ4Gで入れなかった）。
 // 口で往復するより、1回開けば分かる形にする。止まりうる場所は3つあって、直し方が全部ちがう：
 //   ① リレー（相手さがし）に届かない ② 相手は見つかったがNAT越えできない ③ データが来ない
+const BUILD = 'v6-0905g';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
 const NETDIAG = { lib: '', joined: false, peerJoin: 0, packets: 0, ice: '', srflx: 0, relay: 0, err: '',
                   t0: 0, states: [], pcs: 0 };   // t0=部屋に入った時刻／states=ICEがたどった状態
 // ⚠ ICEの様子は Trystero の内側にあるので、RTCPeerConnection を包んで のぞく
@@ -2331,7 +2332,7 @@ function netPeerCount() {
 // ⚠ 「つながらない」を1つの言葉にまとめない。止まる場所ごとに直し方がちがう
 function netDiagText() {
   if (!NET.on && !NETDIAG.err) return '';
-  const L = [];
+  const L = ['版:' + BUILD];
   if (NETDIAG.err) L.push('⚠ ' + NETDIAG.err);
   L.push((NETDIAG.joined ? '✅' : '❌') + ' ①へやに入る（相手さがしの場所につながった）');
   L.push((NETDIAG.peerJoin > 0 ? '✅' : '⏳') + ' ②あいてを見つけた：' + NETDIAG.peerJoin + '人');
@@ -2769,7 +2770,7 @@ $('btnRoomJoin').onclick = () => netJoin($('roomWord').value);
 $('btnRoomLeave').onclick = () => { netLeave(); logEvent('room_leave', {}); };
 // スマホから状態を貼って送れるように（口で往復するより速い）
 $('btnDiagCopy').onclick = async () => {
-  const t = ['【みんなでルームの状態】', 'あいことば:' + (NET.word || 'なし'),
+  const t = ['【みんなでルームの状態】', '版:' + BUILD, 'あいことば:' + (NET.word || 'なし'),
     '機械:' + PLATFORM + ' / ' + navigator.userAgent.slice(0, 90),
     netDiagText() || '（まだ部屋に入っていない）'].join(String.fromCharCode(10));
   try { await navigator.clipboard.writeText(t); netStatus('📋 コピーした。そのまま貼って送って'); }
