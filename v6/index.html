@@ -2272,12 +2272,20 @@ function drawMinimap() {
 //    nostr＝相手は見つかるが**SDPが1通も届かず**道が作れない（つなぎ口だけ80個できた）
 //    mqtt ＝ checking → connected で**道がつながった**（12秒）
 //    → 実測で通ったほうを既定にする。nostr は ?net=nostr で残す
-const NET_WAY = (new URLSearchParams(location.search).get('net') || 'mqtt').toLowerCase();
-const TRYSTERO_URL = ({
-  nostr:   'https://esm.run/trystero@0.25.4',
+// ⚠ どの中継所も「いつでも確実」ではなかった（パパの実測 9/5）。
+//    nostr＝毎回ダメ／mqtt＝つながる時とダメな時がある／②0人になる時もある。
+//    1つに賭けるのをやめて、**ダメなら次の中継所へ順ぐりに移る**。
+//    ⚠ 3つ同時に部屋を作る手も考えたが、同じ人が3人に見えてしまう（中継所ごとに別IDになる）。
+//       順ぐりなら その心配がない。
+const NET_URLS = {
   mqtt:    'https://esm.run/@trystero-p2p/mqtt@0.25.4',
+  nostr:   'https://esm.run/trystero@0.25.4',
   torrent: 'https://esm.run/@trystero-p2p/torrent@0.25.4',
-})[NET_WAY] || 'https://esm.run/trystero@0.25.4';
+};
+const NET_ORDER = ['mqtt', 'nostr', 'torrent'];
+const NET_FIXED = (new URLSearchParams(location.search).get('net') || '').toLowerCase();
+let netWayIdx = 0;
+const netWay = () => NET_URLS[NET_FIXED] ? NET_FIXED : NET_ORDER[netWayIdx % NET_ORDER.length];
 const NET_HZ = 10;                      // 位置を送る回数（毎秒）。8/25の実測とおなじ
 const NET_TIMEOUT = 8000;               // これだけ音さたが無い相手は消す（ミリ秒）
 const NET = { on: false, word: '', me: '', name: localStorage.getItem('pw_name') || '',
@@ -2286,7 +2294,7 @@ const NET = { on: false, word: '', me: '', name: localStorage.getItem('pw_name')
 // ⚠ つながらない時に「どこで止まったか」を画面に出す（パパ 9/5・PC×スマホ4Gで入れなかった）。
 // 口で往復するより、1回開けば分かる形にする。止まりうる場所は3つあって、直し方が全部ちがう：
 //   ① リレー（相手さがし）に届かない ② 相手は見つかったがNAT越えできない ③ データが来ない
-const BUILD = 'v6-0905k';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
+const BUILD = 'v6-0905n';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
 const NETDIAG = { lib: '', joined: false, peerJoin: 0, packets: 0, ice: '', srflx: 0, relay: 0, err: '',
                   t0: 0, states: [], pcs: 0, tries: 0 };   // t0=部屋に入った時刻／states=ICEがたどった状態
 // ⚠ ICEの様子は Trystero の内側にあるので、RTCPeerConnection を包んで のぞく
@@ -2348,7 +2356,7 @@ function netPeerCount() {
 // ⚠ 「つながらない」を1つの言葉にまとめない。止まる場所ごとに直し方がちがう
 function netDiagText() {
   if (!NET.on && !NETDIAG.err) return '';
-  const L = ['版:' + BUILD + ' / 中継所:' + NET_WAY];
+  const L = ['版:' + BUILD + ' / 中継所:' + netWay() + (NET_FIXED ? '(固定)' : '')];
   if (NETDIAG.err) L.push('⚠ ' + NETDIAG.err);
   L.push((NETDIAG.joined ? '✅' : '❌') + ' ①へやに入る（相手さがしの場所につながった）');
   L.push((NETDIAG.peerJoin > 0 ? '✅' : '⏳') + ' ②あいてを見つけた：' + NETDIAG.peerJoin + '人');
@@ -2359,7 +2367,15 @@ function netDiagText() {
   L.push('　 たどった道すじ：' + (NETDIAG.states.length ? NETDIAG.states.join(' → ')
     : '一度も動いていない＝あいての手紙がとどいていない'));
   if (NETDIAG.tries) L.push('　 入り直した回数：' + NETDIAG.tries);
-  L.push((NETDIAG.packets > 0 ? '✅' : '⏳') + ' ④データが来た：' + NETDIAG.packets + '回');
+  L.push((NETDIAG.packets > 0 ? '✅' : iceOk ? '👉' : '⏳') + ' ④データが来た：' + NETDIAG.packets + '回'
+    + (iceOk && NETDIAG.packets === 0 ? '（まだ誰も出撃していないだけ。これで正しい）' : ''));
+  // ⚠ ③までつながっていれば もう成功。④は出撃してからしか増えない。
+  //    ここを書かなかったせいで「まだダメなのか」と読ませてしまった（9/5）
+  if (iceOk) {
+    L.push('');
+    L.push('🎉 **つながっている！ あとは両方で「← もどる」→ 国をえらんで「🚀 出撃！」するだけ**');
+    L.push('　 出撃すると ④の数がふえて、海に みどりの なかまが見えるはず');
+  }
   if ((NETDIAG.ice === 'failed' || (NETDIAG.peerJoin > 0 && secs > 25 && !iceOk)) && NETDIAG.relay === 0) {
     L.push('👉 ②はできて③がダメ＝**中継サーバー（TURN）が要る**組み合わせ。');
     L.push('　 スマホの4Gと家のWiFiの間だと起きやすい。同じWiFiに入れば つながるはず');
@@ -2367,8 +2383,7 @@ function netDiagText() {
     L.push('👉 ①はできて②がまだ＝あいことばが同じか、相手も「はいる」を押したか確かめて');
   }
   if (NETDIAG.tries >= NET_RETRY_MAX && !iceOk) {
-    L.push('👉 3回入り直してもダメ。**新しいあいことば**（前と違う数字）で両方いっしょに入り直してみて');
-    L.push('　 中継所を変える手もある：URLの後ろに ?net=torrent か ?net=nostr');
+    L.push('👉 3つの中継所を2周ためしてもダメ。**新しいあいことば**で、両方いっしょに入り直してみて');
   }
   L.push('（外に出られた:' + NETDIAG.srflx + ' 中継:' + NETDIAG.relay + ' つなぎ口:' + NETDIAG.pcs + '）');
   return L.join(String.fromCharCode(10));
@@ -2403,10 +2418,10 @@ async function netJoin(word) {
   if (!/^\d{1,8}$/.test(word)) { netStatus('あいことばは 数字だけ／1〜8けたで 打ってね'); return; }
   netLeave();
   // ⚠ 入り直したら、その回ぶんの記録は作りなおす（前の回の道すじが残ると読み違える）
-  NETDIAG.peerJoin = 0; NETDIAG.packets = 0; NETDIAG.ice = ''; NETDIAG.states = []; NETDIAG.t0 = 0;
+  NETDIAG.peerJoin = 0; NETDIAG.packets = 0; NETDIAG.ice = ''; NETDIAG.states = []; NETDIAG.t0 = 0; NETDIAG.pcs = 0;
   netStatus('つないでいます…（すこし まってね）');
   try {
-    const mod = await import(TRYSTERO_URL);
+    const mod = await import(NET_URLS[netWay()]);
     NETDIAG.lib = 'ok';
     const cfg = { appId: 'taiheiyo-no-tsubasa', password: 'pw' + word };
     if (RTC_CONFIG) cfg.rtcConfig = RTC_CONFIG;
@@ -2438,7 +2453,7 @@ async function netJoin(word) {
     on('onPeerJoin', id => { NETDIAG.peerJoin++; logEvent('net_peer_join', { id }); netStatus(); });
     on('onPeerLeave', id => { netDropPeer(id); logEvent('net_peer_leave', { id }); netStatus(); });
     localStorage.setItem('pw_room', word);
-    logEvent('net_join', { word, me: NET.me });
+    logEvent('net_join', { word, me: NET.me, way: netWay() });
     netStatus();
   } catch (e) {
     const msg = String((e && e.message) || e);
@@ -2790,11 +2805,11 @@ $('btnRoomMake').onclick = () => {
   $('roomWord').value = w;
   netJoin(w);
 };
-$('btnRoomJoin').onclick = () => netJoin($('roomWord').value);
+$('btnRoomJoin').onclick = () => { NETDIAG.tries = 0; netWayIdx = 0; netJoin($('roomWord').value); };   // 手で押した時は最初から
 $('btnRoomLeave').onclick = () => { netLeave(); logEvent('room_leave', {}); };
 // スマホから状態を貼って送れるように（口で往復するより速い）
 $('btnDiagCopy').onclick = async () => {
-  const t = ['【みんなでルームの状態】', '版:' + BUILD, '中継所:' + NET_WAY, 'あいことば:' + (NET.word || 'なし'),
+  const t = ['【みんなでルームの状態】', '版:' + BUILD, '中継所:' + netWay(), 'あいことば:' + (NET.word || 'なし'),
     '機械:' + PLATFORM + ' / ' + navigator.userAgent.slice(0, 90),
     netDiagText() || '（まだ部屋に入っていない）'].join(String.fromCharCode(10));
   try { await navigator.clipboard.writeText(t); netStatus('📋 コピーした。そのまま貼って送って'); }
@@ -2809,19 +2824,21 @@ setInterval(() => { if ($('roomScreen').style.display !== 'none') netStatus(); }
 //    パパの実測で、同じ mqtt でも つながる時とつながらない時があった（9/5）。
 //    相手は見つかっているのに20秒つながらなければ、**だまって入り直す**。粘れば通ることがある。
 // ⚠ 何度もやると相手に迷惑なので3回まで。それでもダメなら「入り直してみて」と出す
-const NET_RETRY_SEC = 20, NET_RETRY_MAX = 3;
+// 相手が見つからない(②)なら15秒、見つかったのに道ができない(③)なら20秒で、次の中継所へ移る
+const NET_RETRY_MAX = 6;   // 3つの中継所を2周ぶん
 setInterval(() => {
   if (!NET.on || !NETDIAG.t0) return;
   const iceOk = NETDIAG.ice === 'connected' || NETDIAG.ice === 'completed';
   if (iceOk || NETDIAG.packets > 0) return;
-  if (NETDIAG.peerJoin === 0) return;                 // まだ相手がいない＝待つべき段階
-  if ((Date.now() - NETDIAG.t0) / 1000 < NET_RETRY_SEC) return;
+  const secs = (Date.now() - NETDIAG.t0) / 1000;
+  const limit = NETDIAG.peerJoin === 0 ? 15 : 20;
+  if (secs < limit) return;
   if (NETDIAG.tries >= NET_RETRY_MAX) return;
   NETDIAG.tries++;
-  logEvent('net_retry', { n: NETDIAG.tries, way: NET_WAY });
-  const w = NET.word;
-  netStatus('つながらないので入り直します…（' + NETDIAG.tries + '回目）');
-  netJoin(w);
+  if (!NET_FIXED) netWayIdx++;                        // 次の中継所へ
+  logEvent('net_retry', { n: NETDIAG.tries, way: netWay() });
+  netStatus('べつの中継所で ためします…（' + netWay() + '／' + NETDIAG.tries + '回目）');
+  netJoin(NET.word);
 }, 3000);
 // ?dev=1 のときだけ、通信の中身をコンソールから触れるようにする（つながらない時の調べ用）。
 // ⚠ 裏タブは requestAnimationFrame が止まる＝位置を送らなくなる。2枚のタブで試すときは
