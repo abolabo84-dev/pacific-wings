@@ -1351,7 +1351,7 @@ function buildEar() {
 // ⚠ 音のファイルは無い。ぜんぶその場で作る（雑音を削って波にする）。
 //    パパがあとで本物の録音に差しかえられるように、音ごとに gain を分けてある。
 const AMB = { on: false, built: false, bus: null, wave: null, wind: null, bug: null, rumble: null,
-              birdT: 0, chirpT: 0, gustT: 0, gust: 1, warT: 2, strafeT: 22,
+              birdT: 0, chirpT: 0, gustT: 0, gust: 1, warT: 2, strafeT: 22, mosqT: 5,
               want: { wave: 0, wind: 0, bug: 0, rumble: 0 } };
 // ざーっという雑音を作る（波・風のもと）。2秒ぶん作ってループさせる
 function noiseSource(ctx) {
@@ -1394,6 +1394,18 @@ function buildAmbient() {
   noiseSource(ctx).connect(bf).connect(bg).connect(AMB.bus);
   AMB.bug = bg;
 
+  // セミ（昼）：キリギリスより ずっと高いところで 鳴きつづける。
+  // ⚠ 6.5kHz は エンジンの帯域から遠い＝24Hzで震わせて失敗した時の轍を踏まない。
+  //    さらに 揺れの速さを ゆっくり ばらつかせる（一定の震えにしない）
+  const cg = ctx.createGain(); cg.gain.value = 0;
+  const cf = ctx.createBiquadFilter(); cf.type = 'bandpass'; cf.frequency.value = 6500; cf.Q.value = 3.5;
+  const csh = ctx.createGain(); csh.gain.value = 0.7;
+  const cl = ctx.createOscillator(); cl.frequency.value = 11;
+  const clG = ctx.createGain(); clG.gain.value = 0.3;
+  cl.connect(clG).connect(csh.gain); cl.start();
+  noiseSource(ctx).connect(cf).connect(csh).connect(cg).connect(AMB.bus);
+  AMB.cicada = cg; AMB.cicadaLfo = cl;
+
   // 船の甲板にいるときの、足の下の唸り
   const rg = ctx.createGain(); rg.gain.value = 0;
   const ro = ctx.createOscillator(); ro.type = 'triangle'; ro.frequency.value = 42;
@@ -1401,9 +1413,37 @@ function buildAmbient() {
   ro.connect(rf).connect(rg).connect(AMB.bus); ro.start();
   AMB.rumble = rg;
 }
+// 🐛 島の虫（ソロモン諸島・ガダルカナル。出典は 研究記録.md）
+//  ・セミ ＝ **昼**に鳴く。ソロモン固有種：Inflatopyga langeraki / Nggeliana cristobalensis
+//  ・キリギリス・コオロギ ＝ **夜**。ソロモン固有のキリギリス：
+//    Phyllophorella woodfordi / Paramossula basalis
+//  ・蚊（Anopheles farauti）＝ ガダルカナル北岸のマラリア媒介種。**夕方から外で刺す**
+//    （論文の採集は 18:00〜06:00。ガ島では戦闘より病気で倒れた人のほうが多かった）
+// ⚠ ここは「何がいるか」を調べてから音を決めた。前は種のない ただの「虫」だった
+const hourNow = () => Math.floor(G.gameMin / 60) % 24;
+// 🦟 蚊が耳のそばを通る。⚠ 音だけ。体力は減らさない（そこまでやるかは監督の判断）
+function mosquito() {
+  if (!AMB.built || !audioCtx) return;
+  AMB.nMosq = (AMB.nMosq || 0) + 1;
+  const ctx = audioCtx, t = ctx.currentTime, dur = 2.2 + Math.random()*1.6;
+  const o = ctx.createOscillator(); o.type = 'sawtooth';
+  const base = 560 + Math.random()*220;
+  o.frequency.setValueAtTime(base, t);
+  const vib = ctx.createOscillator(); vib.frequency.value = 5 + Math.random()*4;   // ふるえ
+  const vibG = ctx.createGain(); vibG.gain.value = 45;
+  vib.connect(vibG).connect(o.frequency); vib.start(t); vib.stop(t + dur);
+  const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = base*2; bp.Q.value = 3;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.028, t + dur*0.45);   // 近づいて…
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);       // 離れていく
+  o.connect(bp).connect(g).connect(AMB.bus || ctx.destination);
+  o.start(t); o.stop(t + dur + 0.05);
+}
 // 🦗 虫の声をひとつ。⚠ 長さも高さも間かくも毎回変える＝機械に聞こえない
 function bugChirp(vol) {
   if (!AMB.built || !audioCtx || vol <= 0) return;
+  AMB.nChirp = (AMB.nChirp || 0) + 1;
   const ctx = audioCtx, t = ctx.currentTime;
   const f = ctx.createBiquadFilter();
   f.type = 'bandpass'; f.frequency.value = 3400 + Math.random()*3200; f.Q.value = 14 + Math.random()*14;
@@ -1483,6 +1523,7 @@ function updateDrones(dt) {
 // ⚠ ずっと鳴らすと うるさい。ときどき1回だけ
 function birdCall(cut) {
   if (!AMB.built || !audioCtx) return;
+  AMB.nBird = (AMB.nBird || 0) + 1;
   const ctx = audioCtx, t = ctx.currentTime;
   const o = ctx.createOscillator(); o.type = 'sawtooth';
   const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 5;
@@ -1542,13 +1583,29 @@ function updateAmbient(dt) {
     const f = AMB.waveLP.frequency;
     f.value += (Math.max(120, cut) - f.value) * Math.min(1, dt * 1.6);
   }
-  // 🦗 虫の声：ばらばらの間かくで鳴らす（一定の震えにしない）
-  if (w.bug > 0.01 && FOOT.on && !FOOT.onShip) {
-    AMB.chirpT -= dt;
-    if (AMB.chirpT <= 0) {
-      AMB.chirpT = 0.05 + Math.random()*0.22;
-      bugChirp(w.bug * (0.5 + Math.random()*0.9));
+  // 🐛 時刻で 虫の顔ぶれが変わる（昼＝セミ／夜＝キリギリス・コオロギ／夕方から＝蚊）
+  const hh = hourNow();
+  const dayness = (hh >= 8 && hh < 16) ? 1 : (hh >= 6 && hh < 18) ? 0.5 : 0;   // 昼らしさ
+  const nightness = 1 - dayness;
+  if (FOOT.on && !FOOT.onShip) {
+    // キリギリス・コオロギ：夜ほど よく鳴く
+    if (w.bug > 0.01) {
+      AMB.chirpT -= dt;
+      if (AMB.chirpT <= 0) {
+        AMB.chirpT = (0.05 + Math.random()*0.22) / Math.max(0.25, nightness);
+        bugChirp(w.bug * (0.5 + Math.random()*0.9) * (0.35 + nightness*0.65));
+      }
     }
+    // 蚊：夕方（18時）から朝（6時）まで。⚠ 論文の採集時間と同じ帯
+    if (hh >= 18 || hh < 6) {
+      AMB.mosqT -= dt;
+      if (AMB.mosqT <= 0) { AMB.mosqT = 7 + Math.random()*16; mosquito(); }
+    }
+  }
+  if (AMB.cicada) {   // セミは昼だけ
+    const want = (FOOT.on && !FOOT.onShip) ? 0.055 * dayness : 0;
+    AMB.cicada.gain.value += (want - AMB.cicada.gain.value) * Math.min(1, dt*0.8);
+    if (AMB.cicadaLfo) AMB.cicadaLfo.frequency.value = 9 + Math.sin(performance.now()/7000)*3;   // 揺れの速さも動かす
   }
   // 🌬 風は ときどき吹く（ずっと同じ強さだと 機械の音になる）
   AMB.gustT -= dt;
@@ -2157,7 +2214,10 @@ function startGame(faction, mode, def) {
   scene.add(player.group);
   // v5: 調整パネルの「自分のつよさ」を最大HPに反映（監督の言う「ライフ」）
   G.maxHp = Math.max(1, Math.round(def.hp * TUNE.life)); G.hp = G.maxHp;
-  G.fuel = 100; G.kills = 0; G.gameMin = 6*60; G.cheerRun = 0;
+  // ⚠ 時計は 実時間1秒で ゲーム内0.5分＝夜までふつうに24分かかる。
+  //    夜の虫や蚊を確かめたい時のために ?hour=20 で開始時刻を変えられるようにした
+  const startH = parseInt(new URLSearchParams(location.search).get('hour') || '', 10);
+  G.fuel = 100; G.kills = 0; G.gameMin = (isNaN(startH) ? 6 : ((startH % 24) + 24) % 24) * 60; G.cheerRun = 0;
   G.footTaught = false; G.footTaughtT = 0;   // 🚶 出撃するたび、1回は教えなおす
   G.fogCycle = 0; G.fogActive = false; G.trumpSpawned = false; G.reinforceT = 0; G.reloadT = 0;
   G.ammo2 = TUNE.bomb >= 0 ? (TUNE.bomb >= 10 ? 99 : TUNE.bomb)   // v5: 調整パネルの爆弾の数（0〜9／10＝無制限）
@@ -3176,7 +3236,7 @@ const NET = { on: false, word: '', me: '', name: localStorage.getItem('pw_name')
 // ⚠ つながらない時に「どこで止まったか」を画面に出す（パパ 9/5・PC×スマホ4Gで入れなかった）。
 // 口で往復するより、1回開けば分かる形にする。止まりうる場所は3つあって、直し方が全部ちがう：
 //   ① リレー（相手さがし）に届かない ② 相手は見つかったがNAT越えできない ③ データが来ない
-const BUILD = 'v6-0905y';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
+const BUILD = 'v6-0905z';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
 const NETDIAG = { lib: '', joined: false, peerJoin: 0, packets: 0, ice: '', srflx: 0, relay: 0, err: '',
                   t0: 0, states: [], pcs: 0, tries: 0, gen: 0 };   // gen=入り直しの世代   // t0=部屋に入った時刻／states=ICEがたどった状態
 // ⚠ ICEの様子は Trystero の内側にあるので、RTCPeerConnection を包んで のぞく
