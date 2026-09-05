@@ -2278,11 +2278,14 @@ function drawMinimap() {
 //    ⚠ 3つ同時に部屋を作る手も考えたが、同じ人が3人に見えてしまう（中継所ごとに別IDになる）。
 //       順ぐりなら その心配がない。
 const NET_URLS = {
+  gas:     null,   // 自前（パパのログ置き場＝GASを間借り。下の gasJoinRoom）
   mqtt:    'https://esm.run/@trystero-p2p/mqtt@0.25.4',
   nostr:   'https://esm.run/trystero@0.25.4',
   torrent: 'https://esm.run/@trystero-p2p/torrent@0.25.4',
 };
-const NET_ORDER = ['mqtt', 'nostr', 'torrent'];
+// ⚠ 公開の中継所（mqtt/nostr/torrent）はどれも「いつでも確実」ではなかった（9/5実測）。
+//    自前のGASを先頭にする。GAS側にまだ機能が無ければ、すぐ次へ移る
+const NET_ORDER = ['gas', 'mqtt', 'nostr', 'torrent'];
 const NET_FIXED = (new URLSearchParams(location.search).get('net') || '').toLowerCase();
 let netWayIdx = 0;
 const netWay = () => NET_URLS[NET_FIXED] ? NET_FIXED : NET_ORDER[netWayIdx % NET_ORDER.length];
@@ -2294,7 +2297,7 @@ const NET = { on: false, word: '', me: '', name: localStorage.getItem('pw_name')
 // ⚠ つながらない時に「どこで止まったか」を画面に出す（パパ 9/5・PC×スマホ4Gで入れなかった）。
 // 口で往復するより、1回開けば分かる形にする。止まりうる場所は3つあって、直し方が全部ちがう：
 //   ① リレー（相手さがし）に届かない ② 相手は見つかったがNAT越えできない ③ データが来ない
-const BUILD = 'v6-0905p';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
+const BUILD = 'v6-0905q';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
 const NETDIAG = { lib: '', joined: false, peerJoin: 0, packets: 0, ice: '', srflx: 0, relay: 0, err: '',
                   t0: 0, states: [], pcs: 0, tries: 0, gen: 0 };   // gen=入り直しの世代   // t0=部屋に入った時刻／states=ICEがたどった状態
 // ⚠ ICEの様子は Trystero の内側にあるので、RTCPeerConnection を包んで のぞく
@@ -2329,12 +2332,12 @@ const NETDIAG = { lib: '', joined: false, peerJoin: 0, packets: 0, ice: '', srfl
 })();
 // ?turn=turn:ホスト:ポート|ユーザー|パスワード で中継サーバーを足せる（別の家どうしで要る場合）
 const TURN_Q = new URLSearchParams(location.search).get('turn');
+const STUN_LIST = [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' },
+                   { urls: 'stun:stun2.l.google.com:19302' }, { urls: 'stun:stun.cloudflare.com:3478' }];
 const RTC_CONFIG = (() => {
-  const base = [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' },
-                { urls: 'stun:stun2.l.google.com:19302' }, { urls: 'stun:stun.cloudflare.com:3478' }];
   if (!TURN_Q) return null;
   const [urls, username, credential] = TURN_Q.split('|');
-  return { iceServers: [...base, { urls, username, credential }] };
+  return { iceServers: [...STUN_LIST, { urls, username, credential }] };
 })();
 const NET_SNAP_HZ = 5;                  // 敵の場所を配る回数（毎秒）。位置より少なめでいい
 const NET_MISS_GONE = 15;               // これだけ続けて届かなかった敵は、そっと消す（約3秒）
@@ -2419,22 +2422,131 @@ function netLeave() {
   NET.on = false; NET.word = ''; NET.isHost = true; NET.hostId = '';
   netStatus();
 }
+
+// ============ 🏣 GAS中継所（自前の相手さがし） ============
+// 公開の中継所が不安定だったので、**もう動いているログ置き場（GAS）を間借り**して
+// 相手さがしをする。新しいアカウントは要らない。
+// しくみ：みんなが2秒ごとに「いる人リスト」を見に行き、自分あての手紙（SDP/ICE）を受け取る。
+// 手紙のやり取りが終われば、あとは今までどおり WebRTC で直接つながる＝速さは変わらない。
+// ⚠ GAS側に handleSig がまだ入っていない時は peers の無い返事が来る
+//    → 「未対応」としてすぐ次の中継所へ移る（待たない）
+const GAS_SIG_URL = new URLSearchParams(location.search).get('gasurl') || CLOUD_URL;   // ?gasurl= はテスト用
+// ⚠ IDは開くたびに作る。localStorage に覚えさせると、同じPCで2画面ひらいた時に
+//    **2人が同じIDになって、お互いを自分だと思って無視し合う**（テストで実際に起きかけた）
+const GAS_ME = 'g' + Math.random().toString(36).slice(2, 10);
+async function gasCall(body) {
+  const res = await fetch(GAS_SIG_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify(Object.assign({ key: CLOUD_KEY, sig: 1 }, body)) });
+  if (!res.ok) throw new Error('GAS HTTP ' + res.status);
+  return res.json();
+}
+function gasJoinRoom(word) {
+  const roomName = 'r' + word;
+  const room = { _acts: {}, _conn: {}, _stop: false, onPeerJoin: null, onPeerLeave: null };
+  room.makeAction = name => {
+    const a = { onMessage: null, send: d => {
+      const msg = JSON.stringify({ a: name, d });
+      for (const id in room._conn) {
+        const c = room._conn[id];
+        if (c.dc && c.dc.readyState === 'open') { try { c.dc.send(msg); } catch (e) {} }
+      }
+    } };
+    room._acts[name] = a;
+    return a;
+  };
+  room.getPeers = () => { const o = {}; for (const id in room._conn) if (room._conn[id].open) o[id] = 1; return o; };
+  room.leave = () => { room._stop = true; for (const id in room._conn) { try { room._conn[id].pc.close(); } catch (e) {} } };
+  const ice = () => (RTC_CONFIG || { iceServers: STUN_LIST });
+  function conn(id, initiator) {
+    if (room._conn[id]) return room._conn[id];
+    const c = { pc: new RTCPeerConnection(ice()), dc: null, open: false, pend: [] };
+    room._conn[id] = c;
+    c.pc.onicecandidate = e => {
+      if (e.candidate) gasCall({ action: 'send', room: roomName, me: GAS_ME, to: id, m: { t: 'ice', c: e.candidate } }).catch(() => {});
+    };
+    const wire = dc => {
+      c.dc = dc;
+      dc.onopen = () => { c.open = true; if (room.onPeerJoin) room.onPeerJoin(id); };
+      dc.onclose = () => { const was = c.open; c.open = false; if (was && room.onPeerLeave) room.onPeerLeave(id); };
+      dc.onmessage = ev => {
+        try { const { a, d } = JSON.parse(ev.data); const h = room._acts[a]; if (h && h.onMessage) h.onMessage(d, id); } catch (e) {}
+      };
+    };
+    if (initiator) {
+      wire(c.pc.createDataChannel('game'));
+      c.pc.createOffer().then(o => c.pc.setLocalDescription(o))
+        .then(() => gasCall({ action: 'send', room: roomName, me: GAS_ME, to: id, m: { t: 'offer', s: c.pc.localDescription } }))
+        .catch(() => {});
+    } else {
+      c.pc.ondatachannel = e => wire(e.channel);
+    }
+    return c;
+  }
+  async function onMsg(from, m) {
+    const c = conn(from, false);
+    const flush = async () => { for (const i of c.pend.splice(0)) await c.pc.addIceCandidate(i).catch(() => {}); };
+    if (m.t === 'offer') {
+      await c.pc.setRemoteDescription(m.s);
+      await c.pc.setLocalDescription(await c.pc.createAnswer());
+      await gasCall({ action: 'send', room: roomName, me: GAS_ME, to: from, m: { t: 'answer', s: c.pc.localDescription } });
+      await flush();
+    } else if (m.t === 'answer') {
+      await c.pc.setRemoteDescription(m.s);
+      await flush();
+    } else if (m.t === 'ice') {
+      if (c.pc.remoteDescription) await c.pc.addIceCandidate(m.c).catch(() => {});
+      else c.pend.push(m.c);   // 手紙の順番が入れかわることがある。おぼえておいて あとで足す
+    }
+  }
+  async function loop() {
+    if (room._stop) return;
+    let wait = 2000;
+    try {
+      const j = await gasCall({ action: 'poll', room: roomName, me: GAS_ME });
+      if (!j || !Array.isArray(j.peers)) { NETDIAG.err = 'GASに相手さがしがまだ入っていない'; room._stop = true; return; }
+      NETDIAG.joined = true;
+      if (!NETDIAG.t0) NETDIAG.t0 = Date.now();
+      for (const id of j.peers) {
+        if (id === GAS_ME || room._conn[id]) continue;
+        // ⚠ 両方が同時に声をかけると2本の道ができて壊れる。IDの小さいほうから声をかける
+        //    （あずかり役の決め方と同じ理屈：全員が同じ答えを出せる決め方にする）
+        if (GAS_ME < id) conn(id, true);
+      }
+      for (const it of (j.msgs || [])) await onMsg(it.from, it.m).catch(() => {});
+      // みんなつながったら、見に行く回数を減らす（GASの1日の枠を食いつぶさない）
+      let allOpen = Object.keys(room._conn).length > 0;
+      for (const id in room._conn) if (!room._conn[id].open) allOpen = false;
+      wait = allOpen ? 6000 : 1500;
+    } catch (e) { NETDIAG.err = String((e && e.message) || e); wait = 4000; }
+    if (!room._stop) setTimeout(loop, wait);
+  }
+  loop();
+  return room;
+}
+
 async function netJoin(word) {
   word = String(word || '').trim();
   if (!/^\d{1,8}$/.test(word)) { netStatus('あいことばは 数字だけ／1〜8けたで 打ってね'); return; }
   netLeave();
   // ⚠ 入り直したら、その回ぶんの記録は作りなおす（前の回の道すじが残ると読み違える）
   NETDIAG.gen++;   // ここから先が「いまの回」
-  NETDIAG.peerJoin = 0; NETDIAG.packets = 0; NETDIAG.ice = ''; NETDIAG.states = []; NETDIAG.t0 = 0; NETDIAG.pcs = 0;
+  NETDIAG.peerJoin = 0; NETDIAG.packets = 0; NETDIAG.ice = ''; NETDIAG.states = []; NETDIAG.t0 = 0; NETDIAG.pcs = 0; NETDIAG.err = '';
   netStatus('つないでいます…（すこし まってね）');
   try {
-    const mod = await import(NET_URLS[netWay()]);
+    const mod = netWay() === 'gas' ? null : await import(NET_URLS[netWay()]);
     NETDIAG.lib = 'ok';
-    const cfg = { appId: 'taiheiyo-no-tsubasa', password: 'pw' + word };
-    if (RTC_CONFIG) cfg.rtcConfig = RTC_CONFIG;
-    const room = mod.joinRoom(cfg, 'room' + word);
-    NETDIAG.joined = true; NETDIAG.t0 = Date.now();
-    NET.room = room; NET.me = mod.selfId || ''; NET.word = word; NET.on = true;
+    let room, meId;
+    if (netWay() === 'gas') {
+      room = gasJoinRoom(word); meId = GAS_ME;
+      // ⚠ joined と t0 は「GASが返事をくれた時」に loop の中で立てる（開いただけでは立てない）
+    } else {
+      const cfg = { appId: 'taiheiyo-no-tsubasa', password: 'pw' + word };
+      if (RTC_CONFIG) cfg.rtcConfig = RTC_CONFIG;
+      room = mod.joinRoom(cfg, 'room' + word);
+      meId = mod.selfId || '';
+      NETDIAG.joined = true; NETDIAG.t0 = Date.now();
+    }
+    NET.room = room; NET.me = meId; NET.word = word; NET.on = true;
     // 版による差を吸収：makeAction は [send, get] のことも {send, onMessage} のこともある
     const mk = n => {
       const a = room.makeAction(n);
@@ -2834,11 +2946,14 @@ setInterval(() => { if ($('roomScreen').style.display !== 'none') netStatus(); }
 // 相手が見つからない(②)なら15秒、見つかったのに道ができない(③)なら20秒で、次の中継所へ移る
 const NET_RETRY_MAX = 6;   // 3つの中継所を2周ぶん
 setInterval(() => {
-  if (!NET.on || !NETDIAG.t0) return;
+  if (!NET.on) return;
+  if (!NETDIAG.t0 && !(NETDIAG.err && NETDIAG.err.indexOf('まだ入っていない') > -1)) return;
   const iceOk = NETDIAG.ice === 'connected' || NETDIAG.ice === 'completed';
   if (iceOk || NETDIAG.packets > 0) return;
-  const secs = (Date.now() - NETDIAG.t0) / 1000;
-  const limit = NETDIAG.peerJoin === 0 ? 15 : 20;
+  const secs = (Date.now() - (NETDIAG.t0 || Date.now())) / 1000;
+  // GASが未対応と分かった時は待たずに次へ。ふつうは ②待ち15秒／③待ち20秒
+  const gasDead = NETDIAG.err && NETDIAG.err.indexOf('まだ入っていない') > -1;
+  const limit = gasDead ? 0 : NETDIAG.peerJoin === 0 ? 15 : 20;
   if (secs < limit) return;
   if (NETDIAG.tries >= NET_RETRY_MAX) return;
   NETDIAG.tries++;
