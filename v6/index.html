@@ -179,7 +179,9 @@
   ⛽ 日本の基地でも、ねんりょうと爆弾をほきゅうできる<br>
   👥 <b>みんなでルーム</b>。あいことば（数字だけ）で、おなじ海に あつまれる<br>
   🚶 <b>おりて あるける</b>。島のそば・自分の船の上で「🚶 おりる」（キーボードは <b>F</b>）<br>
-  🏝 <b>大きい島</b>ができた（レーダーの 🟩）。丘まで歩くと <b>音楽が消えて、波と虫と海鳥の音だけ</b>になる</p>
+  🏝 <b>大きい島</b>ができた（レーダーの 🟩）。丘まで歩くと <b>音楽が消えて、波と虫と海鳥の音だけ</b>になる<br>
+  👂 <b>のりものの中と、おりた時で 耳が変わる</b>。おりると生身の耳になって、
+  音の<b>方向</b>と<b>遠さ</b>がわかる（敵機がどっちから来るかも 音でわかる）</p>
   <p style="margin-bottom:.2em">ひとりで あそぶ？ みんなで あそぶ？</p>
   <div style="display:flex; flex-wrap:wrap; justify-content:center;">
     <button class="btn dbtn on" id="btnSolo">👤 こじんルーム<br><span style="font-size:60%">いままでどおり</span></button>
@@ -1093,7 +1095,7 @@ function footEnter(w) {
     showMessage(G.mode === 'fighter' ? '🛬 ちゃくりく！ 島に あがった' : '🚶 島に あがった！', 3.5);
   }
   logEvent('foot_on', { where: w.kind, mode: G.mode });
-  initAudio(); buildAmbient();       // 自然の音をここで用意する（さわった後なので iOS でも起こせる）
+  initAudio(); ensureSfxBus(); buildAmbient(); buildDrones();   // さわった後なので iOS でも起こせる
   playBgm(bgmScene());               // 🚶 曲を止めて、自然の音にゆずる
   setupControlsUI();
 }
@@ -1308,15 +1310,26 @@ function initAudio() {
   if (EAR_MUTE) return;                                   // A: そもそも音を作らない
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   if (audioCtx.state === 'suspended') audioCtx.resume();  // iOS対策：タップで起こす
-  if (EAR_ON && !sfxBus) buildEar();
+  if (EAR_ON && !engine) buildEar();
 }
 
-// C専用。耳のうしろ側（水中のこもり）と、のりもののエンジン音をつくる
-function buildEar() {
+// 🚶 監督案／パパ設計（9/5）：
+//   **のりものを操縦しているあいだ＝「神の耳」（距離を無視）＋BGMあり**
+//   **おりたら＝生身の人間の耳。方向も距離も効く。危機を方向と距離で感じる**
+// ⚠ 研究の条件（?ear=A/B/C）は 1つも変えない。変えるのは「おりているあいだ」だけ。
+//    つまり 条件の切りかえ自体を、ゲームの中の出来事として使う
+const humanEar = () => FOOT.on && !EAR_MUTE;
+// 空間で鳴らすための土台。条件Cでなくても作れるようにした（おりた時に使うため）
+function ensureSfxBus() {
+  if (sfxBus || EAR_MUTE || !audioCtx) return;
   sfxBus = audioCtx.createGain(); sfxBus.gain.value = 1;
   waterFilter = audioCtx.createBiquadFilter();
   waterFilter.type = 'lowpass'; waterFilter.frequency.value = 20000;  // 水上では素通し
   sfxBus.connect(waterFilter).connect(audioCtx.destination);
+}
+// C専用。のりもののエンジン音をつくる（⚠ ここは条件Cの中身。Bには足さない）
+function buildEar() {
+  ensureSfxBus();
 
   // エンジン音：のりものの中にいることが耳でわかるように、ずっと鳴らす
   const osc = audioCtx.createOscillator(); osc.type = 'sawtooth'; osc.frequency.value = 60;
@@ -1384,6 +1397,55 @@ function buildAmbient() {
   const rf = ctx.createBiquadFilter(); rf.type = 'lowpass'; rf.frequency.value = 200;
   ro.connect(rf).connect(rg).connect(AMB.bus); ro.start();
   AMB.rumble = rg;
+}
+// ✈ 敵機のエンジン音。⚠ いままで敵は**1つも音を出していなかった**（撃つ音すら無い）。
+//   パパ設計の「敵機の音・爆撃・機銃の音と 自然の音が同時に存在する世界」に必要。
+//   近い順に3機ぶんだけ声を用意して、毎フレーム いれかえる（機数ぶん作ると重い）
+const DRONES = [];
+function buildDrones() {
+  if (DRONES.length || EAR_MUTE || !audioCtx) return;
+  ensureSfxBus();
+  for (let i = 0; i < 3; i++) {
+    const o = audioCtx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = 92;
+    const lp = audioCtx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 700;
+    const g = audioCtx.createGain(); g.gain.value = 0;
+    const pan = audioCtx.createPanner();
+    pan.panningModel = PANNING_MODEL; pan.distanceModel = 'inverse';
+    pan.refDistance = 90; pan.rolloffFactor = 1.1; pan.maxDistance = 3000;
+    const lfo = audioCtx.createOscillator(); lfo.frequency.value = 7.5;   // プロペラのうなり
+    const lfoG = audioCtx.createGain(); lfoG.gain.value = 5;
+    lfo.connect(lfoG).connect(o.frequency); lfo.start();
+    o.connect(lp).connect(g).connect(pan).connect(sfxBus || audioCtx.destination);
+    o.start();
+    DRONES.push({ g, pan, lp });
+  }
+}
+function updateDrones(dt) {
+  if (!DRONES.length) return;
+  // 生身の耳のときだけ鳴らす（のりものの中ではエンジンの中にいて聞こえない、という理屈）
+  const listen = humanEar() || (EAR_ON && G.running);
+  const near = [];
+  if (listen) {
+    const E = eyePos();
+    for (const u of units) {
+      if (u.dead || u.faction !== 'enemy' || u.kind !== 'plane') continue;
+      near.push({ u, d: u.group.position.distanceTo(E) });
+    }
+    near.sort((a, b) => a.d - b.d);
+  }
+  for (let i = 0; i < DRONES.length; i++) {
+    const D = DRONES[i], n = near[i];
+    let want = 0;
+    if (n && n.d < 1400) {
+      const q = n.u.group.position;
+      if (D.pan.positionX) { D.pan.positionX.value = q.x; D.pan.positionY.value = q.y; D.pan.positionZ.value = q.z; }
+      else D.pan.setPosition(q.x, q.y, q.z);
+      // ⚠ 遠いほど「小さく」だけでなく「こもる」。近づくと高い音が戻ってくる＝近い、と分かる
+      D.lp.frequency.value = Math.max(180, 1600 / (1 + n.d / 260));
+      want = 0.075;
+    }
+    D.g.gain.value += (want - D.g.gain.value) * Math.min(1, dt * 2.2);
+  }
 }
 // 海鳥のひと鳴き。アジサシのような short な「キーッ」を作る
 // ⚠ ずっと鳴らすと うるさい。ときどき1回だけ
@@ -1458,7 +1520,8 @@ function updateAmbient(dt) {
 // pos を渡さない音＝自分のすぐそば（自機の武器）なので、距離の計算はしない。
 function sfxOut(pos) {
   if (EAR_MUTE || !audioCtx) return null;
-  if (!EAR_ON || !sfxBus) return audioCtx.destination;   // B: 昔のまま。距離も向きも無視
+  if (humanEar()) ensureSfxBus();                        // 🚶 生身の耳（おりているあいだ）
+  if ((!EAR_ON && !humanEar()) || !sfxBus) return audioCtx.destination;   // B: 昔のまま。距離も向きも無視
   if (!pos) return sfxBus;                               // 自機の音（水中フィルタだけは通る）
   const d = player.group ? pos.distanceTo(player.group.position) : 0;
   const air = audioCtx.createBiquadFilter();             // 遠いほど高い音が空気に吸われる
@@ -1474,7 +1537,7 @@ function sfxOut(pos) {
 
 // 毎フレーム、耳を自分ののりものの位置と向きに置きなおす（目＝カメラとは別物）
 function updateEar(P, fwd) {
-  if (!EAR_ON || !audioCtx || !sfxBus) return;
+  if ((!EAR_ON && !humanEar()) || !audioCtx || !sfxBus) return;
   const L = audioCtx.listener;
   if (L.positionX) {
     L.positionX.value = P.x; L.positionY.value = P.y; L.positionZ.value = P.z;
@@ -1484,7 +1547,9 @@ function updateEar(P, fwd) {
     L.setPosition(P.x, P.y, P.z);
     L.setOrientation(fwd.x, fwd.y, fwd.z, 0, 1, 0);      // 古いSafari用
   }
-  const wet = (G.mode === 'sub');                        // 水の中では高い音が届かない
+  // ⚠ 潜水艦でやってきて島におりた時、G.mode は 'sub' のまま。
+  //    ここを見落とすと 陸に立っているのに水中のこもった音になる
+  const wet = (G.mode === 'sub' && !FOOT.on);            // 水の中では高い音が届かない
   waterFilter.frequency.value += ((wet ? 500 : 20000) - waterFilter.frequency.value) * 0.1;
   if (engine) {
     const spec = G.mode === 'fighter' ? { f: 78, v: 0.07 }
@@ -2518,6 +2583,7 @@ function tick() {
           u.shellTimer -= dt;
           if (u.shellTimer <= 0) {
             u.shellTimer = 4;
+            playBoom(false, up);   // ⚠ 敵の砲撃は いままで無音だった（場所つきで鳴らす）
             netEnemyFire({ pos: up.clone().setY(u.kind==='sub' ? -1.5 : 9), vel: tmpV.copy(target).sub(up).normalize().multiplyScalar(80), color: 0xff7043, size: 1.4, owner: 'enemy', dmg: 10, type: u.kind==='sub' ? 'torpedo' : 'shell', homing: ourPort, life: 8 });
           }
         }
@@ -2590,6 +2656,7 @@ function tick() {
         u.aaTimer = u.kind === 'plane' ? 1.6 : 1.2;
         const dir = tmpV.copy(near.pos).sub(up).normalize();
         dir.x += (Math.random()-0.5)*0.22; dir.y += (Math.random()-0.5)*0.22; dir.z += (Math.random()-0.5)*0.22;
+        playGun(up);           // ⚠ 敵の機銃も いままで無音だった
         netEnemyFire({ pos: up.clone().setY(u.kind==='plane' ? up.y : 8), vel: dir.multiplyScalar(130), color: 0xff5252, size: 0.8, owner: 'enemy', dmg: 10, type: 'tracer', life: 2.5 });
       }
     }
@@ -2778,6 +2845,7 @@ function tick() {
   updateEar(eyePos(), fwd);   // 🚶 おりているときは、耳も人のところにある
   updateAmbient(dt);          // 🌊 波・風・虫・鳥。おりているあいだだけ鳴る
   updateCritters(dt, now/1000);   // 🕊 海鳥はいつも飛んでいる。ヤシガニはおりた時だけ動く
+  updateDrones(dt);               // ✈ 敵機のうなり。生身の耳のときだけ
 
   // ---- 空ときりの色（水中なら海の色） ----
   const underwater = camera.position.y < 0;
@@ -2992,7 +3060,7 @@ const NET = { on: false, word: '', me: '', name: localStorage.getItem('pw_name')
 // ⚠ つながらない時に「どこで止まったか」を画面に出す（パパ 9/5・PC×スマホ4Gで入れなかった）。
 // 口で往復するより、1回開けば分かる形にする。止まりうる場所は3つあって、直し方が全部ちがう：
 //   ① リレー（相手さがし）に届かない ② 相手は見つかったがNAT越えできない ③ データが来ない
-const BUILD = 'v6-0905w';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
+const BUILD = 'v6-0905x';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
 const NETDIAG = { lib: '', joined: false, peerJoin: 0, packets: 0, ice: '', srflx: 0, relay: 0, err: '',
                   t0: 0, states: [], pcs: 0, tries: 0, gen: 0 };   // gen=入り直しの世代   // t0=部屋に入った時刻／states=ICEがたどった状態
 // ⚠ ICEの様子は Trystero の内側にあるので、RTCPeerConnection を包んで のぞく
@@ -3670,7 +3738,12 @@ setInterval(() => {
 // ⚠ 音は「鳴っているつもり」が一番あてにならない（今日それで1つ見落とした）。目で見えるようにする
 // ?dev=1 のときだけ、中身をコンソールから見えるようにする（歩きの調べ用・テストもここを読む）。
 // ⚠ 目で見て「歩けてる」と、数字が正しいは別。落ちた/止まったを数字で確かめる口を作っておく
-if (DEV) { window.__pw = { FOOT, G, player, units, NET, footWhere, deckOf, islandTopY, islandDefs, SOLIDS, canWalk, AMB, bigH, critters, bgmName: () => bgm.name, frames: () => frameSeq }; window.NETDIAG = NETDIAG; }
+if (DEV) { window.__pw = { FOOT, G, player, NET, footWhere, deckOf, islandTopY, islandDefs, SOLIDS, canWalk,
+    AMB, bigH, critters, DRONES, sfxOut, eyePos, initAudio, spawnAIPlane, updateDrones, THREE,
+    // ⚠ units は startGame で作りなおされる（units = []）。値でつかむと 古い配列を見つづけて、
+    //    「敵機は0機」のような まちがった観測をする（9/5に実際やった）。必ず今のものを返す
+    get units() { return units; },
+    audioCtx: () => audioCtx, bgmName: () => bgm.name, frames: () => frameSeq }; window.NETDIAG = NETDIAG; }
 if (DEV) {
   const bd = document.createElement('div');
   bd.style.cssText = 'position:fixed;right:8px;bottom:8px;z-index:99;background:rgba(0,20,40,.8);'
