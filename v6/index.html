@@ -79,6 +79,8 @@
   .fbtn { position: absolute; right: 20px; width: 84px; height: 84px; border-radius: 50%; border: 3px solid rgba(255,255,255,0.7); color: #fff; font-size: 15px; font-weight: bold; z-index: 15; display: none; align-items: center; justify-content: center; text-shadow: 1px 1px 2px #000; text-align: center; }
   #fireBtn { bottom: 40px; background: rgba(229,57,53,0.55); }
   #fireBtn2 { bottom: 140px; background: rgba(255,143,0,0.55); }
+  /* 🚶 おりる／のる。おりられる時しか出さないので、上の段に置いても じゃまにならない */
+  #footBtn { bottom: 240px; background: rgba(76,175,80,0.55); }
   /* 一時停止は指の届く下段に置くと、爆弾を押すつもりで誤爆する（監督報告 8/21・iPhone）。
      ミニマップの真下（右上）に逃がす＝わざと手をのばさないと押せない位置 */
   #pauseBtn { top: 140px; right: 8px; width: 56px; height: 56px; font-size: 10px; background: rgba(0,150,200,0.45); border-width: 2px; }
@@ -103,6 +105,7 @@
     body.ui3 #pauseBtn { top: 112px; width: 46px; height: 46px; font-size: 9px; }
     body.ui3 .fbtn { width: 74px; height: 74px; }
     body.ui3 #fireBtn2 { bottom: 126px; }
+    body.ui3 #footBtn { bottom: 212px; }
     body.ui3 #controlsHint { display: none; }
   }
 
@@ -120,6 +123,7 @@
        たて積みのままだと、上の爆弾がレーダーにめり込む */
     #fireBtn { bottom: 10px; right: 12px; }
     #fireBtn2 { bottom: 10px; right: 90px; }
+    #footBtn { bottom: 10px; right: 168px; }   /* 横画面は たて積みをやめて よこ並び */
     #pauseBtn { top: 8px; right: 116px; width: 44px; height: 44px; font-size: 8px; letter-spacing: -0.5px; }
     #stickBase { width: 88px; height: 88px; }
     #stickKnob { width: 40px; height: 40px; }
@@ -152,6 +156,7 @@
 <div id="tutBar"><button id="tutSkip">つぎへ ▶</button><button id="tutClose">✖ とじる</button></div>
 <div class="fbtn" id="fireBtn">🔥<br>発射</div>
 <div class="fbtn" id="fireBtn2">💣</div>
+<div class="fbtn" id="footBtn">🚶<br>おりる</div>
 <div class="fbtn" id="pauseBtn">⏸<br>一時停止</div>
 
 <div class="overlay" id="titleScreen">
@@ -224,7 +229,9 @@
     ✅ なかまが <b>見える</b>・レーダーに出る・撃破や勝ちが つたわる<br>
     ✅ <b>敵もいっしょ</b>。あなたが沈めた敵は、なかまの画面でも沈む。敵は近いほうの人をねらう<br>
     ⚠ 敵をうごかす係（あずかり役）は、出撃している人のうち1人が じどうで受けもつ。<br>
-    ⚠ まだできないこと：自分の人間で 島や船の上を あるく</p>
+    ✅ <b>おりて あるける</b>。島のそば・自分の船の上で「🚶 おりる」（キーボードは F）。
+    なかまの画面にも 歩いている人が出る<br>
+    ⚠ おりているあいだ、敵がねらうのは <b>のこしてきた のりもの</b>。長居はきけん</p>
   <div style="display:flex; flex-wrap:wrap; justify-content:center;">
     <button class="btn" id="btnRoomBack" style="font-size:.95rem; padding:.45em 1.2em">← もどる</button>
     <button class="btn" id="btnRoomLeave" style="background:#5d4037; font-size:.95rem; padding:.45em 1.2em">🚪 ルームを出る</button>
@@ -592,6 +599,30 @@ function makeSubMesh(enemy) {
   scope.position.y = 8; g.add(scope);
   return g;
 }
+// 🚶 人（監督の新案「アバターで島や艦の上を歩く」）。陸上戦で作ったものをそのまま持ってきた。
+// ⚠ カプセルの高さは 中心 + 胴の半分 + 丸い先。ここを間違えると頭が体にうまる（陸上戦でそうなった）
+// ⚠ 下端 = CY - LEN/2 - R。ここを0にしないと体が地面から浮く
+function makeSoldier(color, isMe) {
+  const g = new THREE.Group();
+  const R = 0.5, LEN = 1.0, CY = R + LEN/2;         // = 1.0 → 下端ちょうど0
+  const top = CY + LEN/2 + R;                       // = 2.0
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(R, LEN, 3, 8), new THREE.MeshLambertMaterial({ color }));
+  body.position.y = CY;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.34, 10, 10), new THREE.MeshLambertMaterial({ color: 0xe8c39e }));
+  head.position.y = top + 0.30;
+  const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.40, 10, 7, 0, Math.PI*2, 0, Math.PI/2), new THREE.MeshLambertMaterial({ color }));
+  helmet.position.y = top + 0.40;
+  g.add(body, head, helmet);
+  // 足もとの影。⚠ パパ 9/5「いわゆる影の出方で、色だけこの色にすればいい」——これが正解だった。
+  //   depthTest を切って体を貫通して描くと「レイヤーの上下が間違ったときみたく」なる。ふつうに奥行きを扱う
+  const shadow = new THREE.Mesh(new THREE.CircleGeometry(0.8, 20),
+    new THREE.MeshBasicMaterial({ color: isMe ? 0xffe066 : 0x101008,
+      transparent: true, opacity: isMe ? 0.5 : 0.28, depthWrite: false }));
+  shadow.rotation.x = -Math.PI/2;
+  shadow.position.y = 0.03;
+  g.add(shadow);
+  return g;
+}
 // v5: 星のかたちを作る（連合国のしるし用）
 function makeStarShape(outer, inner, points) {
   const s = new THREE.Shape();
@@ -703,6 +734,34 @@ const islandDefs = [
 const SUPPLY = [{ p: OUR.base, r: 80 }, { p: OUR.port, r: 90 }, { p: JAPAN, r: 80 }];
 const nearSupply = (P, extra = 0) => SUPPLY.some(s => Math.hypot(P.x - s.p.x, P.z - s.p.z) < s.r + extra);
 for (const d of islandDefs) d.group = makeIsland(d.x, d.z, d.r, d.kind === 'plain' ? 'plain' : d.kind);
+// 🚶 島のてっぺんの高さ。海の上なら null（＝そこに立つ地面が無い＝落ちる）。
+// ⚠ 数字は makeIsland の見た目から来ている。あちらを直したらここも直す
+//    （岩のてっぺん = -20 + 46/2 = 3／基地のパッド = 4 + 2/2 = 5／草 = 5 + 5/2 = 7.5）
+function islandTopY(x, z) {
+  for (const isl of islandDefs) {
+    const d = Math.hypot(x - isl.x, z - isl.z);
+    if (d > isl.r) continue;
+    if (isl.kind === 'base') {
+      // ⚠ 滑走路は パッドより 0.8m 高い。ここを入れないと、着陸した人の足が
+      //    滑走路にうまって 影も見えなくなる（実測でそうなった）
+      if (Math.abs(x - isl.x) < isl.r*0.75 && Math.abs(z - isl.z) < 8) return 5.8;
+      return d < isl.r*0.85 ? 5 : 3;
+    }
+    if (isl.kind === 'plain') {                      // 草のところは 円すい＝坂になっている
+      const a = isl.r*0.7, b = isl.r*0.85;
+      if (d < a) return 7.5;
+      if (d < b) return 7.5 - (d - a)/(b - a) * 4.5;
+      return 3;
+    }
+    return 3;   // 港。⚠ ponytail: 建物の中を通りぬけられる。当たり判定を足すのは建物が固定配置になってから
+  }
+  return null;
+}
+// のりものの近くにある島（島のふちから margin ぶん外まで数える）
+function islandNear(x, z, margin) {
+  for (const isl of islandDefs) if (Math.hypot(x - isl.x, z - isl.z) < isl.r + margin) return isl;
+  return null;
+}
 
 // ============ ユニット管理 ============
 let units = [];   // AIユニット＋港＋拠点（playerはべつ）
@@ -779,6 +838,136 @@ const fogLasts = () => Math.max(0, Math.min(FOG_EVERY - 1, TUNE.fog * GAME_MIN_P
 const REINFORCE_SEC = 300; // 現実時間5分ごとに増援（監督ルール）
 
 let player = { group: null, radius: 5 };
+
+// ============ 🚶 おりて あるく（監督の新案「アバターで島や艦の上を歩く」） ============
+// ⚠ 船は動く。人を世界の座標で持つと、船だけ先に行って人が海に取り残される。
+//    船の上にいるあいだは「船から見た x,z」（lx,lz）で持って、毎フレーム世界の座標に直す。
+// ⚠ おりているあいだ、敵がねらうのは のりもの のほう（置いてきた側）。だから のんびりはできない。
+//    これは新しく書いた仕掛けではなく、敵AIが もともと player.group を見ているから そうなる。
+const FOOT = { on: false, onShip: false, lx: 0, lz: 0, yaw: 0, group: null,
+               pos: new THREE.Vector3(), fall: 0, warnT: 0 };
+const FOOT_SPEED = 9;                                  // はしると1.7倍
+// 甲板のかたち。数字は makeShipMesh から来ている（あちらを直したらここも直す）
+// hx,hz = 船から見た甲板のはし／h(x,z) = そこに立ったときの高さ
+// ⚠ 最初は艦橋を「通れない壁」にしたが、実測で駆逐艦のへさきに行けなくなった
+//    （まんなかに艦橋があって、まっすぐ歩くと lz=8.1 で止まる）。
+//    壁にするより 上に登れるほうが、コードも短いし 見晴らし台にもなる
+function deckOf() {
+  return (G.def && G.def.klass === 'carrier')
+    ? { hx: 9.0, hz: 36,                                  // 空母：飛行甲板 8.25／右はしの艦橋の上 16
+        h: (x, z) => (x > 5.8 && Math.abs(z) < 5.5) ? 16 : 8.25 }
+    : { hx: 3.9, hz: 20,                                  // 駆逐艦：甲板 5.5／まんなかの艦橋の上 11
+        h: (x, z) => (Math.abs(x) < 2.6 && Math.abs(z) < 7.2) ? 11 : 5.5 };
+}
+// おりられるか？ 島のそばなら島へ／船に乗っているなら甲板へ。だめなら null
+// おりられる輪の大きさ。⚠ のりものの速さで変える。飛行機は秒速55mあるので、25mだと
+//    島の上にいる時間が3秒しかなくて、実測では押す前に通りすぎていた（9/5 実測）
+const footMargin = () => (G.mode === 'fighter' ? 90 : 30);
+function footWhere() {
+  if (!G.running || G.tutorial || FOOT.on || !player.group) return null;
+  const P = player.group.position;
+  const isl = islandNear(P.x, P.z, footMargin());
+  if (isl && (G.mode !== 'fighter' || P.y < 90)) return { kind: 'island', isl };
+  if (G.mode === 'ship') return { kind: 'deck' };
+  return null;
+}
+function footEnter(w) {
+  const P = player.group.position;
+  if (!FOOT.group) {
+    FOOT.group = makeSoldier(G.faction === 'axis' ? 0xd4c34a : 0x64b5f6, true);
+    scene.add(FOOT.group);
+  }
+  FOOT.group.visible = true;
+  FOOT.on = true; FOOT.fall = 0; FOOT.warnT = 0; FOOT.yaw = G.yaw;
+  if (w.kind === 'deck') {
+    FOOT.onShip = true;
+    // 船のうしろ側に立って、へさきの方を向く＝船ぜんぶが目の前に見える。
+    // ⚠ 船の「前」は船から見た -z のほう。+z はうしろ（makeShipMesh の作りから）
+    const d0 = deckOf();
+    FOOT.lx = 0; FOOT.lz = d0.hz * 0.5;
+    FOOT.pos.set(P.x, P.y + d0.h(FOOT.lx, FOOT.lz), P.z);   // 高さの出発点を合わせる
+    showMessage('🚶 甲板に でた！ 船は そのまま すすむぞ', 3.5);
+  } else {
+    FOOT.onShip = false;
+    const isl = w.isl;
+    let dx = P.x - isl.x, dz = P.z - isl.z;
+    const L = Math.hypot(dx, dz) || 1; dx /= L; dz /= L;
+    if (G.mode === 'fighter') {                        // 飛行機は着陸させる（空に置き去りにしない）
+      const lx = isl.x + dx*isl.r*0.85, lz = isl.z + dz*isl.r*0.85;
+      P.set(lx, (islandTopY(lx, lz) || 3) + 2, lz);
+      G.pitch = 0; player.group.rotation.set(0, G.yaw, 0);
+    } else if (G.mode === 'ship') G.shipSpeed = 0;
+    // のりものから 24m 内がわの岸に立って、島のまんなかを向く＝ふりむけば のりものが見える。
+    // ⚠ ここを「島の半径の何割」で決めると、小さい島でも 飛行機でも のりものに近づきすぎる。
+    //    カメラは人の7mうしろにあるので、近すぎると 翼の中にカメラが入って前が見えなくなった（実測）
+    const dv = Math.hypot(P.x - isl.x, P.z - isl.z);
+    const pr = Math.max(0, Math.min(isl.r * 0.85, dv - 24));
+    FOOT.pos.set(isl.x + dx*pr, 0, isl.z + dz*pr);
+    FOOT.pos.y = islandTopY(FOOT.pos.x, FOOT.pos.z) || 3;
+    FOOT.yaw = Math.atan2(dx, dz);
+    showMessage(G.mode === 'fighter' ? '🛬 ちゃくりく！ 島に あがった' : '🚶 島に あがった！', 3.5);
+  }
+  logEvent('foot_on', { where: w.kind, mode: G.mode });
+  setupControlsUI();
+}
+function footExit(msg) {
+  if (!FOOT.on) return;
+  FOOT.on = false; FOOT.onShip = false; FOOT.fall = 0;
+  if (FOOT.group) FOOT.group.visible = false;
+  if (msg) showMessage(msg, 2.5);
+  logEvent('foot_off', { mode: G.mode });
+  if (G.running) setupControlsUI();
+}
+// のりものにもどれるか（島にいるときは のりものの近くまで歩いて帰る）
+const footBackDist = () => (FOOT.onShip ? 0 : FOOT.pos.distanceTo(player.group.position));
+const footCanBoard = () => FOOT.fall <= 0 && footBackDist() < 34;
+function footTick(dt, sx, sy, run) {
+  const P = player.group.position;
+  // 海に落ちたところ：しばらく落ちてから ひろってもらう
+  if (FOOT.fall > 0) {
+    FOOT.pos.y -= 14 * dt;
+    FOOT.fall -= dt;
+    FOOT.group.position.copy(FOOT.pos);
+    if (FOOT.fall <= 0) footExit('💦 うみに おちた！ ひろってもらった');
+    return;
+  }
+  FOOT.yaw -= sx * 2.2 * dt;
+  const sp = FOOT_SPEED * (run ? 1.7 : 1) * (-sy);     // ↑（sy=-1）が前
+  if (FOOT.onShip) {
+    const d = deckOf();
+    // 船から見た前は (-sin(rel), -cos(rel))。rel = 自分の向き - 船の向き
+    const rel = FOOT.yaw - G.yaw;
+    FOOT.lx -= Math.sin(rel)*sp*dt;
+    FOOT.lz -= Math.cos(rel)*sp*dt;
+    if (Math.abs(FOOT.lx) > d.hx || Math.abs(FOOT.lz) > d.hz) {
+      FOOT.fall = 0.9; FOOT.onShip = false;             // 甲板から はみ出した＝海へ
+      logEvent('foot_fall', {});
+      return;
+    }
+    const c = Math.cos(G.yaw), s = Math.sin(G.yaw);      // 船から見た場所 → 世界の場所
+    const dy = d.h(FOOT.lx, FOOT.lz);
+    FOOT.pos.set(P.x + FOOT.lx*c + FOOT.lz*s, FOOT.pos.y, P.z - FOOT.lx*s + FOOT.lz*c);
+    // 艦橋への上り下りは なめらかに（いきなり5m飛ぶと 目がついていかない）
+    const wantY = P.y + dy;
+    FOOT.pos.y += (wantY - FOOT.pos.y) * Math.min(1, dt*8);
+    if (Math.abs(wantY - FOOT.pos.y) < 0.05) FOOT.pos.y = wantY;
+  } else {
+    const nx = FOOT.pos.x - Math.sin(FOOT.yaw)*sp*dt, nz = FOOT.pos.z - Math.cos(FOOT.yaw)*sp*dt;
+    const t = islandTopY(nx, nz);
+    if (t === null) {                                   // 島のはし＝波打ちぎわで止まる
+      FOOT.warnT -= dt;
+      if (sp !== 0 && FOOT.warnT <= 0) { FOOT.warnT = 3; showMessage('🌊 ここから先は うみだ', 1.2); }
+    } else {
+      FOOT.pos.x = nx; FOOT.pos.z = nz;
+      FOOT.pos.y += (t - FOOT.pos.y) * Math.min(1, dt*8);   // 段差はなめらかに上る
+    }
+  }
+  FOOT.group.position.copy(FOOT.pos);
+  FOOT.group.rotation.y = FOOT.yaw;
+}
+// 目と耳の場所。おりているときは「人」がいるところが本当の視点
+const eyePos = () => (FOOT.on ? FOOT.pos : (player.group ? player.group.position : FOOT.pos));
+const eyeYaw = () => (FOOT.on ? FOOT.yaw : G.yaw);
 // v6: 切り札は units の中に入れる（＝みんなでルームの同期にそのまま乗る）。
 // ⚠ 別の配列で持っていると、なかまの画面には出ない。「自分だけの山場」になってしまう。
 // 数えなおすのは1フレームに2回だけ・ユニットは十数個なので、ずれる心配のない この形にした。
@@ -1174,6 +1363,28 @@ fireBtn.addEventListener('touchstart', e => { firePressed = true; e.preventDefau
 fireBtn.addEventListener('touchend', () => { firePressed = false; });
 fireBtn2.addEventListener('touchstart', e => { fire2Pressed = true; e.preventDefault(); }, { passive: false });
 fireBtn2.addEventListener('touchend', () => { fire2Pressed = false; });
+// 🚶 おりる／のる（監督の新案「アバターで島や艦の上を歩く」）
+const footBtn = document.getElementById('footBtn');
+function footAction() {
+  if (FOOT.on) {
+    if (footCanBoard()) footExit('🛥 のりものに もどった');
+    else showMessage('のりものまで あと ' + Math.round(footBackDist()) + 'm。あるいて もどろう', 2);
+  } else {
+    const w = footWhere();
+    if (w) footEnter(w);
+    else if (G.running) {
+      // ⚠ 「押しても何も起きない」が いちばん わからない。理由を分けて出す
+      const P = player.group.position;
+      const near = islandNear(P.x, P.z, footMargin());
+      showMessage(near ? '🛬 高すぎる！ ↓で ひくく なってから おりよう'
+                : G.mode === 'fighter' ? '🛬 島の上まで とんでから おりよう'
+                : '🚶 島の近くまで 行くと おりられるぞ', 2);
+    }
+  }
+}
+footBtn.addEventListener('click', footAction);
+footBtn.addEventListener('touchstart', e => { e.preventDefault(); footAction(); }, { passive: false });
+addEventListener('keydown', e => { if (e.code === 'KeyF' && !e.repeat) footAction(); });
 const pauseBtn = document.getElementById('pauseBtn');
 pauseBtn.addEventListener('click', togglePause);
 pauseBtn.addEventListener('touchstart', e => { e.preventDefault(); togglePause(); }, { passive: false });
@@ -1463,16 +1674,21 @@ function setupControlsUI() {
   }
   else { hint = '←→ かじ ／ ↑うかぶ ↓もぐる ／ スペース 魚雷'; }
   if (isTouch) hint = m === 'fighter' ? '左スティック操縦／🔥機銃／💣爆弾' : m === 'ship' ? '左スティック かじと速度／🔥大砲' : '左スティック かじと深さ／🔥魚雷';
+  // 🚶 おりているあいだは、そうじゅうの説明ぜんぶが 別のものになる
+  if (FOOT.on) hint = isTouch ? '左スティックで あるく／🔥おしっぱで はしる／🛥でもどる'
+                              : '↑↓←→ あるく ／ Shift はしる ／ F のりものに もどる';
   $('controlsHint').innerHTML = hint;
   if (isTouch) {
     fireBtn.style.display = 'flex';
-    fireBtn2.style.display = btn2label ? 'flex' : 'none';
-    if (btn2label) fireBtn2.innerHTML = btn2label;
+    fireBtn.innerHTML = FOOT.on ? '🏃<br>はしる' : '🔥<br>発射';    // おりている時は「はしる」に化ける
+    fireBtn2.style.display = (btn2label && !FOOT.on) ? 'flex' : 'none';
+    if (btn2label && !FOOT.on) fireBtn2.innerHTML = btn2label;
   }
   pauseBtn.style.display = 'flex';
 }
 function respawn() {
   const m = G.mode;
+  footExit();   // 🚶 のりものが やられた／出撃しなおした＝おりている場合は のりものに戻す
   if (m === 'fighter') { G.yaw = -Math.PI/2; G.pitch = 0; player.group.position.set(OUR.base.x, 40, OUR.base.z); }
   else if (m === 'ship') { G.yaw = -Math.PI/2; G.shipSpeed = 0; player.group.position.set(OUR.port.x + 120, 0, OUR.port.z); }
   else { G.yaw = -Math.PI/2; G.depth = -3; player.group.position.set(OUR.base.x + 120, -3, OUR.base.z + 60); }
@@ -1602,7 +1818,7 @@ function win() {
     + `<br>🎁 このかいで <b>${G.cheerRun}</b> チール（ぜんぶで <b>${cheer}</b> チール）`;
   $('endWord').textContent = WORD;
   $('endScreen').style.display = 'flex';
-  fireBtn.style.display = fireBtn2.style.display = pauseBtn.style.display = 'none';
+  footExit(); fireBtn.style.display = fireBtn2.style.display = pauseBtn.style.display = footBtn.style.display = 'none';
   PAUSED = false; pauseBtn.style.background = 'rgba(0,150,200,0.55)'; pauseBtn.innerHTML = '⏸<br>一時停止';
 }
 function lose() {
@@ -1616,7 +1832,7 @@ function lose() {
     + `<br>🎁 このかいで <b>${G.cheerRun}</b> チール（ぜんぶで <b>${cheer}</b> チール）`;
   $('endWord').textContent = WORD;
   $('endScreen').style.display = 'flex';
-  fireBtn.style.display = fireBtn2.style.display = pauseBtn.style.display = 'none';
+  footExit(); fireBtn.style.display = fireBtn2.style.display = pauseBtn.style.display = footBtn.style.display = 'none';
   PAUSED = false; pauseBtn.style.background = 'rgba(0,150,200,0.55)'; pauseBtn.innerHTML = '⏸<br>一時停止';
 }
 
@@ -1641,10 +1857,20 @@ const devPump = (() => {
   mc.port1.onmessage = () => { const f = pending; pending = null; if (f) f(performance.now()); };
   return fn => { pending = fn; mc.port2.postMessage(0); };
 })();
+// ⚠ 9/5 実測でわかった穴：ここで「今は表だ」と思って requestAnimationFrame を予約した
+//    **直後に裏へ回ると、その予約は永久に来ない**。＝ポンプに切りかわる機会そのものが
+//    消えて、ループが死ぬ。?dev=1 は「裏でも動く」と書いてあったのに、実測すると
+//    裏タブの時計は1分も進んでいなかった（＝道具のほうが壊れていた）。
+//    裏になった瞬間に自分で1コマ蹴る。ただし表にもどった時に古い予約も生き返るので、
+//    通し番号で「いちばん新しい予約」だけを通す（2本のループが同時に走るのを防ぐ）
+let frameSeq = 0;
 function nextFrame(fn) {
-  if (devPump && document.hidden) devPump(fn);
-  else requestAnimationFrame(fn);
+  const my = ++frameSeq;
+  const go = () => { if (my === frameSeq) fn(performance.now()); };
+  if (devPump && document.hidden) devPump(go);
+  else requestAnimationFrame(go);
 }
+if (devPump) addEventListener('visibilitychange', () => { if (document.hidden) nextFrame(tick); });
 function tick() {
   nextFrame(tick);
   const now = performance.now();
@@ -1748,7 +1974,14 @@ function tick() {
   if (keys['ArrowDown'] || keys['KeyS']) sy = 1;
   if (stick.active) { sx = stick.x; sy = stick.y; }
 
-  if (G.mode === 'fighter') {
+  // 🚶 おりているあいだ、スティックは「人」が使う。のりものは操縦しない
+  const fsx = sx, fsy = sy;
+  const running2 = keys['ShiftLeft'] || keys['ShiftRight'] || firePressed;   // はしる（スマホは🔥ボタン）
+  if (FOOT.on) { sx = 0; sy = 0; }
+
+  if (FOOT.on && !FOOT.onShip) {
+    // 島におりている＝のりものは その場で待つ（動かさない）
+  } else if (G.mode === 'fighter') {
     G.yaw -= sx * G.def.turn * dt;
     G.pitch += sy * 1.1 * dt;
     G.pitch = Math.max(-0.7, Math.min(0.7, G.pitch));
@@ -1808,10 +2041,17 @@ function tick() {
     if (Math.hypot(P.x-OUR.port.x, P.z-OUR.port.z) < 130) G.hp = Math.min(G.maxHp, G.hp + 8*dt);
   }
 
+  // 🚶 人の動き。のりものの場所が決まったあとに置く＝甲板の上の場所が
+  //    「動いたあとの船」から計算される（先にやると人だけ1フレーム遅れる）
+  if (FOOT.on) {
+    footTick(dt, fsx, fsy, running2);
+    fwd.set(-Math.sin(FOOT.yaw), 0, -Math.cos(FOOT.yaw));   // 目と耳は人の向きに合わせる
+  }
+
   // ---- 攻撃（メイン武器：スペース） ----
   fireCd -= dt; fire2Cd -= dt; G.reloadT -= dt;
-  const firing = keys['Space'] || firePressed;
-  const firing2 = keys['KeyB'] || fire2Pressed;
+  const firing = !FOOT.on && (keys['Space'] || firePressed);   // おりているあいだは のりものの武器は撃てない
+  const firing2 = !FOOT.on && (keys['KeyB'] || fire2Pressed);
   if (firing && fireCd <= 0) {
     if (G.mode === 'fighter') {
       fireCd = 0.12;
@@ -2109,7 +2349,12 @@ function tick() {
 
   // ---- カメラ（のりものごとの視点：監督設計） ----
   const co = G.camOff || new THREE.Vector3(0, 8, 20);
-  if (G.mode === 'fighter') {
+  if (FOOT.on) {
+    // 人のうしろから。陸上戦とおなじ形（酔いにくいのを実測ずみ）
+    const off = tmpV.set(Math.sin(FOOT.yaw)*7, 4.2, Math.cos(FOOT.yaw)*7).add(FOOT.pos);
+    camera.position.lerp(off, 1 - Math.pow(0.0008, dt));
+    camera.lookAt(FOOT.pos.x + fwd.x*25, FOOT.pos.y + 1.6, FOOT.pos.z + fwd.z*25);
+  } else if (G.mode === 'fighter') {
     const off = tmpV.copy(co).applyEuler(new THREE.Euler(0, G.yaw, 0));
     camera.position.lerp(off.add(P), 1 - Math.pow(0.001, dt));
     camera.lookAt(P.x + fwd.x*30, P.y + fwd.y*30, P.z + fwd.z*30);
@@ -2130,7 +2375,7 @@ function tick() {
   }
 
   // ---- 耳（条件Cのときだけ）。カメラのあとに置くのは、目と耳が別物だとわかるようにするため ----
-  updateEar(P, fwd);
+  updateEar(eyePos(), fwd);   // 🚶 おりているときは、耳も人のところにある
 
   // ---- 空ときりの色（水中なら海の色） ----
   const underwater = camera.position.y < 0;
@@ -2144,7 +2389,7 @@ function tick() {
   // ---- HPバーの見えるきょり ----
   const radarOK = G.def.radarInFog;
   for (const u of units) {
-    if (u.hpSprite) u.hpSprite.visible = !u.dead && u.group.position.distanceTo(P) < ((G.fogActive && !radarOK) ? 260 : 1000);
+    if (u.hpSprite) u.hpSprite.visible = !u.dead && u.group.position.distanceTo(eyePos()) < ((G.fogActive && !radarOK) ? 260 : 1000);
   }
 
   // ---- HUD ----
@@ -2173,17 +2418,28 @@ function tick() {
   $('extra').textContent = extra;
   if (G.msgTimer > 0) { G.msgTimer -= dt; if (G.msgTimer <= 0) $('message').style.opacity = 0; }
 
+  // ---- 🚶 おりる／のる のボタン（おりられる時だけ出す） ----
+  if (FOOT.on) {
+    footBtn.style.display = 'flex';
+    footBtn.innerHTML = footCanBoard() ? '🛥<br>のる' : '🚶<br>' + Math.round(footBackDist()) + 'm';
+  } else {
+    const w = footWhere();
+    footBtn.style.display = w ? 'flex' : 'none';
+    if (w) footBtn.innerHTML = w.kind === 'deck' ? '🚶<br>甲板へ' : '🚶<br>島へ';
+  }
+
   // ---- 攻撃目標の旗矢印（監督要望） ----
   if (enemyPort && !enemyPort.dead) {
-    const dx = enemyPort.group.position.x - P.x, dz = enemyPort.group.position.z - P.z;
+    const E = eyePos();
+    const dx = enemyPort.group.position.x - E.x, dz = enemyPort.group.position.z - E.z;
     const angleD = Math.atan2(dx, dz);
-    let rel = angleD - (G.yaw + Math.PI);
+    let rel = angleD - (eyeYaw() + Math.PI);
     const deg = -rel * 180 / Math.PI;
     $('arrowIcon').style.transform = `rotate(${deg}deg)`;
     $('arrowDist').textContent = Math.round(Math.hypot(dx, dz)) + 'm';
   }
 
-  netTick(dt, P);   // v6: みんなでルーム（自分の場所を送る／なかまを動かす）
+  netTick(dt, eyePos());   // v6: みんなでルーム（自分の場所を送る／なかまを動かす）
   drawMinimap();
   renderer.render(scene, camera);
 }
@@ -2200,8 +2456,8 @@ function drawMinimap() {
   // ⚠ 自分が動かず まわりが動く形になるので、画面の外に出た「行き先」（港・基地）は
   //   ふちに寄せて残す。でないと監督の「その方角え行くと」（8/26）が成り立たない。
   const sc = 150/(3400*WORLD), ox = 75, oy = 75;   // 縮尺はv5から変えていない
-  const px = (player.group && G.running) ? player.group.position.x : 0;
-  const pz = (player.group && G.running) ? player.group.position.z : 0;
+  const px = (player.group && G.running) ? eyePos().x : 0;   // 🚶 おりているときは 人がまんなか
+  const pz = (player.group && G.running) ? eyePos().z : 0;
   const sx = x => ox + (x - px)*sc, sy = z => oy + (z - pz)*sc;
   const M = 7;   // ふちからの余白
   const clamp = v => Math.max(M, Math.min(150 - M, v));
@@ -2257,7 +2513,7 @@ function drawMinimap() {
   if (player.group && G.running) {
     mm.save();
     mm.translate(ox, oy);                             // ← いつも まんなか（とみさわさんの案）
-    mm.rotate(-G.yaw + Math.PI);
+    mm.rotate(-eyeYaw() + Math.PI);
     // 三角（いままでのまま。直さない）
     mm.fillStyle = '#fff';
     mm.beginPath();
@@ -2321,7 +2577,7 @@ const NET = { on: false, word: '', me: '', name: localStorage.getItem('pw_name')
 // ⚠ つながらない時に「どこで止まったか」を画面に出す（パパ 9/5・PC×スマホ4Gで入れなかった）。
 // 口で往復するより、1回開けば分かる形にする。止まりうる場所は3つあって、直し方が全部ちがう：
 //   ① リレー（相手さがし）に届かない ② 相手は見つかったがNAT越えできない ③ データが来ない
-const BUILD = 'v6-0905r';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
+const BUILD = 'v6-0905u';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
 const NETDIAG = { lib: '', joined: false, peerJoin: 0, packets: 0, ice: '', srflx: 0, relay: 0, err: '',
                   t0: 0, states: [], pcs: 0, tries: 0, gen: 0 };   // gen=入り直しの世代   // t0=部屋に入った時刻／states=ICEがたどった状態
 // ⚠ ICEの様子は Trystero の内側にあるので、RTCPeerConnection を包んで のぞく
@@ -2368,18 +2624,20 @@ const NET_MISS_GONE = 15;               // これだけ続けて届かなかっ�
 const netV = new THREE.Vector3();       // tick の tmpV とは別にする（使い回しの取りちがえ防止）
 
 function netMakeMesh(mode, klass, faction) {
+  if (mode === 'foot') return makeSoldier(0x00c853, false);   // 🚶 おりているなかま
   if (mode === 'ship') return makeShipMesh(klass === 'carrier' ? 'carrier' : 'destroyer', false);
   if (mode === 'sub') return makeSubMesh(false);
   return makePlaneMesh(0x00c853, faction === 'axis' ? 'axis' : 'allied');   // なかまは みどり
 }
-function netLabel(text) {
+function netLabel(text, small) {
   const cv = document.createElement('canvas'); cv.width = 256; cv.height = 56;
   const c = cv.getContext('2d');
   c.font = 'bold 32px Meiryo, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
   c.lineWidth = 7; c.strokeStyle = '#000'; c.strokeText(text, 128, 28);
   c.fillStyle = '#69f0ae'; c.fillText(text, 128, 28);
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), depthTest: false }));
-  sp.scale.set(52, 11, 1); sp.position.y = 28;
+  if (small) { sp.scale.set(9, 2, 1); sp.position.y = 3.0; }   // 🚶 人むけの小さい札
+  else { sp.scale.set(52, 11, 1); sp.position.y = 28; }
   return sp;
 }
 function netPeerCount() {
@@ -2614,7 +2872,7 @@ function netOnState(d, id) {
   if (!p || p.mode !== mode || p.klass !== klass || p.name !== (name || 'なかま')) {
     if (p) scene.remove(p.group);
     const g = netMakeMesh(mode, klass, faction);
-    g.add(netLabel(name || 'なかま'));
+    g.add(netLabel(name || 'なかま', mode === 'foot'));
     g.position.set(x, y, z);
     scene.add(g);
     p = { group: g, mode, klass, name: name || 'なかま' };
@@ -2778,8 +3036,8 @@ function netTick(dt, P) {
   if (NET.t >= 1/NET_HZ && NET.send && G.running) {
     NET.t = 0;
     try {
-      NET.send([Math.round(P.x), Math.round(P.y*10)/10, Math.round(P.z), Math.round(G.yaw*100)/100,
-                G.mode, (G.def && G.def.klass) || '', G.faction,
+      NET.send([Math.round(P.x), Math.round(P.y*10)/10, Math.round(P.z), Math.round(eyeYaw()*100)/100,
+                FOOT.on ? 'foot' : G.mode, (G.def && G.def.klass) || '', G.faction,
                 Math.round(G.hp / G.maxHp * 100), NET.name || 'なかま']);
     } catch (e) {}
   }
@@ -2829,6 +3087,10 @@ const TUT_LAST = [
   'おなじ あいことばの人と おなじ海に出られる',
   'なかまは みどりの のりもの。レーダーでは 水色のまる',
   '敵もいっしょ！ しずめたら なかまの画面でも しずむ',
+  // 🚶 おりて あるく（監督の新案）。ここも 場面は増やさず ことばで足す
+  '🚶 島のそば や 自分の船の上では、おりて あるける',
+  '右の「おりる」ボタン（キーボードは F）を おす',
+  '⚠ おりてるあいだ、敵がねらうのは のこしてきた のりもの',
 ];
 const LINE_SEC = 3.4;            // 字幕1行の表示時間（みじかい行の目安）
 // v6: 監督が転送してきた感想（8/30「チュートリアルがはやすぎるって」）。
@@ -2901,7 +3163,7 @@ function endTutorial() {
   $('hud').style.display = 'none';
   $('controlsHint').style.display = 'none';
   $('targetArrow').style.display = 'none';
-  fireBtn.style.display = fireBtn2.style.display = 'none';
+  footExit(); fireBtn.style.display = fireBtn2.style.display = footBtn.style.display = 'none';
   $('titleScreen').style.display = 'flex';
   $('unitScreen').style.display = 'none';
   $('endScreen').style.display = 'none';
@@ -2991,6 +3253,9 @@ setInterval(() => {
 //    両方を「見えている」状態（べつのウィンドウ）にすること。8/21のHANABIと同じ罠。
 // ?dev=1 のときだけ、いま何の曲が鳴っているかを画面のすみに出す。
 // ⚠ 音は「鳴っているつもり」が一番あてにならない（今日それで1つ見落とした）。目で見えるようにする
+// ?dev=1 のときだけ、中身をコンソールから見えるようにする（歩きの調べ用・テストもここを読む）。
+// ⚠ 目で見て「歩けてる」と、数字が正しいは別。落ちた/止まったを数字で確かめる口を作っておく
+if (DEV) { window.__pw = { FOOT, G, player, units, NET, footWhere, deckOf, islandTopY, frames: () => frameSeq }; window.NETDIAG = NETDIAG; }
 if (DEV) {
   const bd = document.createElement('div');
   bd.style.cssText = 'position:fixed;right:8px;bottom:8px;z-index:99;background:rgba(0,20,40,.8);'
