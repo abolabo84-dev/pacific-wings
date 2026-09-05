@@ -215,6 +215,7 @@
        font-size:clamp(16px,4vw,24px); font-weight:bold; text-align:center; color:#ffd54f;
        text-shadow:2px 2px 4px #000; margin:.2em 0"></div>
   <button class="btn" id="btnGacha" style="background:#6a1b9a">🎁 15チールで ひく</button>
+  <p id="yamatoRow" style="margin:.35em 0 .1em; font-size:1rem; font-weight:bold; color:#ffd54f"></p>
   <p style="margin:.6em 0 .1em; font-size:.95rem">もってるもの（<span id="gachaCount">0</span>／<span id="gachaAll">0</span>）</p>
   <div id="gachaList" style="max-height:34vh; overflow-y:auto; width:min(92vw,520px)"></div>
   <button class="btn" id="btnGachaBack" style="font-size:.95rem; padding:.45em 1.2em">← もどる</button>
@@ -1987,10 +1988,24 @@ setRadar(radarCenter);
 // ⚠ もとからあるのりものは、これまでどおり ぜんぶ使える（ガチャは「ふえる」ほう）。
 //    鍵をかける形にするかは監督がまだ決めていないので、遊べなくならない側にした。
 CATALOG.gacha = { label: '🎁 ガチャ', types: [] };
+// 🏯 監督 9/5夜「**ガチヤコンプリートしたら大和が使える**」。
+// ⚠ 大和はいままで「切り札」でしか出てこなかった＝自分では乗れなかった。
+//    ぜんぶ集めた人だけが えらべる のりものにする。ごほうびなので 強い。
+//    見た目は切り札と同じ船（makeTrumpMesh）を使う＝「あの大和だ」と分かる
+const YAMATO = { id: 'yamato', mode: 'ship', klass: 'trump', name: '戦艦 大和', special: true,
+  desc: '⭐ガチャをぜんぶ集めた人だけ。いちばん かたくて 大砲が強い。でも おそい',
+  speed: 18, turn: 0.32, gun: 34, hp: 420, torpedoes: 4 };
+const gachaComplete = () => owned.length >= GACHA.length;
 function updateCheerLabels() {
   $('btnGachaOpen').textContent = `🎁 ガチャ（${cheer}チール）`;
   $('gachaCheer').innerHTML = `いま <b style="font-size:1.4em">${cheer}</b> チール　／　1回 ${GACHA_COST}チール`;
   $('gachaCount').textContent = owned.length;
+  // 🏯 監督 9/5夜「ガチヤコンプリートしたら大和が使える」。
+  // ⚠ ごほうびは **見えていないと ごほうびにならない**。あと何個かを出す
+  const yr = $('yamatoRow');
+  if (yr) yr.textContent = gachaComplete()
+    ? '🏯 コンプリート！ 「🎁ガチャ」から 戦艦 大和 に乗れる！'
+    : `🏯 あと ${GACHA.length - owned.length} こ集めると 戦艦 大和 が使える`;
   $('gachaAll').textContent = GACHA.length;
 }
 function buildGachaList() {
@@ -2096,7 +2111,8 @@ function openUnitScreen(f) {
   selFaction = f;
   $('titleScreen').style.display = 'none';
   $('unitScreen').style.display = 'flex';
-  CATALOG.gacha.types = ownedDefs();   // v6: ガチャで出したものを毎回とりこむ
+  // v6: ガチャで出したものを毎回とりこむ。⚠ 集めきったら 先頭に大和を置く（ごほうびが一番上）
+  CATALOG.gacha.types = gachaComplete() ? [YAMATO, ...ownedDefs()] : ownedDefs();
   buildCatRow();
   pickCat('fighter');
 }
@@ -2187,11 +2203,16 @@ function startGame(faction, mode, def) {
   // 自分ののりもの
   const color = faction === 'axis' ? 0x9e9d24 : 0x1565c0;
   if (mode === 'fighter') { player.group = makePlaneMesh(color, faction); player.radius = 5; }
-  else if (mode === 'ship') { player.group = makeShipMesh(def.klass, false); player.radius = def.klass === 'carrier' ? 30 : 18; }
+  else if (mode === 'ship') {
+    // 🏯 大和だけ 切り札と同じ見た目にする（「あの大和だ」と分かる）
+    if (def.special) { player.group = makeTrumpMesh(faction === 'axis' ? 'axis' : 'allied'); player.radius = 34; }
+    else { player.group = makeShipMesh(def.klass, false); player.radius = def.klass === 'carrier' ? 30 : 18; }
+  }
   else { player.group = makeSubMesh(false); player.radius = 8; }
   // カメラの位置は、のりものの大きさに合わせる（空母は甲板が長いので、高く・うしろから見る）
   if (mode === 'fighter') G.camOff = new THREE.Vector3(0, 8, 20);
-  else if (mode === 'ship') G.camOff = def.klass === 'carrier' ? new THREE.Vector3(0, 30, 46) : new THREE.Vector3(0, 16, 16);
+  else if (mode === 'ship') G.camOff = def.special ? new THREE.Vector3(0, 34, 54)
+                          : def.klass === 'carrier' ? new THREE.Vector3(0, 30, 46) : new THREE.Vector3(0, 16, 16);
   else G.camOff = new THREE.Vector3(0, 4, 24);
   scene.add(player.group);
   // v5: 調整パネルの「自分のつよさ」を最大HPに反映（監督の言う「ライフ」）
@@ -3218,7 +3239,7 @@ const NET = { on: false, word: '', me: '', name: localStorage.getItem('pw_name')
 // ⚠ つながらない時に「どこで止まったか」を画面に出す（パパ 9/5・PC×スマホ4Gで入れなかった）。
 // 口で往復するより、1回開けば分かる形にする。止まりうる場所は3つあって、直し方が全部ちがう：
 //   ① リレー（相手さがし）に届かない ② 相手は見つかったがNAT越えできない ③ データが来ない
-const BUILD = 'v6-0906b';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
+const BUILD = 'v6-0906c';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
 const NETDIAG = { lib: '', joined: false, peerJoin: 0, packets: 0, ice: '', srflx: 0, relay: 0, err: '',
                   t0: 0, states: [], pcs: 0, tries: 0, gen: 0 };   // gen=入り直しの世代   // t0=部屋に入った時刻／states=ICEがたどった状態
 // ⚠ ICEの様子は Trystero の内側にあるので、RTCPeerConnection を包んで のぞく
@@ -3904,7 +3925,7 @@ setInterval(() => {
 // ⚠ 音は「鳴っているつもり」が一番あてにならない（今日それで1つ見落とした）。目で見えるようにする
 // ?dev=1 のときだけ、中身をコンソールから見えるようにする（歩きの調べ用・テストもここを読む）。
 // ⚠ 目で見て「歩けてる」と、数字が正しいは別。落ちた/止まったを数字で確かめる口を作っておく
-if (DEV) { window.gameLogPeek = () => gameLog; window.__pw = { FOOT, G, player, NET, footWhere, deckOf, islandTopY, islandDefs, SOLIDS, canWalk,
+if (DEV) { window.dbgGachaIds = () => GACHA.map(g => g.id); window.gameLogPeek = () => gameLog; window.__pw = { FOOT, G, player, NET, footWhere, deckOf, islandTopY, islandDefs, SOLIDS, canWalk,
     AMB, bigH, critters, DRONES, sfxOut, eyePos, initAudio, spawnAIPlane, updateDrones, footHit, THREE, get projs() { return projs; },
     // ⚠ units は startGame で作りなおされる（units = []）。値でつかむと 古い配列を見つづけて、
     //    「敵機は0機」のような まちがった観測をする（9/5に実際やった）。必ず今のものを返す

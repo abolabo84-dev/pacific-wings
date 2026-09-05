@@ -48,6 +48,11 @@
   .fbtn { position: absolute; width: 74px; height: 74px; border-radius: 50%; border: 3px solid #fff; color: #fff; font-weight: bold; font-size: 13px; display: none; align-items: center; justify-content: center; text-align: center; z-index: 12; text-shadow: 1px 1px 2px #000; user-select: none; -webkit-user-select: none; }
   #fireBtn  { right: 14px; bottom: 96px; background: rgba(230,60,40,0.55); }
   #grenBtn  { right: 100px; bottom: 34px; background: rgba(60,60,60,0.6); }
+  /* 🔪 さす（全兵科）と 🩹 そせい（近くにたおれた仲間がいる時だけ出す・監督9/5） */
+  #knifeBtn { right: 20px; bottom: 210px; background: rgba(120,40,40,0.6); }
+  #reviveBtn{ left: 14px; top: 62%; background: rgba(40,120,80,0.72); width: 74px; height: 74px; font-size: 12px; }
+  #reviveBtn.on { animation: revPulse 1s ease-in-out infinite; }
+  @keyframes revPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.1); } }
   #skillBtn { right: 14px; bottom: 190px; background: rgba(40,140,200,0.55); }
   #cannonBtn{ right: 100px; bottom: 128px; background: rgba(160,80,200,0.55); width: 64px; height: 64px; }
   #crouchBtn{ left: 14px; top: 46%; background: rgba(90,120,60,0.55); width: 58px; height: 58px; font-size: 11px; }
@@ -70,7 +75,7 @@
 <div id="hud" style="display:none">
   <div><span id="clsName">兵</span>　<span id="killCt">たおした 0</span></div>
   <div class="bar"><div id="hpFill"></div></div>
-  <div id="ammoRow">💣 <span id="grenCt">3</span>　💥 大砲 <span id="cannonCt">1</span></div>
+  <div id="ammoRow">💣 <span id="grenCt">3</span>　💥 大砲 <span id="cannonCt">1</span>　<span id="cdRow"></span></div>
   <div id="stateRow" style="font-size:12px; opacity:.9"></div>
 </div>
 <canvas id="minimap" width="140" height="140" style="display:none"></canvas>
@@ -84,6 +89,8 @@
 <div class="fbtn" id="grenBtn">💣<br>手榴弾</div>
 <div class="fbtn" id="skillBtn">⭐<br>とくぎ</div>
 <div class="fbtn" id="cannonBtn">💥<br>大砲</div>
+<div class="fbtn" id="knifeBtn">🔪<br>さす</div>
+<div class="fbtn" id="reviveBtn">🩹<br>そせい</div>
 <div class="fbtn" id="crouchBtn">🧎<br>しゃがむ</div>
 
 <div class="overlay" id="titleScreen">
@@ -198,6 +205,8 @@ const NATIONS = [
 // 共通：なにかしらの銃・手榴弾・大砲1回・蘇生できる・HPじわじわ回復・しゃがみと走り
 // ⚠ はしごとクラフト表は最小形では未実装（下のponytail）
 const AI_RANGE = 110;   // AI兵が撃ちはじめる距離（弾は126mとどく）
+// 服のわりあて（監督 9/5「ふくもつくってほしい」）。3種類を5兵科に配る
+const OUTFIT = { rifle: 'coat', medic: 'pack', eng: 'pack', scout: 'camo', mg: 'coat' };
 const CLASSES = [
   { id: 'rifle',  name: 'ライフル兵', icon: '🔫', speed: 7, hp: 100, dmg: 22, cd: 0.55, spread: 0.015,
     desc: 'とくべつな道具は無い。そのぶん 銃が一番強い', skill: 'none' },
@@ -283,7 +292,42 @@ for (let i = 0; i < 46; i++) {
   scene.add(g);
 }
 // 建物（監督8/30「建物がある」）。箱の家。中には入れない（最小形）
-const houses = [];
+const houses = [];        // 通れないもの（建物・岩・要塞の壁）
+const rocks = [];         // 監督 9/5「あと障害物もほしい」。かくれる場所をふやす
+// 岩とコンクリの塊。⚠ 要塞の中と、要塞のあいだの道すじに 散らす＝進みながら隠れられる
+function scatterRocks() {
+  for (let i = 0; i < 34; i++) {
+    const x = (Math.random()-0.5)*520, z = (Math.random()-0.5)*420;
+    if (Math.hypot(x-(-260), z) < 26 || Math.hypot(x-260, z) < 26) continue;   // 要塞の中心はあける
+    const w = 3 + Math.random()*5, h = 1.6 + Math.random()*2.6, d = 3 + Math.random()*5;
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d),
+      new THREE.MeshLambertMaterial({ color: Math.random() < 0.5 ? 0x7d7a6e : 0x8b8377 }));
+    m.position.set(x, H(x, z) + h/2 - 0.2, z);
+    m.rotation.y = Math.random()*Math.PI;
+    scene.add(m);
+    houses.push({ x, z, r: Math.max(w, d)*0.55 });
+    rocks.push({ x, z });
+  }
+}
+// 🪜 はしごと足場（監督 9/5「さすをつけたい はしご」）。
+// ⚠ 見た目のメッシュと、立てる高さは 必ずこの2つの表から作る（v6の島で学んだ）
+const PLATFORMS = [];     // 上に立てる四角（要塞の壁のてっぺん）
+const LADDERS = [];       // のぼり坂。t=0が上（壁がわ）／t=1が下（地面がわ）
+// そこに立ったときの足の高さ。地面か、足場か、はしごの坂か
+function standH(x, z) {
+  let h = H(x, z);
+  for (const p of PLATFORMS)
+    if (Math.abs(x - p.x) <= p.hx && Math.abs(z - p.z) <= p.hz) h = Math.max(h, p.y);
+  for (const L of LADDERS) {
+    const ax = L.x1 - L.x0, az = L.z1 - L.z0;
+    const len2 = ax*ax + az*az;
+    const t = ((x - L.x0)*ax + (z - L.z0)*az) / len2;
+    if (t < 0 || t > 1) continue;
+    if (Math.hypot(x - (L.x0 + ax*t), z - (L.z0 + az*t)) > L.hw) continue;
+    h = Math.max(h, L.yTop + (L.yBot - L.yTop) * t);
+  }
+  return h;
+}
 for (const [hx, hz] of [[-60, -20], [-40, 90], [30, -95], [70, 40], [-120, 60], [120, -50]]) {
   const g = new THREE.Group();
   const w = 10 + rng()*6, d2 = 8 + rng()*5, ht = 6;
@@ -303,10 +347,38 @@ function makeFortress(f, side, color) {
   const g = new THREE.Group();
   const y = H(f.x, f.z);
   // 壁（四すみにブロック）
-  for (const [dx, dz] of [[-10,-10],[10,-10],[-10,10],[10,10]]) {
+  const corners = [[-10,-10],[10,-10],[-10,10],[10,10]];
+  for (let ci = 0; ci < corners.length; ci++) {
+    const [dx, dz] = corners[ci];
     const wallM = new THREE.Mesh(new THREE.BoxGeometry(6, 4, 6), new THREE.MeshLambertMaterial({ color: 0x8a8a80 }));
     wallM.position.set(dx, 2, dz);
     g.add(wallM);
+    // ⚠ 壁は いままで すり抜けられた。はしごを意味あるものにするには、通れなくする必要がある。
+    //    top を持たせて「もう上にのぼっている人は通す」＝はしごの先で詰まないようにする
+    houses.push({ x: f.x + dx, z: f.z + dz, r: 3.2, top: y + 4 });
+    PLATFORMS.push({ x: f.x + dx, z: f.z + dz, hx: 3, hz: 3, y: y + 4 });
+    // 🪜 はしごは 外がわの2すみに掛ける（4すみ全部だと のぼり放題で 入口の意味が消える）
+    if (ci % 2 === 0) {
+      const sx = Math.sign(dx) || 1;
+      const x0 = f.x + dx + sx*3, x1 = f.x + dx + sx*8.5, zz = f.z + dz;
+      LADDERS.push({ x0, z0: zz, x1, z1: zz, hw: 1.5, yTop: y + 4, yBot: y });
+      const lad = new THREE.Group();
+      const rail = new THREE.MeshLambertMaterial({ color: 0x8d6a3f });
+      for (const rz of [-1.2, 1.2]) {
+        const r = new THREE.Mesh(new THREE.BoxGeometry(6.4, 0.22, 0.22), rail);
+        r.position.set((x0 + x1)/2 - (f.x + dx), 2.1, zz - (f.z + dz) + rz);
+        r.rotation.z = -sx * Math.atan2(4, 5.5);
+        lad.add(r);
+      }
+      for (let k = 0; k <= 6; k++) {                       // だん（横木）
+        const t = k/6;
+        const step = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.16, 2.6), rail);
+        step.position.set(x0 + (x1-x0)*t - (f.x + dx), 4 + (0 - 4)*t + 0.12, zz - (f.z + dz));
+        lad.add(step);
+      }
+      lad.position.set(dx, 0, dz);
+      g.add(lad);
+    }
   }
   // 旗（のっとりの目じるし）
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 12, 6), new THREE.MeshLambertMaterial({ color: 0xdddddd }));
@@ -336,7 +408,30 @@ function makeFortress(f, side, color) {
 }
 
 // ============ 兵士のモデル（カプセル＋頭。国の色） ============
-function makeSoldier(color, dark, isMe) {
+// 服（監督 9/5）。⚠ 兵科ごとに かたちを変える＝画面で「だれが何の兵か」が見て分かる。
+//    3種類：コート（長い上着）／背のう（リュック）／ヘルメットに草（偵察）
+function addOutfit(g, kind, c, top) {
+  const cloth = new THREE.MeshLambertMaterial({ color: c.clone().multiplyScalar(0.82) });
+  if (kind === 'coat') {                       // 長い上着
+    const coat = new THREE.Mesh(new THREE.CylinderGeometry(0.58, 0.66, 1.05, 8), cloth);
+    coat.position.y = 0.62; g.add(coat);
+  } else if (kind === 'pack') {                // 背のう
+    const pack = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.62, 0.34), cloth);
+    pack.position.set(0, 1.15, 0.5); g.add(pack);
+    const roll = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.62, 6), cloth);
+    roll.rotation.z = Math.PI/2; roll.position.set(0, 1.5, 0.5); g.add(roll);
+  } else if (kind === 'camo') {                // ヘルメットに草
+    for (let i = 0; i < 5; i++) {
+      const leaf = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.36, 0.07),
+        new THREE.MeshLambertMaterial({ color: 0x4f6b32 }));
+      const a = (i/5)*Math.PI*2;
+      leaf.position.set(Math.cos(a)*0.3, top + 0.6, Math.sin(a)*0.3);
+      leaf.rotation.z = Math.cos(a)*0.5; leaf.rotation.x = Math.sin(a)*0.5;
+      g.add(leaf);
+    }
+  }
+}
+function makeSoldier(color, dark, isMe, outfit) {
   const g = new THREE.Group();
   const c = new THREE.Color(color);
   if (dark) c.multiplyScalar(0.55);   // 敵は同じ国の色でも 暗くする＝見分けがつく
@@ -353,6 +448,7 @@ function makeSoldier(color, dark, isMe) {
   const gun = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 1.5), new THREE.MeshLambertMaterial({ color: 0x2b2b2b }));
   gun.position.set(0.42, 1.35, -0.65);
   g.add(body, head, helmet, gun);
+  if (outfit) addOutfit(g, outfit, c, top);   // 服（監督 9/5）
   // 足もとの影。⚠ パパ 9/5「身体との重なり方がおかしい。このゲーム影が出てる人いないから、
   //   いわゆる影の出方で、色だけこの色にすればいい」——これが正解だった。
   //   経過：頭上の白い輪→「死んだみたい」／足もとの輪を前面に描画→「ズレ感」。
@@ -458,13 +554,15 @@ function startGame() {
   if (fortresses.length === 0) {
     makeFortress(FORT_ALLY, 'ally', G.myNation.color);
     makeFortress(FORT_FOE,  'foe',  G.foeNation.color);
+    // 監督 9/5「あと障害物もほしい」。⚠ ここは1回しか通らない（要塞と同じ）＝積み上がらない
+    scatterRocks();
   } else {
     fortresses[0].color = G.myNation.color; fortresses[0].flag.material.color.set(G.myNation.color); fortresses[0].side = 'ally'; fortresses[0].capT = 0;
     fortresses[1].color = G.foeNation.color; fortresses[1].flag.material.color.set(G.foeNation.color); fortresses[1].side = 'foe'; fortresses[1].capT = 0;
   }
   // 自分
   if (player.group) scene.remove(player.group);
-  player.group = makeSoldier(G.myNation.color, false, true);
+  player.group = makeSoldier(G.myNation.color, false, true, OUTFIT[G.cls.id]);
   scene.add(player.group);
   // 前を向く向き fwd は (-sin(yaw), 0, -cos(yaw))。敵要塞は +x にあるので yaw = -π/2。
   // ⚠ +π/2 にすると fwd が -x になり、「まえ」を押すと敵から遠ざかる（最初これで間違えた）
@@ -477,7 +575,8 @@ function startGame() {
   const mkAI = (faction, n) => {
     for (let i = 0; i < n; i++) {
       const home = faction === 'ally' ? FORT_ALLY : FORT_FOE;
-      const g = makeSoldier(faction === 'ally' ? G.myNation.color : G.foeNation.color, faction === 'foe');
+      const g = makeSoldier(faction === 'ally' ? G.myNation.color : G.foeNation.color, faction === 'foe',
+        false, ['coat', 'pack', 'camo'][i % 3]);
       const x = home.x + (Math.random()-0.5)*24, z = home.z + (Math.random()-0.5)*24;
       g.position.set(x, H(x, z), z);
       scene.add(g);
@@ -512,7 +611,7 @@ function setupControlsUI() {
   if (isTouch) hint = '左スティックであるく（大きくたおすと はしる）';
   $('controlsHint').textContent = hint;
   if (isTouch) {
-    for (const id of ['fireBtn', 'grenBtn', 'cannonBtn', 'crouchBtn']) $(id).style.display = 'flex';
+    for (const id of ['fireBtn', 'grenBtn', 'cannonBtn', 'crouchBtn', 'knifeBtn']) $(id).style.display = 'flex';
     $('skillBtn').style.display = G.cls.skill !== 'none' ? 'flex' : 'none';
   }
 }
@@ -525,6 +624,7 @@ const stick = { active: false, x: 0, y: 0, id: null };
 const isTouch = 'ontouchstart' in window;
 const stickZone = $('stick'), stickBase = $('stickBase'), stickKnob = $('stickKnob');
 let firePressed = false, grenPressed = false, skillPressed = false, cannonPressed = false;
+let knifePressed = false, revivePressed = false;
 stickZone.addEventListener('touchstart', e => {
   const t = e.changedTouches[0];
   stick.active = true; stick.id = t.identifier;
@@ -558,6 +658,8 @@ const bindBtn = (id, on, off) => {
 };
 bindBtn('fireBtn', () => firePressed = true, () => firePressed = false);
 bindBtn('grenBtn', () => grenPressed = true, () => grenPressed = false);
+bindBtn('knifeBtn', () => knifePressed = true, () => knifePressed = false);
+bindBtn('reviveBtn', () => revivePressed = true, () => revivePressed = false);
 bindBtn('skillBtn', () => skillPressed = true, () => skillPressed = false);
 bindBtn('cannonBtn', () => cannonPressed = true, () => cannonPressed = false);
 bindBtn('crouchBtn', () => { G.crouch = !G.crouch; $('crouchBtn').style.opacity = G.crouch ? 1 : 0.7; logEvent('crouch', { on: G.crouch }); });
@@ -617,7 +719,7 @@ function hitPlayer(dmg) {
 // ============ メインループ ============
 const fwd = new THREE.Vector3();
 const tmpV = new THREE.Vector3();
-let lastT = performance.now(), fireCd = 0, grenCd = 0, skillCd = 0;
+let lastT = performance.now(), fireCd = 0, grenCd = 0, skillCd = 0, knifeCd = 0;
 
 // ?dev=1 のときだけ、画面が裏でも ループを止めない（2画面テスト・自動テスト用）。
 // ⚠ ふつうの遊びでは止めたまま（裏で電池を食わない）。
@@ -626,7 +728,7 @@ let lastT = performance.now(), fireCd = 0, grenCd = 0, skillCd = 0;
 const DEVMODE = new URLSearchParams(location.search).get('dev') === '1';
 // ⚠ 版の印。監督がスマホで試して報告してくるので、**どの版を見ているか**が分からないと
 //    直したはずの物を「まだ直ってない」と言われる（古いキャッシュを見ているだけ、が起きる）
-const BUILD = 'riku-0906a';
+const BUILD = 'riku-0906b';
 { const e = document.getElementById('buildTag'); if (e) e.textContent = '版:' + BUILD; }
 const devPump = (() => {
   if (!DEVMODE) return null;
@@ -667,9 +769,16 @@ function tick() {
   const nz = P.z - fwd.z * sy * sp * dt;
   // 建物にはめり込まない
   let blocked = false;
-  for (const hs of houses) if (Math.hypot(nx-hs.x, nz-hs.z) < hs.r + 0.8) blocked = true;
+  for (const hs of houses) {
+    // ⚠ もう壁の上にのぼっている人は通す。ここが無いと、はしごを登った先で かべに阻まれて詰む
+    if (hs.top !== undefined && P.y > hs.top - 1.6) continue;
+    if (Math.hypot(nx-hs.x, nz-hs.z) < hs.r + 0.8) blocked = true;
+  }
   if (!blocked && Math.abs(nx) < 300 && Math.abs(nz) < 300) { P.x = nx; P.z = nz; }
-  P.y = H(P.x, P.z);
+  // 🪜 足場とはしごのぶん、高さは standH で決める（地面だけを見ると 壁の上に立てない）
+  const wantY = standH(P.x, P.z);
+  P.y += (wantY - P.y) * Math.min(1, dt * 10);            // 段差はなめらかに
+  if (Math.abs(wantY - P.y) < 0.05) P.y = wantY;
   player.group.rotation.y = player.yaw;
   player.group.scale.y = G.crouch ? 0.62 : 1;
 
@@ -684,7 +793,25 @@ function tick() {
   if (G.hurtT > 4 && G.hp < G.maxHp) G.hp = Math.min(G.maxHp, G.hp + 4*dt);
 
   // ---- こうげき ----
-  fireCd -= dt; grenCd -= dt; skillCd -= dt;
+  fireCd -= dt; grenCd -= dt; skillCd -= dt; knifeCd -= dt;
+  // 🔪 さす（監督 9/5「ナイフだよあと全員」）。⚠ どの兵科でも使える。
+  //    近いけど とどく範囲はせまい＝銃の代わりにはならない、近づけたときのごほうび
+  if ((keys['KeyQ'] || knifePressed) && knifeCd <= 0) {
+    knifeCd = 0.8;
+    let hit = null, bestD = 3.0;
+    for (const s2 of soldiers) {
+      if (s2.faction !== 'foe' || s2.state === 'dead') continue;
+      const q = s2.group.position;
+      const d = Math.hypot(q.x-P.x, q.z-P.z);
+      if (d > bestD) continue;
+      // 前を向いている相手だけ（うしろは刺せない）
+      const dot = (-Math.sin(player.yaw))*(q.x-P.x)/(d||1) + (-Math.cos(player.yaw))*(q.z-P.z)/(d||1);
+      if (dot < 0.35) continue;
+      bestD = d; hit = s2;
+    }
+    if (hit) { hitSoldier(hit, 70); showMessage('🔪 さした！', 1); logEvent('knife', { hit: true }); }
+    else { showMessage('🔪 空ぶり…（もっと近づく）', 0.9); logEvent('knife', { hit: false }); }
+  }
   const firing = keys['Space'] || firePressed;
   if (firing && fireCd <= 0) {
     fireCd = G.cls.cd;
@@ -698,10 +825,10 @@ function tick() {
     logEvent('fire', { cls: G.cls.id });
   }
   if ((keys['KeyB'] || grenPressed) && grenCd <= 0 && G.gren > 0) {
-    grenCd = 0.9; G.gren--;
+    grenCd = 30; G.gren--;   // 監督ルール 9/5：一回投げたら30秒つかえない
     shoot({ pos: P.clone().add(new THREE.Vector3(0, 1.8, 0)), vel: fwd.clone().multiplyScalar(16).add(new THREE.Vector3(0, 8, 0)),
             owner: 'me', dmg: 55, gravity: 18, blast: 6, life: 4, size: 0.3, color: 0x37474f });
-    showMessage('💣 手榴弾！（のこり ' + G.gren + '）', 1.2);
+    showMessage('💣 手榴弾！（のこり ' + G.gren + '・つぎまで30秒）', 1.6);
     logEvent('grenade', { left: G.gren });
   }
   if ((keys['KeyC'] || cannonPressed) && G.cannon > 0) {
@@ -764,10 +891,14 @@ function tick() {
     }
     if (s.faction === 'ally' && s.group.position.distanceTo(P) < 4) revTarget = s;
   }
-  if (revTarget) {
+  // 🩹 監督 9/5「蘇生近ずくと蘇生っていうボタンがほしい」。
+  // ⚠ 前は 近づくだけで 勝手に蘇生が進んでいた。近くに来たらボタンを出し、押している間だけ進む
+  $('reviveBtn').style.display = revTarget ? 'flex' : 'none';
+  if (revTarget) $('reviveBtn').classList.add('on'); else $('reviveBtn').classList.remove('on');
+  if (revTarget && (revivePressed || keys['KeyE'])) {
     const need = G.cls.skill === 'heal' ? 1.5 : 3;   // 医療兵は2倍はやい
     revTarget.revT += dt;
-    $('stateRow').textContent = '🩹 蘇生中… ' + Math.ceil(need - revTarget.revT) + '（そばに いて！）';
+    $('stateRow').textContent = '🩹 蘇生中… ' + Math.ceil(need - revTarget.revT) + '（おしつづけて！）';
     if (revTarget.revT >= need) {
       revTarget.state = 'fight'; revTarget.hp = revTarget.maxHp * 0.5; revTarget.revT = 0;
       revTarget.group.rotation.z = 0;
@@ -775,6 +906,8 @@ function tick() {
       showMessage('✨ なかまを 蘇生した！！', 2.5);
       logEvent('revive', {});
     }
+  } else if (revTarget) {
+    $('stateRow').textContent = '🩹 なかまが たおれてる！ 🩹そせい を おす（キーは E）';
   } else {
     for (const s of soldiers) if (s.state === 'down') s.revT = 0;
     $('stateRow').textContent = G.crouch ? '🧎 しゃがみ中（ねらわれにくい）' : '';
@@ -836,6 +969,24 @@ function tick() {
       sp2.x += dx * 6.5 * dt; sp2.z += dz * 6.5 * dt;
       sp2.y = H(sp2.x, sp2.z);
       s.group.rotation.y = Math.atan2(dx, dz) + Math.PI;
+    }
+    // 💣 監督 9/5「あと敵も手榴弾も投げてほしい」。
+    // ⚠ 近すぎると自分も巻きこむ。遠すぎると届かない＝20〜55mのときだけ投げる。
+    //    人にも30秒の待ちがあるので、AIも同じくらい間をあける（片方だけ連発だと不公平）
+    s.grenT = (s.grenT === undefined) ? 8 + Math.random()*20 : s.grenT - dt;
+    if (s.grenT <= 0) {
+      if (!(tgt && best > 20 && best < 55)) {
+        s.grenT = 2;            // 距離が合わない＝すぐ見なおす（長く待つと ほとんど投げない）
+      } else {
+        s.grenT = 22 + Math.random()*20;
+        const gv = tmpV.set(tgt.x - sp2.x, 0, tgt.z - sp2.z);
+        const flat = gv.length() || 1;
+        gv.normalize().multiplyScalar(flat * 0.62);        // 山なりに とどく速さ
+        gv.y = 9;
+        shoot({ pos: sp2.clone().add(new THREE.Vector3(0, 1.8, 0)), vel: gv,
+                owner: s.faction, dmg: 45, gravity: 18, blast: 6, life: 4, size: 0.3, color: 0x37474f });
+        logEvent('ai_grenade', { faction: s.faction });
+      }
     }
     // うつ
     s.cd -= dt;
@@ -933,6 +1084,7 @@ function tick() {
   // ---- HUD ----
   $('hpFill').style.width = Math.max(0, G.hp/G.maxHp*100) + '%';
   $('grenCt').textContent = G.gren;
+  $('cdRow').textContent = grenCd > 0 ? '⏳ つぎの手榴弾まで ' + Math.ceil(grenCd) + '秒' : '';
   $('cannonCt').textContent = G.cannon;
   const dx = FORT_FOE.x - P.x, dz = FORT_FOE.z - P.z;
   const rel = Math.atan2(dx, dz) - (player.yaw + Math.PI);
@@ -1003,7 +1155,7 @@ function endCommon() {
 $('btnGo').onclick = startGame;
 // ?dev=1 のときだけ、テスト用にコンソールから中を触れる（v6と同じ流儀）
 if (DEVMODE) {
-  window.dbg = () => ({ G, player, soldiers, projs, sandbags, fortresses, startGame, keys, H, hitPlayer, hitSoldier, THREE, camera, scene });
+  window.dbg = () => ({ G, player, soldiers, projs, sandbags, fortresses, startGame, keys, H, standH, LADDERS, PLATFORMS, houses, rocks, hitPlayer, hitSoldier, THREE, camera, scene });
 }
 $('btnRetry').onclick = () => { $('endScreen').style.display = 'none'; $('titleScreen').style.display = 'flex'; };
 
