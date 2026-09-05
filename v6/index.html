@@ -178,7 +178,8 @@
   🏝 海が広くなった。<b>基地がふえた</b>（レーダーの ⚪ が日本、🔴 がアメリカ）<br>
   ⛽ 日本の基地でも、ねんりょうと爆弾をほきゅうできる<br>
   👥 <b>みんなでルーム</b>。あいことば（数字だけ）で、おなじ海に あつまれる<br>
-  🚶 <b>おりて あるける</b>。島のそば・自分の船の上で「🚶 おりる」（キーボードは <b>F</b>）</p>
+  🚶 <b>おりて あるける</b>。島のそば・自分の船の上で「🚶 おりる」（キーボードは <b>F</b>）<br>
+  🏝 <b>大きい島</b>ができた（レーダーの 🟩）。丘まで歩くと <b>音楽が消えて、波と虫と海鳥の音だけ</b>になる</p>
   <p style="margin-bottom:.2em">ひとりで あそぶ？ みんなで あそぶ？</p>
   <div style="display:flex; flex-wrap:wrap; justify-content:center;">
     <button class="btn dbtn on" id="btnSolo">👤 こじんルーム<br><span style="font-size:60%">いままでどおり</span></button>
@@ -538,6 +539,138 @@ seabed.position.y = -40;
 scene.add(seabed);
 
 // ============ ワールドの部品 ============
+// 🏝 大きい島（監督案 9/5「海の音が聞こえないレベルで丘までいける広さ」）。
+// ⚠ 見た目のメッシュと、歩く時の高さは **必ずこの1つの式から作る**。
+//    2か所に数字を書くと、足が地面にうまるか 宙に浮く（滑走路でそれをやった）
+function bigH(lx, lz, r) {
+  const d = Math.hypot(lx, lz);
+  const t = Math.max(0, 1 - d / r);                       // 0=ふち 1=まんなか
+  const base = -6 + 40 * Math.pow(t, 0.7);                // ふちは海の下、内がわほど高い
+  const hills = 11 * Math.sin(lx*0.021) * Math.cos(lz*0.017)
+              +  5 * Math.sin(lx*0.045 + lz*0.031);       // 丘と谷
+  const v = base + hills * Math.min(1, t*2.4);            // 砂浜のあたりは でこぼこさせない
+  return d < r*0.9 ? Math.max(1.0, v) : v;                // 内がわに 海より低い穴は作らない
+}
+function makeBigIsland(x, z, r) {
+  const g = new THREE.Group();
+  const N = 96;
+  const geo = new THREE.PlaneGeometry(r*2, r*2, N, N);
+  const pos = geo.attributes.position;
+  const col = [];
+  for (let i = 0; i < pos.count; i++) {
+    const lx = pos.getX(i), lz = -pos.getY(i);            // 回す前なので Y が z にあたる
+    const h = (Math.hypot(lx, lz) > r) ? -9 : bigH(lx, lz, r);
+    pos.setZ(i, h);
+    // 低いところは砂、高いところは草。⚠ 別メッシュにせず 色だけ変える（軽い）
+    const green = Math.min(1, Math.max(0, (h - 5) / 8));
+    col.push(0.84 - green*0.60, 0.75 - green*0.28, 0.55 - green*0.36);
+  }
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  geo.computeVertexNormals();
+  const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true }));
+  m.rotation.x = -Math.PI/2;
+  g.add(m);
+  // ヤシの木。⚠ 立っている場所の高さは bigH から取る（別の数字を書かない）
+  for (let i = 0; i < 44; i++) {
+    const a = Math.random()*Math.PI*2, rr = r * (0.15 + Math.random()*0.72);
+    const lx = Math.cos(a)*rr, lz = Math.sin(a)*rr;
+    const h = bigH(lx, lz, r);
+    if (h < 2) continue;                                   // 波打ちぎわには生やさない
+    const t = new THREE.Group();
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.8, 9 + Math.random()*5, 6),
+      new THREE.MeshLambertMaterial({ color: 0x6d4c41 }));
+    trunk.position.y = 6; t.add(trunk);
+    const crown = new THREE.Mesh(new THREE.SphereGeometry(3.2 + Math.random(), 7, 5),
+      new THREE.MeshLambertMaterial({ color: 0x2e7d32 }));
+    crown.position.y = 12; crown.scale.y = 0.55; t.add(crown);
+    t.position.set(lx, h, lz);
+    g.add(t);
+    SOLIDS_FIXED.push({ x: x + lx, z: z + lz, hx: 1.1, hz: 1.1, round: true });   // 🚶 木は丸くよける
+  }
+  g.position.set(x, 0, z);
+  scene.add(g);
+  return g;
+}
+// ============ 🕊 生き物（監督案 9/5「ああいう島にはなにがいるかな？」） ============
+// 調べたこと（ソロモン諸島・ガダルカナルのあたり／出典は 研究記録.md）：
+//  ・海鳥：アジサシ、クロアジサシ、グンカンドリ、カツオドリ、ネッタイチョウ
+//  ・ヤシガニ（Birgus latro）＝陸で一番大きい甲殻類。足をひろげると1mちかい。海べりの林にすむ
+//  ・ほかに オオコウモリ、オウム（ヒオウギインコ）、トカゲ、巨大カタツムリ、カエル
+// ⚠ 実際に置いたのは「海鳥」と「ヤシガニ」だけ。あとは音（虫）と、これから足す分。
+const critters = { birds: [], crabs: [] };
+function makeBird() {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshLambertMaterial({ color: 0xf5f5f5, side: THREE.DoubleSide });
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.35, 1.0, 3, 6), mat);
+  body.rotation.z = Math.PI/2; g.add(body);
+  const wingGeo = new THREE.PlaneGeometry(3.2, 1.1);
+  const l = new THREE.Mesh(wingGeo, mat); l.position.z = -1.7; l.rotation.x = -Math.PI/2;
+  const r = new THREE.Mesh(wingGeo, mat); r.position.z =  1.7; r.rotation.x = -Math.PI/2;
+  g.add(l, r); g.userData.wings = [l, r];
+  return g;
+}
+function makeCrab() {
+  const g = new THREE.Group();
+  const m = new THREE.MeshLambertMaterial({ color: 0x8e3a1e });
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.42, 8, 6), m);
+  body.scale.set(1.2, 0.6, 1); body.position.y = 0.32; g.add(body);
+  for (const sx of [-1, 1]) {                                  // はさみ
+    const c = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.2, 0.2), m);
+    c.position.set(sx*0.5, 0.3, 0.42); c.rotation.y = sx*0.5; g.add(c);
+    for (let i = 0; i < 3; i++) {                              // 足
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.1, 0.7), m);
+      leg.position.set(sx*0.42, 0.16, -0.1 - i*0.28); leg.rotation.y = sx*0.35; g.add(leg);
+    }
+  }
+  return g;
+}
+// 生き物を島に置く。大きい島だけ（小さい島は砂だけで、置くと ごちゃつく）
+function spawnCritters() {
+  for (const c of critters.birds.concat(critters.crabs)) scene.remove(c.g);
+  critters.birds.length = 0; critters.crabs.length = 0;
+  const isl = islandDefs.find(d => d.kind === 'big');
+  if (!isl) return;
+  for (let i = 0; i < 10; i++) {                               // 海鳥：島のまわりを回る
+    const g = makeBird(); scene.add(g);
+    critters.birds.push({ g, a: Math.random()*Math.PI*2, r: isl.r*(0.5 + Math.random()*0.75),
+      sp: 0.10 + Math.random()*0.10, y: 40 + Math.random()*45, bob: Math.random()*6, cx: isl.x, cz: isl.z });
+  }
+  for (let i = 0; i < 14; i++) {                               // ヤシガニ：海べりに
+    const a = Math.random()*Math.PI*2, rr = isl.r*(0.80 + Math.random()*0.14);
+    const x = isl.x + Math.cos(a)*rr, z = isl.z + Math.sin(a)*rr;
+    const h = islandTopY(x, z);
+    if (h === null) continue;
+    const g = makeCrab(); g.position.set(x, h, z); scene.add(g);
+    critters.crabs.push({ g, x, z, yaw: Math.random()*Math.PI*2, run: 0 });
+  }
+}
+// 毎フレーム動かす。⚠ おりていない時は 鳥だけ（カニは小さすぎて 空からは見えない）
+function updateCritters(dt, t) {
+  for (const b of critters.birds) {
+    b.a += b.sp * dt;
+    const y = b.y + Math.sin(t*0.6 + b.bob) * 4;
+    b.g.position.set(b.cx + Math.cos(b.a)*b.r, y, b.cz + Math.sin(b.a)*b.r);
+    b.g.rotation.y = -b.a + Math.PI/2;                          // 進む向きを向く
+    const flap = Math.sin(t*7 + b.bob) * 0.45;                  // はばたき
+    b.g.userData.wings[0].rotation.x = -Math.PI/2 - flap;
+    b.g.userData.wings[1].rotation.x = -Math.PI/2 + flap;
+  }
+  if (!FOOT.on) return;
+  for (const c of critters.crabs) {
+    const d = Math.hypot(FOOT.pos.x - c.x, FOOT.pos.z - c.z);
+    if (d < 13) {                                               // 近づくと 横に にげる
+      c.run = 1.6;
+      c.yaw = Math.atan2(c.x - FOOT.pos.x, c.z - FOOT.pos.z) + (Math.PI/2) * (c.g.id % 2 ? 1 : -1);
+    }
+    if (c.run > 0) {
+      c.run -= dt;
+      const nx = c.x + Math.sin(c.yaw)*4.5*dt, nz = c.z + Math.cos(c.yaw)*4.5*dt;
+      const h = islandTopY(nx, nz);
+      if (h !== null) { c.x = nx; c.z = nz; c.g.position.set(nx, h, nz); }
+      c.g.rotation.y = c.yaw + Math.PI/2;                       // カニは横歩き
+    }
+  }
+}
 function makeIsland(x, z, radius, kind) { // kind: 'base' | 'port' | 'plain'
   const g = new THREE.Group();
   const rock = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius*1.25, 46, 24), new THREE.MeshLambertMaterial({ color: 0xd7c08a }));
@@ -550,7 +683,7 @@ function makeIsland(x, z, radius, kind) { // kind: 'base' | 'port' | 'plain'
     runway.position.y = 5.4; g.add(runway);
     const tower = new THREE.Mesh(new THREE.BoxGeometry(6, 14, 6), new THREE.MeshLambertMaterial({ color: 0x78909c }));
     tower.position.set(0, 12, radius*0.45); g.add(tower);
-    SOLIDS.push({ x, z: z + radius*0.45, hx: 3, hz: 3 });   // 🚶 管制塔にもぶつかる
+    SOLIDS_FIXED.push({ x, z: z + radius*0.45, hx: 3, hz: 3 });   // 🚶 管制塔にもぶつかる
   } else if (kind === 'plain') {
     const green = new THREE.Mesh(new THREE.CylinderGeometry(radius*0.7, radius*0.85, 5, 24), new THREE.MeshLambertMaterial({ color: 0x2e7d32 }));
     green.position.y = 5; g.add(green);
@@ -569,7 +702,8 @@ function makeFlag(color) {
 }
 // 🚶 歩いている人がぶつかる物の足あと（世界の x,z と 半分の大きさ）。
 // ⚠ 見た目を作る所で いっしょに記録する。あとから座標を推測して書くと必ずズレる
-const SOLIDS = [];
+const SOLIDS = [];        // いま有効な当たり判定（毎回 作りなおす）
+const SOLIDS_FIXED = [];  // ずっとある物（島の木・管制塔）。1回だけ作る
 function makePortBuildings(color, at) {
   const g = new THREE.Group();
   const cols = color === 'red' ? [0xbf360c, 0x8d6e63, 0x6d4c41] : [0x1565c0, 0x546e7a, 0x37474f];
@@ -636,7 +770,27 @@ function makeSoldier(color, isMe) {
   shadow.rotation.x = -Math.PI/2;
   shadow.position.y = 0.03;
   g.add(shadow);
+  g.userData.shadow = shadow;
   return g;
+}
+// 影を地面の傾きに合わせる。⚠ 平らな円のままだと 坂で半分うまって、
+//    パパが9/5に言った「レイヤーの上下が間違ったときみたく」と同じ見え方になる。
+//    大きい島は ほぼ全部が坂なので、ここを直さないと ずっとそう見える
+const SH_UP = new THREE.Vector3(0, 1, 0), SH_N = new THREE.Vector3();
+const SH_Q = new THREE.Quaternion(), SH_INV = new THREE.Quaternion();
+const SH_BASE = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI/2, 0, 0));
+function fitShadowToGround(group, x, z) {
+  const sh = group && group.userData.shadow;
+  if (!sh) return;
+  const hx1 = islandTopY(x + 1.2, z), hx0 = islandTopY(x - 1.2, z);
+  const hz1 = islandTopY(x, z + 1.2), hz0 = islandTopY(x, z - 1.2);
+  if (hx1 === null || hx0 === null || hz1 === null || hz0 === null) {   // 岸ぎわは 平らのまま
+    sh.quaternion.copy(SH_BASE); return;
+  }
+  SH_N.set(-(hx1 - hx0) / 2.4, 1, -(hz1 - hz0) / 2.4).normalize();
+  SH_Q.setFromUnitVectors(SH_UP, SH_N).multiply(SH_BASE);              // これが世界での向き
+  SH_INV.copy(group.quaternion).invert();                              // 親（人）の向きを打ち消す
+  sh.quaternion.copy(SH_INV).multiply(SH_Q);
 }
 // v5: 星のかたちを作る（連合国のしるし用）
 function makeStarShape(outer, inner, points) {
@@ -741,14 +895,19 @@ const islandDefs = [
   { ...W(0, -500), r: 45, kind: 'plain' }, { ...W(150, 450), r: 35, kind: 'plain' },
   { ...W(-400, 350), r: 28, kind: 'plain' }, { ...W(450, -300), r: 30, kind: 'plain' },
   // v6: 広くしたぶん、海がからっぽにならないように島を足す（目じるしが無いと方角を見失う）
-  { ...W(-150, 780), r: 34, kind: 'plain' }, { ...W(250, -760), r: 32, kind: 'plain' },
+  // 🏝 監督案 9/5：歩いて丘まで行ける島。560m四方＝陸上戦のマップとほぼ同じ広さ。
+  // ⚠ ここには前 r=34 の小さい島があった。重ねると地面が2枚になるので、置きかえた
+  { ...W(-150, 780), r: 280, kind: 'big' },
+  { ...W(250, -760), r: 32, kind: 'plain' },
   { ...W(-780, -520), r: 26, kind: 'plain' }, { ...W(880, 560), r: 26, kind: 'plain' },
 ];
 // v6: 補給できる味方の場所。基地が増えたので配列にした
 // （1か所ずつ if を書くと、基地を足すたびに書き忘れる）
 const SUPPLY = [{ p: OUR.base, r: 80 }, { p: OUR.port, r: 90 }, { p: JAPAN, r: 80 }];
 const nearSupply = (P, extra = 0) => SUPPLY.some(s => Math.hypot(P.x - s.p.x, P.z - s.p.z) < s.r + extra);
-for (const d of islandDefs) d.group = makeIsland(d.x, d.z, d.r, d.kind === 'plain' ? 'plain' : d.kind);
+for (const d of islandDefs) d.group = d.kind === 'big'
+  ? makeBigIsland(d.x, d.z, d.r)
+  : makeIsland(d.x, d.z, d.r, d.kind === 'plain' ? 'plain' : d.kind);
 // 🚶 島のてっぺんの高さ。海の上なら null（＝そこに立つ地面が無い＝落ちる）。
 // ⚠ 数字は makeIsland の見た目から来ている。あちらを直したらここも直す
 //    （岩のてっぺん = -20 + 46/2 = 3／基地のパッド = 4 + 2/2 = 5／草 = 5 + 5/2 = 7.5）
@@ -761,6 +920,10 @@ function islandTopY(x, z) {
       //    滑走路にうまって 影も見えなくなる（実測でそうなった）
       if (Math.abs(x - isl.x) < isl.r*0.75 && Math.abs(z - isl.z) < 8) return 5.8;
       return d < isl.r*0.85 ? 5 : 3;
+    }
+    if (isl.kind === 'big') {
+      const h = bigH(x - isl.x, z - isl.z, isl.r);
+      return h < 0.6 ? null : h;                     // 波打ちぎわより下は 海
     }
     if (isl.kind === 'plain') {                      // 草のところは 円すい＝坂になっている
       const a = isl.r*0.7, b = isl.r*0.85;
@@ -916,13 +1079,22 @@ function footEnter(w) {
     // ⚠ ここを「島の半径の何割」で決めると、小さい島でも 飛行機でも のりものに近づきすぎる。
     //    カメラは人の7mうしろにあるので、近すぎると 翼の中にカメラが入って前が見えなくなった（実測）
     const dv = Math.hypot(P.x - isl.x, P.z - isl.z);
-    const pr = Math.max(0, Math.min(isl.r * 0.85, dv - 24));
+    let pr = Math.max(0, Math.min(isl.r * 0.85, dv - 24));
+    // ⚠ 大きい島は ふちが海の下。そこに立つと足が水につかるので、
+    //    立てる高さが出るまで 少しずつ内がわへ寄せる（最大で島のまんなかまで）
+    let ty = islandTopY(isl.x + dx*pr, isl.z + dz*pr);
+    for (let i = 0; i < 40 && ty === null && pr > 0; i++) {
+      pr = Math.max(0, pr - isl.r*0.025);
+      ty = islandTopY(isl.x + dx*pr, isl.z + dz*pr);
+    }
     FOOT.pos.set(isl.x + dx*pr, 0, isl.z + dz*pr);
-    FOOT.pos.y = islandTopY(FOOT.pos.x, FOOT.pos.z) || 3;
+    FOOT.pos.y = ty === null ? 3 : ty;
     FOOT.yaw = Math.atan2(dx, dz);
     showMessage(G.mode === 'fighter' ? '🛬 ちゃくりく！ 島に あがった' : '🚶 島に あがった！', 3.5);
   }
   logEvent('foot_on', { where: w.kind, mode: G.mode });
+  initAudio(); buildAmbient();       // 自然の音をここで用意する（さわった後なので iOS でも起こせる）
+  playBgm(bgmScene());               // 🚶 曲を止めて、自然の音にゆずる
   setupControlsUI();
 }
 function footExit(msg) {
@@ -931,7 +1103,7 @@ function footExit(msg) {
   if (FOOT.group) FOOT.group.visible = false;
   if (msg) showMessage(msg, 2.5);
   logEvent('foot_off', { mode: G.mode });
-  if (G.running) setupControlsUI();
+  if (G.running) { playBgm(bgmScene()); setupControlsUI(); }   // 🚶 のりものに戻ったら 曲も戻る
 }
 // のりものにもどれるか（島にいるときは のりものの近くまで歩いて帰る）
 const footBackDist = () => (FOOT.onShip ? 0 : FOOT.pos.distanceTo(player.group.position));
@@ -959,6 +1131,7 @@ function footTick(dt, sx, sy, run) {
       logEvent('foot_fall', {});
       return;
     }
+    if (FOOT.group.userData.shadow) FOOT.group.userData.shadow.quaternion.copy(SH_BASE);   // 甲板は平ら
     const c = Math.cos(G.yaw), s = Math.sin(G.yaw);      // 船から見た場所 → 世界の場所
     const dy = d.h(FOOT.lx, FOOT.lz);
     FOOT.pos.set(P.x + FOOT.lx*c + FOOT.lz*s, FOOT.pos.y, P.z - FOOT.lx*s + FOOT.lz*c);
@@ -971,12 +1144,8 @@ function footTick(dt, sx, sy, run) {
     const nx = px - Math.sin(FOOT.yaw)*sp*dt, nz = pz - Math.cos(FOOT.yaw)*sp*dt;
     // ⚠ 止めるだけだと、建物に正面から当たった時に動けなくなる。
     //    片方の軸だけ動かす（かべをすべる）＝はまらない。艦橋を壁にして詰んだ件と同じ轍を踏まない
-    let gx = nx, gz = nz;
-    if (!canWalk(gx, gz)) {
-      if (canWalk(nx, pz)) { gx = nx; gz = pz; }
-      else if (canWalk(px, nz)) { gx = px; gz = nz; }
-      else { gx = px; gz = pz; }
-    }
+    let [gx, gz] = resolveWalk(nx, nz);
+    if (!canWalk(gx, gz)) { gx = px; gz = pz; }      // 物が重なっている所は 動かない（保険）
     const t = islandTopY(gx, gz);
     if (t === null) {                                   // 島のはし＝波打ちぎわで止まる
       FOOT.warnT -= dt;
@@ -985,12 +1154,50 @@ function footTick(dt, sx, sy, run) {
       FOOT.pos.x = gx; FOOT.pos.z = gz;
       FOOT.pos.y += (t - FOOT.pos.y) * Math.min(1, dt*8);   // 段差はなめらかに上る
     }
+    fitShadowToGround(FOOT.group, FOOT.pos.x, FOOT.pos.z);
   }
   FOOT.group.position.copy(FOOT.pos);
   FOOT.group.rotation.y = FOOT.yaw;
 }
-// そこに立てるか（建物の中に入らないか）。0.6 は人の太さのぶん
-const canWalk = (x, z) => !SOLIDS.some(s => Math.abs(x - s.x) < s.hx + 0.6 && Math.abs(z - s.z) < s.hz + 0.6);
+spawnCritters();   // 🕊 島ができたので 生き物を置く（islandTopY を使うため ここより前には置けない）
+// のりものが 大きい島の陸にのり上げていないか。
+// ⚠ ほかの島は いままでどおり すり抜けられる（監督のゲームの動きを変えたくない）。
+//    でも 560m の島をすり抜けるのは さすがに見た目がおかしい
+function onBigLand(x, z) {
+  for (const isl of islandDefs) {
+    if (isl.kind !== 'big') continue;
+    if (Math.hypot(x - isl.x, z - isl.z) > isl.r) continue;
+    return bigH(x - isl.x, z - isl.z, isl.r) > 0.6;
+  }
+  return false;
+}
+// そこに立てるか（物の中に入らないか）。0.6 は人の太さのぶん
+const canWalk = (x, z) => !SOLIDS.some(s => s.round
+  ? Math.hypot(x - s.x, z - s.z) < s.hx + 0.6
+  : (Math.abs(x - s.x) < s.hx + 0.6 && Math.abs(z - s.z) < s.hz + 0.6));
+// 行きたい場所を、物の外へ押し出す。
+// ⚠ 「ぶつかったら動かない」にすると、木に正面からぶつかった人が そこで詰む（実測58mで停止）。
+//    丸い物は 外へ押し出す＝すこし横へずれる＝自然によけられる。
+//    四角い建物は 近いほうの面へ出す＝かべに沿って止まる（かべなので それでいい）
+function resolveWalk(x, z) {
+  for (const s of SOLIDS) {
+    const dx = x - s.x, dz = z - s.z;
+    if (s.round) {
+      const R = s.hx + 0.6, d = Math.hypot(dx, dz);
+      if (d < R) {
+        if (d < 0.0001) { x = s.x + R; continue; }        // ちょうど真ん中なら てきとうに外へ
+        x = s.x + dx / d * R; z = s.z + dz / d * R;
+      }
+    } else {
+      const hx = s.hx + 0.6, hz = s.hz + 0.6;
+      if (Math.abs(dx) < hx && Math.abs(dz) < hz) {
+        if (hx - Math.abs(dx) < hz - Math.abs(dz)) x = s.x + (dx < 0 ? -hx : hx);
+        else                                       z = s.z + (dz < 0 ? -hz : hz);
+      }
+    }
+  }
+  return [x, z];
+}
 // 目と耳の場所。おりているときは「人」がいるところが本当の視点
 const eyePos = () => (FOOT.on ? FOOT.pos : (player.group ? player.group.position : FOOT.pos));
 const eyeYaw = () => (FOOT.on ? FOOT.yaw : G.yaw);
@@ -1122,6 +1329,131 @@ function buildEar() {
   engine = { osc, gain: g };
 }
 
+// ============ 🌊 自然の音（監督案「おりたら音楽がなくなり、自然の聴覚になる」） ============
+// ⚠ ここを sfxBus にぶら下げてはいけない。sfxBus は条件C（?ear=C）でしか作られない。
+//    ふつうに遊ぶ人は ear=B なので、音が1つも鳴らないことになる。
+// ⚠ 音のファイルは無い。ぜんぶその場で作る（雑音を削って波にする）。
+//    パパがあとで本物の録音に差しかえられるように、音ごとに gain を分けてある。
+const AMB = { on: false, built: false, bus: null, wave: null, wind: null, bug: null, rumble: null,
+              birdT: 0, want: { wave: 0, wind: 0, bug: 0, rumble: 0 } };
+// ざーっという雑音を作る（波・風のもと）。2秒ぶん作ってループさせる
+function noiseSource(ctx) {
+  const len = ctx.sampleRate * 2;
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = Math.random()*2 - 1;
+  const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true; src.start();
+  return src;
+}
+function buildAmbient() {
+  if (AMB.built || EAR_MUTE || !audioCtx) return;
+  AMB.built = true;
+  const ctx = audioCtx;
+  AMB.bus = ctx.createGain(); AMB.bus.gain.value = 0;
+  AMB.bus.connect(sfxBus || ctx.destination);
+
+  // 波：雑音の低いところだけ通して、ゆっくり大きさを揺らす（＝寄せて返す）
+  const wg = ctx.createGain(); wg.gain.value = 0;
+  const wf = ctx.createBiquadFilter(); wf.type = 'lowpass'; wf.frequency.value = 900; wf.Q.value = 0.6;
+  const swell = ctx.createGain(); swell.gain.value = 0.55;      // ここに揺れを足す
+  const lfo = ctx.createOscillator(); lfo.frequency.value = 0.17;   // 約6秒で1回＝波の周期
+  const lfoG = ctx.createGain(); lfoG.gain.value = 0.42;
+  lfo.connect(lfoG).connect(swell.gain); lfo.start();
+  noiseSource(ctx).connect(wf).connect(swell).connect(wg).connect(AMB.bus);
+  AMB.wave = wg; AMB.waveLP = wf;   // ⚠ 距離で切る高さを毎フレーム動かす（パパ 9/5）
+
+  // 風：もっと低くこもった雑音。島の内がわで強くする
+  const ng = ctx.createGain(); ng.gain.value = 0;
+  const nf = ctx.createBiquadFilter(); nf.type = 'lowpass'; nf.frequency.value = 380;
+  noiseSource(ctx).connect(nf).connect(ng).connect(AMB.bus);
+  AMB.wind = ng;
+
+  // 虫：高いところだけ残した雑音を、細かく震わせる（セミ・草むらの音）
+  const bg = ctx.createGain(); bg.gain.value = 0;
+  const bf = ctx.createBiquadFilter(); bf.type = 'bandpass'; bf.frequency.value = 4600; bf.Q.value = 7;
+  const trem = ctx.createGain(); trem.gain.value = 0.6;
+  const tl = ctx.createOscillator(); tl.frequency.value = 24;    // ジージーいう震え
+  const tlG = ctx.createGain(); tlG.gain.value = 0.4;
+  tl.connect(tlG).connect(trem.gain); tl.start();
+  noiseSource(ctx).connect(bf).connect(trem).connect(bg).connect(AMB.bus);
+  AMB.bug = bg;
+
+  // 船の甲板にいるときの、足の下の唸り
+  const rg = ctx.createGain(); rg.gain.value = 0;
+  const ro = ctx.createOscillator(); ro.type = 'triangle'; ro.frequency.value = 42;
+  const rf = ctx.createBiquadFilter(); rf.type = 'lowpass'; rf.frequency.value = 200;
+  ro.connect(rf).connect(rg).connect(AMB.bus); ro.start();
+  AMB.rumble = rg;
+}
+// 海鳥のひと鳴き。アジサシのような short な「キーッ」を作る
+// ⚠ ずっと鳴らすと うるさい。ときどき1回だけ
+function birdCall(cut) {
+  if (!AMB.built || !audioCtx) return;
+  const ctx = audioCtx, t = ctx.currentTime;
+  const o = ctx.createOscillator(); o.type = 'sawtooth';
+  const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 5;
+  const g = ctx.createGain();
+  const hi = 1500 + Math.random()*900;
+  o.frequency.setValueAtTime(hi, t);
+  o.frequency.exponentialRampToValueAtTime(hi*0.55, t + 0.22);   // 下がる＝鳥の鳴きらしくなる
+  f.frequency.setValueAtTime(hi*1.6, t);
+  f.frequency.exponentialRampToValueAtTime(hi, t + 0.22);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.10, t + 0.03);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+  // 遠い鳥は こもって聞こえる。⚠ 音量だけ下げると「小さい近くの鳥」になってしまう
+  const air = ctx.createBiquadFilter();
+  air.type = 'lowpass'; air.frequency.value = Math.max(220, cut || 6000);
+  o.connect(f).connect(g).connect(air).connect(AMB.bus || ctx.destination);
+  o.start(t); o.stop(t + 0.32);
+}
+// 岸から何メートル内がわにいるか（海の上なら0）。波の大きさをこれで決める
+function shoreInland(x, z) {
+  for (const isl of islandDefs) {
+    const d = Math.hypot(x - isl.x, z - isl.z);
+    if (d <= isl.r) return isl.r - d;
+  }
+  return 0;
+}
+// 毎フレーム、自然の音のバランスを決める
+const AMB_FADE_M = 130;    // 岸からこれだけ内がわに入ると、波はほぼ聞こえない
+function updateAmbient(dt) {
+  if (EAR_MUTE || !audioCtx) return;
+  if (FOOT.on && !AMB.built) buildAmbient();
+  if (!AMB.built) return;
+  const w = AMB.want;
+  // ⚠ 距離で変わるのは 音量だけではない（パパ 9/5）。
+  //    空気と地面と木が **高い音から先に吸う** ので、遠い波は低いゴロゴロだけが残る。
+  //    音量だけ下げると「小さい音で近くにある波」に聞こえてしまい、遠さが出ない。
+  //    （このゲームの戦闘音 sfxOut でも同じ考えを使っている：12000/(1+d/200)）
+  let cut = 9000;
+  if (!FOOT.on) { w.wave = 0; w.wind = 0; w.bug = 0; w.rumble = 0; }
+  else if (FOOT.onShip) { w.wave = 0.30; w.wind = 0.05; w.bug = 0; w.rumble = 0.10; cut = 1800; }
+  else {
+    const inland = shoreInland(FOOT.pos.x, FOOT.pos.z);
+    const away = Math.min(1, inland / AMB_FADE_M);        // 0=岸ぎわ 1=じゅうぶん内がわ
+    w.wave = 0.34 * Math.pow(1 - away, 1.6);
+    w.wind = 0.03 + 0.07 * away;
+    w.bug  = 0.05 + 0.13 * away;                          // 内がわほど 虫の音になる
+    w.rumble = 0;
+    cut = 1600 * Math.pow(0.11, away);                    // 岸1600Hz → 一番おく180Hz
+    // 鳥は ときどき1回。岸に近いほど よく鳴く（海鳥なので）＋遠いほど こもる
+    AMB.birdT -= dt;
+    if (AMB.birdT <= 0) {
+      AMB.birdT = 3 + Math.random()*7;
+      if (Math.random() < 0.8 - away*0.5) birdCall(5000 * Math.pow(0.16, away));
+    }
+  }
+  if (AMB.waveLP) {                                       // 切る高さも ゆっくり動かす（急に変えると段になる）
+    const f = AMB.waveLP.frequency;
+    f.value += (Math.max(120, cut) - f.value) * Math.min(1, dt * 1.6);
+  }
+  const k = Math.min(1, dt * 1.6);                        // 切りかわりは ゆっくり
+  const ease = (node, target) => { if (node) node.gain.value += (target - node.gain.value) * k; };
+  ease(AMB.wave, w.wave); ease(AMB.wind, w.wind); ease(AMB.bug, w.bug); ease(AMB.rumble, w.rumble);
+  AMB.bus.gain.value += ((FOOT.on ? 1 : 0) - AMB.bus.gain.value) * k;
+}
+
 // 音の出口を返す。ここが「耳をどこに置くか」の分かれ道。
 // pos を渡さない音＝自分のすぐそば（自機の武器）なので、距離の計算はしない。
 function sfxOut(pos) {
@@ -1159,7 +1491,8 @@ function updateEar(P, fwd) {
                : G.mode === 'ship'    ? { f: 34, v: 0.09 }
                :                        { f: 46, v: 0.06 };
     engine.osc.frequency.value = spec.f;
-    engine.gain.gain.value += ((G.running ? spec.v : 0) - engine.gain.gain.value) * 0.08;
+    // 🚶 おりているあいだは のりものの中にいない＝エンジン音は聞こえない
+    engine.gain.gain.value += (((G.running && !FOOT.on) ? spec.v : 0) - engine.gain.gain.value) * 0.08;
   }
 }
 
@@ -1264,6 +1597,12 @@ function playBgm(name) {
   if (G.tutorial && name !== 'tutorial') return;   // v5: チュートリアル中は曲を切りかえない
   if (EAR_MUTE) return;          // 条件A（音なし）は音楽も鳴らさない
   if (bgm.name === name) return;
+  if (name === 'none') {                       // 🚶 曲を止める（おりた時）
+    const cur = bgm.current, tok = ++bgm.seq;
+    bgm.name = 'none'; bgm.current = null;
+    if (cur) bgmFadeOut(cur, tok);
+    return;
+  }
   let t = bgm.tracks[name];
   if (!t && name === 'tutorial') t = bgm.tracks['battle'];   // v5: tutorial.mp3 がまだ無いあいだは戦闘の曲でだいよう
   // v5: その曲のファイルがまだ無いときは、いま鳴っている曲をそのまま続ける。
@@ -1298,6 +1637,10 @@ function playBgm(name) {
 // ⚠ 呼ぶ場所ごとに if を書くと、切り札が出ているのに霧の曲へ切りかわる、が必ず起きる。
 //    場面が増えるたびに全部の呼び出し元を直すはめになるので、ここだけを見る形にした。
 function bgmScene() {
+  // 🚶 監督案（9/5）「おりたら音楽がなくなり 自然の聴覚になる。
+  //    敵機の音 爆撃や機銃の音と 美しい自然の音が同時に存在する世界になる」
+  // ⚠ 止めるのは**音楽だけ**。戦闘の音は別の道（sfxOut）を通るので そのまま鳴る
+  if (FOOT.on) return 'none';
   if (!G.running) return 'title';
   if (myTrumpAlive()) return 'trump';   // 切り札が生きているあいだは ずっと切り札の曲
   return G.fogActive ? 'fog' : 'battle';
@@ -1306,6 +1649,21 @@ const myId = () => (NET.on ? NET.me : 'me');
 const myTrumpAlive = () => units.some(u => u.klass === 'trump' && !u.dead && u.owner === myId());
 
 let fadeTimer = null;
+function bgmFadeOut(track, token) {
+  if (fadeTimer) { clearInterval(fadeTimer); fadeTimer = null; }
+  const sec = 1.2, step = 0.05;
+  let v = track.volume;
+  fadeTimer = setInterval(() => {
+    if (token !== bgm.seq) { clearInterval(fadeTimer); fadeTimer = null; return; }   // 次の曲が始まった
+    v -= BGM_VOL * (step / sec);
+    if (v <= 0) {
+      clearInterval(fadeTimer); fadeTimer = null;
+      track.pause();
+      if (track.fanfare) track.currentTime = 0;
+      track.volume = BGM_VOL;
+    } else track.volume = Math.max(0, v);
+  }, step * 1000);
+}
 function bgmCrossfade(from, to, token, fromName) {
   if (fadeTimer) { clearInterval(fadeTimer); fadeTimer = null; }
   const finish = () => {
@@ -1637,7 +1995,7 @@ function startGame(faction, mode, def) {
   // ⚠ 港は出撃のたびに建てなおす（建物の位置はランダム）。足あとを消さないと
   //    まえの回の「見えない壁」が海の上に残る
   SOLIDS.length = 0;
-  for (const d of islandDefs) if (d.kind === 'base') SOLIDS.push({ x: d.x, z: d.z + d.r*0.45, hx: 3, hz: 3 });
+  SOLIDS.push(...SOLIDS_FIXED);
   if (player.group) scene.remove(player.group);
   G.myTrumps = 0;   // v6: 切り札は units の中なので、上の units そうじで一緒に消えている
   for (const p of projs) scene.remove(p.mesh);
@@ -2056,7 +2414,13 @@ function tick() {
     G.yaw -= sx * G.def.turn * dt;
     G.shipSpeed = Math.max(0, Math.min(G.def.speed, G.shipSpeed - sy * 14 * dt));
     fwd.set(-Math.sin(G.yaw), 0, -Math.cos(G.yaw));
+    const bx = P.x, bz = P.z;
     P.addScaledVector(fwd, G.shipSpeed * dt);
+    if (onBigLand(P.x, P.z)) {                        // 大きい島の岸で止まる
+      P.x = bx; P.z = bz; G.shipSpeed = 0;
+      if (!G.beachT || G.beachT <= 0) { G.beachT = 3; showMessage('🏝 島についた！「🚶 おりる」で 上陸できる', 2.5); }
+    }
+    if (G.beachT > 0) G.beachT -= dt;
     P.y = 0;
     player.group.rotation.set(0, G.yaw, 0);
     if (G.def.selfRepair) G.hp = Math.min(G.maxHp, G.hp + 2*dt);
@@ -2069,7 +2433,9 @@ function tick() {
     G.yaw -= sx * G.def.turn * dt;
     G.depth = Math.max(-22, Math.min(-2, G.depth - sy * 8 * dt));
     fwd.set(-Math.sin(G.yaw), 0, -Math.cos(G.yaw));
+    const sbx = P.x, sbz = P.z;
     P.addScaledVector(fwd, G.def.speed * dt);
+    if (onBigLand(P.x, P.z)) { P.x = sbx; P.z = sbz; }   // 潜水艦も 陸にはのり上げない
     P.y = G.depth;
     player.group.rotation.set(0, G.yaw, 0);
     if (Math.hypot(P.x-OUR.port.x, P.z-OUR.port.z) < 130) G.hp = Math.min(G.maxHp, G.hp + 8*dt);
@@ -2410,6 +2776,8 @@ function tick() {
 
   // ---- 耳（条件Cのときだけ）。カメラのあとに置くのは、目と耳が別物だとわかるようにするため ----
   updateEar(eyePos(), fwd);   // 🚶 おりているときは、耳も人のところにある
+  updateAmbient(dt);          // 🌊 波・風・虫・鳥。おりているあいだだけ鳴る
+  updateCritters(dt, now/1000);   // 🕊 海鳥はいつも飛んでいる。ヤシガニはおりた時だけ動く
 
   // ---- 空ときりの色（水中なら海の色） ----
   const underwater = camera.position.y < 0;
@@ -2512,6 +2880,7 @@ function drawMinimap() {
     // v6: 監督8/26「白は、日本 赤は、アメリカ」
     mm.fillStyle = isl.tag === 'japan' ? '#ffffff'
                  : isl.tag === 'america' ? '#ff1744'
+                 : isl.kind === 'big' ? '#8bc34a'
                  : isl.kind === 'plain' ? '#8d6e63' : isl.side === 'ally' ? (isl.kind === 'port' ? '#29b6f6' : '#1976d2') : (isl.kind === 'port' ? '#ff1744' : '#c62828');
     const x = sx(isl.x), y = sy(isl.z);
     if (isl.kind === 'plain') {                       // ただの島は、外に出たら消えていい
@@ -2623,7 +2992,7 @@ const NET = { on: false, word: '', me: '', name: localStorage.getItem('pw_name')
 // ⚠ つながらない時に「どこで止まったか」を画面に出す（パパ 9/5・PC×スマホ4Gで入れなかった）。
 // 口で往復するより、1回開けば分かる形にする。止まりうる場所は3つあって、直し方が全部ちがう：
 //   ① リレー（相手さがし）に届かない ② 相手は見つかったがNAT越えできない ③ データが来ない
-const BUILD = 'v6-0905v';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
+const BUILD = 'v6-0905w';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
 const NETDIAG = { lib: '', joined: false, peerJoin: 0, packets: 0, ice: '', srflx: 0, relay: 0, err: '',
                   t0: 0, states: [], pcs: 0, tries: 0, gen: 0 };   // gen=入り直しの世代   // t0=部屋に入った時刻／states=ICEがたどった状態
 // ⚠ ICEの様子は Trystero の内側にあるので、RTCPeerConnection を包んで のぞく
@@ -3301,7 +3670,7 @@ setInterval(() => {
 // ⚠ 音は「鳴っているつもり」が一番あてにならない（今日それで1つ見落とした）。目で見えるようにする
 // ?dev=1 のときだけ、中身をコンソールから見えるようにする（歩きの調べ用・テストもここを読む）。
 // ⚠ 目で見て「歩けてる」と、数字が正しいは別。落ちた/止まったを数字で確かめる口を作っておく
-if (DEV) { window.__pw = { FOOT, G, player, units, NET, footWhere, deckOf, islandTopY, SOLIDS, canWalk, frames: () => frameSeq }; window.NETDIAG = NETDIAG; }
+if (DEV) { window.__pw = { FOOT, G, player, units, NET, footWhere, deckOf, islandTopY, islandDefs, SOLIDS, canWalk, AMB, bigH, critters, bgmName: () => bgm.name, frames: () => frameSeq }; window.NETDIAG = NETDIAG; }
 if (DEV) {
   const bd = document.createElement('div');
   bd.style.cssText = 'position:fixed;right:8px;bottom:8px;z-index:99;background:rgba(0,20,40,.8);'
