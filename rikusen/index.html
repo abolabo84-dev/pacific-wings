@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>陸上戦 〜要塞をのっとれ！〜 第1号</title>
+<title>太平洋の鋼 〜要塞をのっとれ！〜 第1号</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: "Meiryo", sans-serif; touch-action: none; }
@@ -87,7 +87,9 @@
 <div class="fbtn" id="crouchBtn">🧎<br>しゃがむ</div>
 
 <div class="overlay" id="titleScreen">
-  <h1>⛰ 陸上戦 🪖</h1>
+  <!-- 題名は監督が付けた（2026-09-05）。「太平洋の翼」＝海／「太平洋の鋼」＝陸 -->
+  <h1>⛰ 太平洋の鋼 🪖</h1>
+  <p style="margin:-.4em 0 .6em; font-size:.85rem; opacity:.75">陸上戦・第1号　<span id="buildTag"></span></p>
   <p>敵の<b>要塞（ようさい）</b>の旗の下に立って、のっとったら勝ち！<br>
   じぶんの要塞を のっとられたら負け…<br>
   たおれた なかまには 近づくと <b>ほうたいで 蘇生（そせい）</b>できる（30秒いない！）<br>
@@ -197,15 +199,15 @@ const NATIONS = [
 // ⚠ はしごとクラフト表は最小形では未実装（下のponytail）
 const AI_RANGE = 110;   // AI兵が撃ちはじめる距離（弾は126mとどく）
 const CLASSES = [
-  { id: 'rifle',  name: 'ライフル兵', icon: '🔫', speed: 11, hp: 100, dmg: 22, cd: 0.55, spread: 0.015,
+  { id: 'rifle',  name: 'ライフル兵', icon: '🔫', speed: 7, hp: 100, dmg: 22, cd: 0.55, spread: 0.015,
     desc: 'とくべつな道具は無い。そのぶん 銃が一番強い', skill: 'none' },
-  { id: 'medic',  name: '医療兵',     icon: '🩹', speed: 11, hp: 100, dmg: 10, cd: 0.4,  spread: 0.05,
+  { id: 'medic',  name: '医療兵',     icon: '🩹', speed: 7, hp: 100, dmg: 10, cd: 0.4,  spread: 0.05,
     desc: '⭐で ほうたい＝近くのなかまと自分を回復。蘇生も2倍はやい', skill: 'heal' },
-  { id: 'eng',    name: '工作兵',     icon: '🧱', speed: 10, hp: 110, dmg: 12, cd: 0.45, spread: 0.04,
+  { id: 'eng',    name: '工作兵',     icon: '🧱', speed: 6.5, hp: 110, dmg: 12, cd: 0.45, spread: 0.04,
     desc: '⭐で 砂袋（すなぶくろ）を置ける＝弾をふせぐ壁になる（10個まで）', skill: 'bag' },
-  { id: 'scout',  name: '偵察兵',     icon: '🔭', speed: 14, hp: 85,  dmg: 16, cd: 0.5,  spread: 0.008,
+  { id: 'scout',  name: '偵察兵',     icon: '🔭', speed: 9, hp: 85,  dmg: 16, cd: 0.5,  spread: 0.008,
     desc: '足がはやい。⭐で スコープ＝遠くが大きく見える', skill: 'scope' },
-  { id: 'mg',     name: '機関兵',     icon: '🔥', speed: 9,  hp: 115, dmg: 8,  cd: 0.09, spread: 0.06,
+  { id: 'mg',     name: '機関兵',     icon: '🔥', speed: 6,  hp: 115, dmg: 8,  cd: 0.09, spread: 0.06,
     desc: '機関銃＝おしっぱなしで連射できる。そのかわり足がおそい', skill: 'none' },
 ];
 // ponytail: はしご・クラフト表UI・服3種・迫撃砲は未実装, 監督が最小形で遊んで「次はどれ」と決めたら足す
@@ -229,8 +231,10 @@ scene.add(sun, new THREE.AmbientLight(0xbcd4a0, 1.1));
 
 // ============ 地形（監督8/25「ちけいは、たまに塹壕や坂がある木もある地面」） ============
 // 高さは1つの関数 h(x,z) で決める。⚠ メッシュと歩行で別の計算をすると、足が地面にめり込む
-const FORT_ALLY = { x: -180, z: 0 };
-const FORT_FOE  = { x:  180, z: 0 };
+// ⚠ 監督 9/5「敵の拠点が近すぎた」。前は360mしか離れておらず、走って20秒で横断できた。
+//    520m に広げる（歩ける範囲は ±300 なので ±260 まで置ける）
+const FORT_ALLY = { x: -260, z: 0 };
+const FORT_FOE  = { x:  260, z: 0 };
 function hillH(x, z) { return 2.2*Math.sin(x*0.015)*Math.cos(z*0.02) + 1.2*Math.sin(x*0.05+z*0.03); }
 function trenchH(x, z) {
   // 塹壕（ざんごう）2本。z=±55 のあたりを東西に走る溝
@@ -469,7 +473,7 @@ function startGame() {
   G.maxHp = G.cls.hp; G.hp = G.maxHp;
   G.gren = 3; G.cannon = 1; G.kills = 0; G.crouch = false; G.scope = false; G.hurtT = 99;
   camera.fov = 70; camera.updateProjectionMatrix();
-  // AI兵（味方4・敵5。うち何体かは要塞をねらう）
+  // AI兵。⚠ 監督 9/5「あと敵と味方数を増やしたい」→ 味方4→8・敵5→10
   const mkAI = (faction, n) => {
     for (let i = 0; i < n; i++) {
       const home = faction === 'ally' ? FORT_ALLY : FORT_FOE;
@@ -478,12 +482,14 @@ function startGame() {
       g.position.set(x, H(x, z), z);
       scene.add(g);
       const s = { group: g, faction, hp: 90, maxHp: 90, state: 'fight', downT: 0, revT: 0,
-        cd: 1 + Math.random()*2, mission: i < 2 ? 'capture' : 'fight', yaw: 0 };
+        cd: 1 + Math.random()*2, mission: i < 3 ? 'capture' : 'fight', yaw: 0,
+        // 🚶 横にちらす＝一列に固まって突っこまない／押しと止まりの周期
+        lane: (Math.random()-0.5)*90, pushT: Math.random()*2, pushing: Math.random() < 0.5 };
       attachHpBar(s, 3.1);
       soldiers.push(s);
     }
   };
-  mkAI('ally', 4); mkAI('foe', 5);
+  mkAI('ally', 8); mkAI('foe', 10);
   G.running = true;
   $('titleScreen').style.display = 'none';
   $('endScreen').style.display = 'none';
@@ -618,6 +624,10 @@ let lastT = performance.now(), fireCd = 0, grenCd = 0, skillCd = 0;
 // ⚠ setTimeout は裏では毎秒1回に絞られるので、絞られない MessageChannel を使う。
 //    これを知らずに測ると「動かない！」と実装を疑うことになる（海戦で何度も踏んだ）
 const DEVMODE = new URLSearchParams(location.search).get('dev') === '1';
+// ⚠ 版の印。監督がスマホで試して報告してくるので、**どの版を見ているか**が分からないと
+//    直したはずの物を「まだ直ってない」と言われる（古いキャッシュを見ているだけ、が起きる）
+const BUILD = 'riku-0906a';
+{ const e = document.getElementById('buildTag'); if (e) e.textContent = '版:' + BUILD; }
 const devPump = (() => {
   if (!DEVMODE) return null;
   const mc = new MessageChannel();
@@ -650,7 +660,9 @@ function tick() {
   G.crouchKey = keys['KeyX'];
   player.yaw -= sx * 2.2 * dt;
   fwd.set(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
-  let sp = G.cls.speed * (run ? 1.6 : 1) * (G.crouch ? 0.5 : 1);
+  // ⚠ 監督 9/5「あと行動が早い」。歩き11m/sはボルト並み、走ると その1.5倍だった。
+  //    兵科の speed を約0.64倍にし、走りも 1.6→1.5 にした
+  let sp = G.cls.speed * (run ? 1.5 : 1) * (G.crouch ? 0.5 : 1);
   const nx = P.x - fwd.x * sy * sp * dt;
   const nz = P.z - fwd.z * sy * sp * dt;
   // 建物にはめり込まない
@@ -803,12 +815,23 @@ function tick() {
       const dp = P.distanceTo(sp2);
       if (dp < best) { best = dp; tgt = P; }
     }
-    // 目的地：のっとり係は相手の要塞へ／戦う係は敵のいるほうへ
-    const goal = s.mission === 'capture'
+    // 目的地：のっとり係は相手の要塞へ／戦う係は敵のいるほうへ。
+    // ⚠ lane で横にずらす＝全員が同じ一点に集まって 一列で突っこむのを防ぐ
+    const base = s.mission === 'capture'
       ? (s.faction === 'ally' ? FORT_FOE : FORT_ALLY)
       : (tgt ? { x: tgt.x, z: tgt.z } : (s.faction === 'ally' ? FORT_FOE : FORT_ALLY));
+    const goal = { x: base.x, z: base.z + (s.mission === 'capture' ? s.lane : 0) };
     const gd = Math.hypot(goal.x-sp2.x, goal.z-sp2.z);
-    if (gd > (s.mission === 'capture' ? 6 : 22)) {
+    // ⚠ 監督 9/5「あと味方が突進するの面白くない」。
+    //    いままでは **撃ちながら ずっと真っすぐ歩いていた**＝突撃にしか見えない。
+    //    敵が射程に入ったら **止まって撃つ**。ときどきだけ前へ出る（押す→止まる→撃つ）
+    s.pushT -= dt;
+    if (s.pushT <= 0) {
+      s.pushing = !s.pushing;
+      s.pushT = s.pushing ? (1.0 + Math.random()*1.4) : (2.2 + Math.random()*2.6);
+    }
+    const engaged = tgt && best < AI_RANGE;
+    if ((!engaged || s.pushing) && gd > (s.mission === 'capture' ? 6 : 22)) {
       const dx = (goal.x-sp2.x)/gd, dz = (goal.z-sp2.z)/gd;
       sp2.x += dx * 6.5 * dt; sp2.z += dz * 6.5 * dt;
       sp2.y = H(sp2.x, sp2.z);
