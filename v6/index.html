@@ -1323,7 +1323,10 @@ if (DEV) {
   ];
   // ponytail: 時間つまみは燃料と同義のため未実装, 監督が「燃料と別の時間がほしい」と言ったら別変数で実装
   const pane = document.createElement('div');
-  pane.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99;background:rgba(0,20,40,.85);color:#fff;padding:8px 10px;border-radius:8px;font:12px sans-serif;width:210px';
+  // ⚠ z-index は 19。前は99で、タイトル画面の「あそびかた」の上にかぶって字が読めなかった。
+  //    調整パネルは **遊んでいる間だけ** 要るもの。オーバーレイ(20)より下、
+  //    ステータス(10)やスティック(15)より上、が正しい重なり順
+  pane.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:19;background:rgba(0,20,40,.85);color:#fff;padding:8px 10px;border-radius:8px;font:12px sans-serif;width:210px';
   pane.innerHTML = '<b>🎛 監督の調整パネル</b><br>' + defs.map(([k, name]) =>
     `<label style="display:block;margin-top:4px">${name} <span id="tv_${k}"></span><br>` +
     `<input id="tn_${k}" type="range" style="width:100%"></label>`).join('') +
