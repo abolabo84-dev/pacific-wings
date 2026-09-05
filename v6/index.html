@@ -1205,7 +1205,7 @@ $('btnAllied').onclick = () => openUnitScreen('allied');
 $('btnAxis').onclick = () => openUnitScreen('axis');
 // v5: タイトル画面の音楽ON/OFFボタン
 $('btnBgm').textContent = bgmOn ? '🎵 音楽：ON' : '🔇 音楽：OFF';
-$('btnBgm').onclick = () => { initAudio(); setBgm(!bgmOn); };
+$('btnBgm').onclick = () => { initAudio(); unlockAllBgm(); setBgm(!bgmOn); };
 
 // v6: レーダーの場所（監督8/26「レーダを真ん中にする」）。
 // 右上にもどせるようにしてある＝どっちが遊びやすいかは監督が遊んでから決める
@@ -1290,11 +1290,34 @@ function setDiff(d) {
 //    なので読みこんだ瞬間には鳴らせない。最初のひとさわりで始める。
 // ⚠ 遊んでいる最中に呼ぶと戦闘の曲を消してしまうので、タイトル画面にいる時だけ。
 let titleBgmStarted = false;
+// ⚠ iOS(Safari)は「さわった」の許可を**曲ごとに**出す。1曲さわって鳴らしても、
+//    あとから別の曲を鳴らそうとすると断られる。
+//    → パパ 9/5「霧がでても曲がきりかわらなかった」の正体。
+//      戦闘曲だけが解禁されていて、きりの曲は断られ、こちらの
+//      「鳴らせなかったら前の曲を続ける」が働いて戦闘曲のままになっていた。
+// → 最初のひとさわりで **全部の曲を音量0で一瞬鳴らして止める**＝ぜんぶ解禁しておく。
+let bgmUnlocked = false;
+function unlockAllBgm() {
+  if (bgmUnlocked) return;
+  bgmUnlocked = true;
+  for (const k in bgm.tracks) {
+    const a = bgm.tracks[k];
+    if (!a) continue;
+    const v = a.volume;
+    a.volume = 0;
+    const pr = a.play();
+    if (pr && pr.then) pr.then(() => { a.pause(); a.currentTime = 0; a.volume = v; })
+                         .catch(() => { a.volume = v; });
+    else { try { a.pause(); } catch (e) {} a.volume = v; }
+  }
+}
 function startTitleBgm() {
   if (titleBgmStarted || G.running || G.tutorial) return;
   if ($('titleScreen').style.display === 'none') return;
   titleBgmStarted = true;
-  initAudio(); playBgm('title');
+  initAudio();
+  unlockAllBgm();      // ⚠ playBgm より先。ここが最初のひとさわり
+  playBgm('title');
 }
 // ⚠ 機械やブラウザによって、さわった時に出るイベントの種類がちがう。
 //    1種類だけだと「あの機械では鳴らない」が起きるので、まとめて受ける
@@ -1306,6 +1329,7 @@ for (const b of document.querySelectorAll('.dbtn')) b.onclick = () => setDiff(b.
 setDiff(DIFF);   // URLの ?diff= があればそれが初期値（研究の起動リンクとの互換）
 function openUnitScreen(f) {
   initAudio();
+  unlockAllBgm();
   playBgm('title');
   selFaction = f;
   $('titleScreen').style.display = 'none';
@@ -2297,7 +2321,7 @@ const NET = { on: false, word: '', me: '', name: localStorage.getItem('pw_name')
 // ⚠ つながらない時に「どこで止まったか」を画面に出す（パパ 9/5・PC×スマホ4Gで入れなかった）。
 // 口で往復するより、1回開けば分かる形にする。止まりうる場所は3つあって、直し方が全部ちがう：
 //   ① リレー（相手さがし）に届かない ② 相手は見つかったがNAT越えできない ③ データが来ない
-const BUILD = 'v6-0905q';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
+const BUILD = 'v6-0905r';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
 const NETDIAG = { lib: '', joined: false, peerJoin: 0, packets: 0, ice: '', srflx: 0, relay: 0, err: '',
                   t0: 0, states: [], pcs: 0, tries: 0, gen: 0 };   // gen=入り直しの世代   // t0=部屋に入った時刻／states=ICEがたどった状態
 // ⚠ ICEの様子は Trystero の内側にあるので、RTCPeerConnection を包んで のぞく
@@ -2965,6 +2989,22 @@ setInterval(() => {
 // ?dev=1 のときだけ、通信の中身をコンソールから触れるようにする（つながらない時の調べ用）。
 // ⚠ 裏タブは requestAnimationFrame が止まる＝位置を送らなくなる。2枚のタブで試すときは
 //    両方を「見えている」状態（べつのウィンドウ）にすること。8/21のHANABIと同じ罠。
+// ?dev=1 のときだけ、いま何の曲が鳴っているかを画面のすみに出す。
+// ⚠ 音は「鳴っているつもり」が一番あてにならない（今日それで1つ見落とした）。目で見えるようにする
+if (DEV) {
+  const bd = document.createElement('div');
+  bd.style.cssText = 'position:fixed;right:8px;bottom:8px;z-index:99;background:rgba(0,20,40,.8);'
+    + 'color:#fff;padding:4px 8px;border-radius:6px;font:11px monospace;pointer-events:none';
+  document.body.appendChild(bd);
+  setInterval(() => {
+    const c = bgm.current;
+    const locked = Object.keys(bgm.tracks).filter(k => bgm.tracks[k] && bgm.tracks[k].paused
+      && bgm.tracks[k].currentTime === 0 && k !== bgm.name).length;
+    bd.textContent = '🎵 ' + (bgm.name || 'なし')
+      + (c ? (c.paused ? ' [とまってる]' : ' ▶' + Math.round(c.currentTime) + 's v' + c.volume.toFixed(2)) : '')
+      + ' / 場面:' + (G.running ? bgmScene() : '-') + ' / 解禁:' + (bgmUnlocked ? 'ずみ' : 'まだ');
+  }, 500);
+}
 if (DEV) { window.NET = NET; window.dbg = () => ({ units, trumps: trumpList(), projs, G, player, dealDamage, netElect, requestTrump, shoot, THREE, bgm, playBgm }); }
 
 // ============ 記録用の自動スタート（?auto=allied|axis&cat=fighter|ship|sub&type=ID&demo=1） ============
