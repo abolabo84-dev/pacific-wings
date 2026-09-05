@@ -1421,7 +1421,13 @@ function buildAmbient() {
 //    （論文の採集は 18:00〜06:00。ガ島では戦闘より病気で倒れた人のほうが多かった）
 // ⚠ ここは「何がいるか」を調べてから音を決めた。前は種のない ただの「虫」だった
 const hourNow = () => Math.floor(G.gameMin / 60) % 24;
-// 🦟 蚊が耳のそばを通る。⚠ 音だけ。体力は減らさない（そこまでやるかは監督の判断）
+// 🦟 蚊が耳のそばを通る。
+// ⚠ 2026-09-05 パパ判断で **いったんミュート**。「監督判断案件」。
+//    調べた中身（Anopheles farauti・ガ島では戦闘より病気で倒れた人が多い）は
+//    子どもに出す音として重い。入れるかどうかは監督が決める。
+//    コードは消さない＝「入れる」と決まったら ?mosq=1 を外すだけで戻る。
+//    判断してもらう時は **?mosq=1** を付けて 実際に聞かせる
+const MOSQ_ON = new URLSearchParams(location.search).get('mosq') === '1';
 function mosquito() {
   if (!AMB.built || !audioCtx) return;
   AMB.nMosq = (AMB.nMosq || 0) + 1;
@@ -1597,7 +1603,7 @@ function updateAmbient(dt) {
       }
     }
     // 蚊：夕方（18時）から朝（6時）まで。⚠ 論文の採集時間と同じ帯
-    if (hh >= 18 || hh < 6) {
+    if (MOSQ_ON && (hh >= 18 || hh < 6)) {          // ⚠ 既定では鳴らさない（監督判断まち）
       AMB.mosqT -= dt;
       if (AMB.mosqT <= 0) { AMB.mosqT = 7 + Math.random()*16; mosquito(); }
     }
@@ -3236,7 +3242,7 @@ const NET = { on: false, word: '', me: '', name: localStorage.getItem('pw_name')
 // ⚠ つながらない時に「どこで止まったか」を画面に出す（パパ 9/5・PC×スマホ4Gで入れなかった）。
 // 口で往復するより、1回開けば分かる形にする。止まりうる場所は3つあって、直し方が全部ちがう：
 //   ① リレー（相手さがし）に届かない ② 相手は見つかったがNAT越えできない ③ データが来ない
-const BUILD = 'v6-0905z';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
+const BUILD = 'v6-0906a';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
 const NETDIAG = { lib: '', joined: false, peerJoin: 0, packets: 0, ice: '', srflx: 0, relay: 0, err: '',
                   t0: 0, states: [], pcs: 0, tries: 0, gen: 0 };   // gen=入り直しの世代   // t0=部屋に入った時刻／states=ICEがたどった状態
 // ⚠ ICEの様子は Trystero の内側にあるので、RTCPeerConnection を包んで のぞく
@@ -3923,7 +3929,7 @@ setInterval(() => {
 // ?dev=1 のときだけ、中身をコンソールから見えるようにする（歩きの調べ用・テストもここを読む）。
 // ⚠ 目で見て「歩けてる」と、数字が正しいは別。落ちた/止まったを数字で確かめる口を作っておく
 if (DEV) { window.gameLogPeek = () => gameLog; window.__pw = { FOOT, G, player, NET, footWhere, deckOf, islandTopY, islandDefs, SOLIDS, canWalk,
-    AMB, bigH, critters, DRONES, sfxOut, eyePos, initAudio, spawnAIPlane, updateDrones, footHit, THREE, get projs() { return projs; },
+    AMB, bigH, critters, mosqOn: () => MOSQ_ON, DRONES, sfxOut, eyePos, initAudio, spawnAIPlane, updateDrones, footHit, THREE, get projs() { return projs; },
     // ⚠ units は startGame で作りなおされる（units = []）。値でつかむと 古い配列を見つづけて、
     //    「敵機は0機」のような まちがった観測をする（9/5に実際やった）。必ず今のものを返す
     get units() { return units; },
