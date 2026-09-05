@@ -1059,6 +1059,9 @@ function footEnter(w) {
   }
   FOOT.group.visible = true;
   FOOT.on = true; FOOT.fall = 0; FOOT.warnT = 0; FOOT.yaw = G.yaw;
+  G.footHp = FOOT_HP; G.footWarnT = 0; G.aaWarned = false;
+  // 1回目までの間。⚠ すぐ来ると 島を見るひまが無い。まず きれいなところを見せる
+  AMB.strafeT = (DIFF === 'easy' ? 45 : DIFF === 'hard' ? 18 : 28) + Math.random()*10;
   if (w.kind === 'deck') {
     FOOT.onShip = true;
     // 船のうしろ側に立って、へさきの方を向く＝船ぜんぶが目の前に見える。
@@ -1348,7 +1351,8 @@ function buildEar() {
 // ⚠ 音のファイルは無い。ぜんぶその場で作る（雑音を削って波にする）。
 //    パパがあとで本物の録音に差しかえられるように、音ごとに gain を分けてある。
 const AMB = { on: false, built: false, bus: null, wave: null, wind: null, bug: null, rumble: null,
-              birdT: 0, want: { wave: 0, wind: 0, bug: 0, rumble: 0 } };
+              birdT: 0, chirpT: 0, gustT: 0, gust: 1, warT: 2, strafeT: 22,
+              want: { wave: 0, wind: 0, bug: 0, rumble: 0 } };
 // ざーっという雑音を作る（波・風のもと）。2秒ぶん作ってループさせる
 function noiseSource(ctx) {
   const len = ctx.sampleRate * 2;
@@ -1381,14 +1385,13 @@ function buildAmbient() {
   noiseSource(ctx).connect(nf).connect(ng).connect(AMB.bus);
   AMB.wind = ng;
 
-  // 虫：高いところだけ残した雑音を、細かく震わせる（セミ・草むらの音）
+  // 虫：⚠ 前は 4.6kHz を 24Hz でずっと震わせていた。それは**モーターのうなりと同じ作り**で、
+  //    パパに「自機のエンジン音が歩いてもついてくる」と聞こえた（9/5 実測報告）。
+  //    本物の虫は **ばらばらの短い声がたくさん重なったもの**。一定の震えにしない。
+  //    ここは「うすい下地」だけ。声そのものは bugChirp() でばらばらに鳴らす
   const bg = ctx.createGain(); bg.gain.value = 0;
-  const bf = ctx.createBiquadFilter(); bf.type = 'bandpass'; bf.frequency.value = 4600; bf.Q.value = 7;
-  const trem = ctx.createGain(); trem.gain.value = 0.6;
-  const tl = ctx.createOscillator(); tl.frequency.value = 24;    // ジージーいう震え
-  const tlG = ctx.createGain(); tlG.gain.value = 0.4;
-  tl.connect(tlG).connect(trem.gain); tl.start();
-  noiseSource(ctx).connect(bf).connect(trem).connect(bg).connect(AMB.bus);
+  const bf = ctx.createBiquadFilter(); bf.type = 'bandpass'; bf.frequency.value = 5200; bf.Q.value = 1.4;
+  noiseSource(ctx).connect(bf).connect(bg).connect(AMB.bus);
   AMB.bug = bg;
 
   // 船の甲板にいるときの、足の下の唸り
@@ -1397,6 +1400,35 @@ function buildAmbient() {
   const rf = ctx.createBiquadFilter(); rf.type = 'lowpass'; rf.frequency.value = 200;
   ro.connect(rf).connect(rg).connect(AMB.bus); ro.start();
   AMB.rumble = rg;
+}
+// 🦗 虫の声をひとつ。⚠ 長さも高さも間かくも毎回変える＝機械に聞こえない
+function bugChirp(vol) {
+  if (!AMB.built || !audioCtx || vol <= 0) return;
+  const ctx = audioCtx, t = ctx.currentTime;
+  const f = ctx.createBiquadFilter();
+  f.type = 'bandpass'; f.frequency.value = 3400 + Math.random()*3200; f.Q.value = 14 + Math.random()*14;
+  const g = ctx.createGain();
+  const n = noiseSource(ctx);
+  const dur = 0.05 + Math.random()*0.11;
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(vol, t + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  n.connect(f).connect(g).connect(AMB.bus || ctx.destination);
+  setTimeout(() => { try { n.stop(); } catch (e) {} }, (dur + 0.1) * 1000);
+}
+// 💥 遠くで続いている戦争の音（パパ「危機と美しさが共存してほしい」）。
+// ⚠ 島がきれいなだけだと、ただの散歩になる。**よそでは戦争が続いている**のが
+//    聞こえていないと「共存」にならない。敵の港のほうから、遠い低い音が届く
+function distantWar() {
+  if (!enemyPort || !audioCtx) return;
+  const E = eyePos();
+  const q = enemyPort.group.position;
+  let dx = q.x - E.x, dz = q.z - E.z;
+  const L = Math.hypot(dx, dz) || 1;
+  const d = 900 + Math.random()*1400;                   // ずっと遠く
+  const spread = (Math.random() - 0.5) * 900;           // 戦線は一点ではない＝すこし散らす
+  const pos = new THREE.Vector3(E.x + dx/L*d - dz/L*spread, 6, E.z + dz/L*d + dx/L*spread);
+  if (Math.random() < 0.55) playBoom(true, pos); else playGun(pos);
 }
 // ✈ 敵機のエンジン音。⚠ いままで敵は**1つも音を出していなかった**（撃つ音すら無い）。
 //   パパ設計の「敵機の音・爆撃・機銃の音と 自然の音が同時に存在する世界」に必要。
@@ -1509,6 +1541,37 @@ function updateAmbient(dt) {
   if (AMB.waveLP) {                                       // 切る高さも ゆっくり動かす（急に変えると段になる）
     const f = AMB.waveLP.frequency;
     f.value += (Math.max(120, cut) - f.value) * Math.min(1, dt * 1.6);
+  }
+  // 🦗 虫の声：ばらばらの間かくで鳴らす（一定の震えにしない）
+  if (w.bug > 0.01 && FOOT.on && !FOOT.onShip) {
+    AMB.chirpT -= dt;
+    if (AMB.chirpT <= 0) {
+      AMB.chirpT = 0.05 + Math.random()*0.22;
+      bugChirp(w.bug * (0.5 + Math.random()*0.9));
+    }
+  }
+  // 🌬 風は ときどき吹く（ずっと同じ強さだと 機械の音になる）
+  AMB.gustT -= dt;
+  if (AMB.gustT <= 0) { AMB.gustT = 2.5 + Math.random()*5; AMB.gust = 0.4 + Math.random()*1.5; }
+  w.wind *= (AMB.gust || 1);
+  // 💥 遠くの戦争。おりているあいだ ときどき届く
+  if (FOOT.on) {
+    AMB.warT -= dt;
+    if (AMB.warT <= 0) { AMB.warT = 3.5 + Math.random()*6; distantWar(); }
+    // ✈ そして ときどき こっちにも来る。⚠ 遠くの音だけだと「他人事」で終わる
+    //    敵機は もともと いちばん近い人をねらうので、近くに出せば island に来る
+    AMB.strafeT -= dt;
+    if (AMB.strafeT <= 0) {
+      AMB.strafeT = (DIFF === 'easy' ? 55 : DIFF === 'hard' ? 20 : 32) + Math.random()*22;
+      if (!G.tutorial && G.running && (!netSyncing() || NET.isHost)) {
+        const a = Math.random()*Math.PI*2, d = 380 + Math.random()*90;
+        const pl = spawnAIPlane('enemy', FOOT.pos.x + Math.cos(a)*d, FOOT.pos.z + Math.sin(a)*d);
+        pl.hunt = 40;                      // 40秒は わき目もふらず こっちへ来る
+        pl.group.position.y = 55 + Math.random()*35;
+        showMessage('✈ 敵機のおと…！ どこから来る？', 2);
+        logEvent('foot_strafe', {});
+      }
+    }
   }
   const k = Math.min(1, dt * 1.6);                        // 切りかわりは ゆっくり
   const ease = (node, target) => { if (node) node.gain.value += (target - node.gain.value) * k; };
@@ -2250,12 +2313,34 @@ function makeTrumpUnit(nation, name, x, z, owner) {
   return addUnit({ group: g, hp: 500, maxHp: 500, radius: 50, name, fireTimer: 2,
                    faction: 'ally', kind: 'ship', klass: 'trump', nation, owner: owner || '', barH: 26 });
 }
+// 🚶 おりている人が撃たれた時。⚠ 「やられて終わり」にはしない。
+//    のりものに逃げ帰る＝取りかえしがつく。でも のりものは傷つく＝ただではない
+const FOOT_HP = 34;
+function footHit(dmg) {
+  if (G.tutorial || !FOOT.on) return;
+  G.footHp -= dmg * TUNE.edmg;
+  G.shake = 0.5;
+  explode(FOOT.pos.clone(), false);
+  logEvent('foot_hit', { hp: Math.round(G.footHp) });
+  if (G.footHp <= 0) {
+    G.hp = Math.max(1, G.hp - 15);
+    footExit('💥 うたれた！ のりものに にげかえった');
+  } else if (!G.footWarnT || G.footWarnT <= 0) {
+    G.footWarnT = 1.2;
+    showMessage('⚠ うたれてる！ 走って にげろ！', 1.5);
+  }
+}
 function playerHit(dmg) {
   if (G.tutorial) return;   // v5: チュートリアル中は やられない（見せるための時間）
   dmg *= TUNE.edmg;   // 調整パネル：敵の攻撃の強さ（プレイヤーへの全ダメージに1箇所で効く）
   G.hp -= dmg; G.shake = 0.4;
   explode(player.group.position.clone(), false);
   logEvent('player_hit', { hp: Math.round(G.hp) });
+  // 🚶 るすのあいだに のりものが撃たれているのが わからないと、危なさが伝わらない
+  if (FOOT.on && (!G.vehWarnT || G.vehWarnT <= 0)) {
+    G.vehWarnT = 2.5;
+    showMessage(`⚠ のりものが 撃たれてる！（のこり ${Math.round(G.hp)}）`, 2);
+  }
   if (G.hp <= 0) {
     explode(player.group.position.clone(), true);
     showMessage('💥 大破！ さいしゅっぱつ！', 3);
@@ -2624,7 +2709,9 @@ function tick() {
       // 敵の戦闘機：近くなら自分を追う、遠ければ味方の港へ／味方の護衛機：いちばん近い敵を追う
       let target;
       if (u.faction === 'enemy') {
-        target = (distP < 450) ? near.pos : (ourPort && !ourPort.dead ? ourPort.group.position : near.pos);
+        if (u.hunt > 0) u.hunt -= dt;
+        target = (u.hunt > 0 || distP < 450) ? near.pos
+               : (ourPort && !ourPort.dead ? ourPort.group.position : near.pos);
       } else {
         let tgt = null, best = 1e9;
         for (const e of units) {
@@ -2644,7 +2731,9 @@ function tick() {
       up.x += -Math.sin(u.yaw)*u.speed*dt;
       up.z += -Math.cos(u.yaw)*u.speed*dt;
       up.y += Math.max(-15*dt, Math.min(15*dt, (target.y + (target === near.pos ? 0 : 45)) - up.y));
-      up.y = Math.max(20, Math.min(120, up.y));
+      // ⚠ 大きい島の丘は43mある。下限を20mのままにすると 丘の中を飛ぶ
+      const ground = islandTopY(up.x, up.z);
+      up.y = Math.max(ground !== null ? ground + 14 : 20, Math.min(120, up.y));
       u.group.rotation.set(0, u.yaw, 0);
     }
     // 対空砲・機銃（プレイヤーをねらう）
@@ -2655,7 +2744,8 @@ function tick() {
       if (u.aaTimer <= 0 && distP < u.aaRange && !G.fogActive && !subSafe) {
         u.aaTimer = u.kind === 'plane' ? 1.6 : 1.2;
         const dir = tmpV.copy(near.pos).sub(up).normalize();
-        dir.x += (Math.random()-0.5)*0.22; dir.y += (Math.random()-0.5)*0.22; dir.z += (Math.random()-0.5)*0.22;
+        const spread = near.mode === 'foot' ? 0.075 : 0.22;   // 人は的が小さいので ねらいを細くする
+        dir.x += (Math.random()-0.5)*spread; dir.y += (Math.random()-0.5)*spread; dir.z += (Math.random()-0.5)*spread;
         playGun(up);           // ⚠ 敵の機銃も いままで無音だった
         netEnemyFire({ pos: up.clone().setY(u.kind==='plane' ? up.y : 8), vel: dir.multiplyScalar(130), color: 0xff5252, size: 0.8, owner: 'enemy', dmg: 10, type: 'tracer', life: 2.5 });
       }
@@ -2760,11 +2850,28 @@ function tick() {
         }
       }
     } else { // enemy の弾
+      // 🚶 おりている時、そばの地面に当たった弾は 土けむりを上げる。
+      // ⚠ 「当たった時だけ」だと 危なさが伝わらない。**まわりに落ちている音**が効く
+      if (FOOT.on && !done && p.type === 'tracer') {
+        const q = p.mesh.position;
+        const gy = islandTopY(q.x, q.z);
+        if (gy !== null && q.y <= gy + 0.5) {
+          // 近い時だけ 土けむりを見せる（遠くの着弾まで描くと 画面がうるさい）
+          if (Math.hypot(q.x - FOOT.pos.x, q.z - FOOT.pos.z) < 30) explode(q.clone().setY(gy + 0.4), false);
+          done = true;                                 // 丘や地面で止まる＝かげに入れば当たらない
+        }
+      }
       // プレイヤー
       const subSafe = G.mode === 'sub' && G.depth < -6 && !['torpedo','depth'].includes(p.type);
       if (!subSafe && p.mesh.position.distanceTo(P) < player.radius + (p.area||0)) {
         if (!p.area) { playerHit(p.dmg); done = true; }
         else if (exploded) playerHit(p.dmg);
+      }
+      // 🚶 おりている人にも当たる。⚠ ここが無いと、島は「きれいなだけの散歩」になる
+      //    （パパ 9/5「危機感を感じなかった。危機と美しさが共存してほしい」）
+      if (!done && FOOT.on && p.mesh.position.distanceTo(FOOT.pos) < 3.2 + (p.area||0)) {
+        if (!p.area) { footHit(p.dmg); done = true; }
+        else if (exploded) footHit(p.dmg);
       }
       // 味方の建物と切り札
       if (!done) for (const u of units) {
@@ -2884,8 +2991,17 @@ function tick() {
   const nextRein = Math.max(0, REINFORCE_SEC - G.reinforceT);
   extra += ` ／ 増援まで ${Math.floor(nextRein/60)}:${String(Math.floor(nextRein%60)).padStart(2,'0')}`;
   // v6: みんなでルーム。あずかり役かどうかも出す（敵が止まった時に、どこを見ればいいかわかる）
+  if (FOOT.on) extra = `🚶 じぶん ${Math.max(0, Math.round(G.footHp))}／${FOOT_HP}`
+    + `　のりもの ${Math.round(G.hp)}／${G.maxHp}` + extra.replace(/^[^／]*/, '');
   if (NET.on) extra += ` ／ 👥 ${NET.word}（なかま ${NET.peers.size}${NET.peers.size ? (NET.isHost ? '・あずかり役' : '') : ''}）`;
   $('extra').textContent = extra;
+  if (FOOT.on && G.mode === 'ship') {
+    const far = footBackDist() > 230;      // 230 = 自分の船の対空砲がとどく距離
+    if (far && !G.aaWarned) { G.aaWarned = true; showMessage('⚠ 船の たいくうほうが とどかない ところまで来た', 2.5); }
+    if (!far) G.aaWarned = false;
+  }
+  if (G.footWarnT > 0) G.footWarnT -= dt;
+  if (G.vehWarnT > 0) G.vehWarnT -= dt;
   if (G.msgTimer > 0) { G.msgTimer -= dt; if (G.msgTimer <= 0) $('message').style.opacity = 0; }
 
   // ---- 🚶 おりる／のる のボタン（おりられる時だけ出す） ----
@@ -3060,7 +3176,7 @@ const NET = { on: false, word: '', me: '', name: localStorage.getItem('pw_name')
 // ⚠ つながらない時に「どこで止まったか」を画面に出す（パパ 9/5・PC×スマホ4Gで入れなかった）。
 // 口で往復するより、1回開けば分かる形にする。止まりうる場所は3つあって、直し方が全部ちがう：
 //   ① リレー（相手さがし）に届かない ② 相手は見つかったがNAT越えできない ③ データが来ない
-const BUILD = 'v6-0905x';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
+const BUILD = 'v6-0905y';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
 const NETDIAG = { lib: '', joined: false, peerJoin: 0, packets: 0, ice: '', srflx: 0, relay: 0, err: '',
                   t0: 0, states: [], pcs: 0, tries: 0, gen: 0 };   // gen=入り直しの世代   // t0=部屋に入った時刻／states=ICEがたどった状態
 // ⚠ ICEの様子は Trystero の内側にあるので、RTCPeerConnection を包んで のぞく
@@ -3424,6 +3540,14 @@ function netElect() {
 // 敵がねらう相手＝いちばん近い人（自分となかま）。自分だけをねらうと、なかまは撃たれない
 function nearestHuman(up, P) {
   let pos = P, dist = up.distanceTo(P), mode = G.mode;
+  // 🚶 おりている人も「ねらう相手」に入れる。
+  // ⚠ ここを入れないと、島の上は絶対に安全な散歩コースになる
+  //    （パパ 9/5「危機感を感じなかった」の直接の原因）。
+  //    のりものも相手のまま残す＝るすの船も撃たれる＝どっちも危ない
+  if (FOOT.on) {
+    const fd = up.distanceTo(FOOT.pos);
+    if (fd < dist) { dist = fd; pos = FOOT.pos; mode = 'foot'; }
+  }
   if (netSyncing()) for (const p of NET.peers.values()) {
     const d = up.distanceTo(p.group.position);
     if (d < dist) { dist = d; pos = p.group.position; mode = p.mode; }
@@ -3738,8 +3862,8 @@ setInterval(() => {
 // ⚠ 音は「鳴っているつもり」が一番あてにならない（今日それで1つ見落とした）。目で見えるようにする
 // ?dev=1 のときだけ、中身をコンソールから見えるようにする（歩きの調べ用・テストもここを読む）。
 // ⚠ 目で見て「歩けてる」と、数字が正しいは別。落ちた/止まったを数字で確かめる口を作っておく
-if (DEV) { window.__pw = { FOOT, G, player, NET, footWhere, deckOf, islandTopY, islandDefs, SOLIDS, canWalk,
-    AMB, bigH, critters, DRONES, sfxOut, eyePos, initAudio, spawnAIPlane, updateDrones, THREE,
+if (DEV) { window.gameLogPeek = () => gameLog; window.__pw = { FOOT, G, player, NET, footWhere, deckOf, islandTopY, islandDefs, SOLIDS, canWalk,
+    AMB, bigH, critters, DRONES, sfxOut, eyePos, initAudio, spawnAIPlane, updateDrones, footHit, THREE, get projs() { return projs; },
     // ⚠ units は startGame で作りなおされる（units = []）。値でつかむと 古い配列を見つづけて、
     //    「敵機は0機」のような まちがった観測をする（9/5に実際やった）。必ず今のものを返す
     get units() { return units; },
