@@ -195,6 +195,7 @@ const NATIONS = [
 // ============ 兵科（監督の設計 8/25：共通＋差分。この書き方は監督のSMSの構造そのまま） ============
 // 共通：なにかしらの銃・手榴弾・大砲1回・蘇生できる・HPじわじわ回復・しゃがみと走り
 // ⚠ はしごとクラフト表は最小形では未実装（下のponytail）
+const AI_RANGE = 110;   // AI兵が撃ちはじめる距離（弾は126mとどく）
 const CLASSES = [
   { id: 'rifle',  name: 'ライフル兵', icon: '🔫', speed: 11, hp: 100, dmg: 22, cd: 0.55, spread: 0.015,
     desc: 'とくべつな道具は無い。そのぶん 銃が一番強い', skill: 'none' },
@@ -782,6 +783,10 @@ function tick() {
   }
 
   // ---- AI兵 ----
+  // ⚠ 監督報告 9/5「敵が前をとおってもうたなかっか」（3回）。原因は射程だった。
+  //    弾は 秒速70m × 1.8秒 ＝ 126m とどくのに、AIは 55m まで近づかないと撃たなかった。
+  //    ＝目の前を素通りする兵ができる。武器のとどく手前（110m）まで引き上げる
+
   for (const s of soldiers) {
     if (s.state !== 'fight') continue;
     const sp2 = s.group.position;
@@ -811,7 +816,7 @@ function tick() {
     }
     // うつ
     s.cd -= dt;
-    if (tgt && best < 55 && s.cd <= 0) {
+    if (tgt && best < AI_RANGE && s.cd <= 0) {
       s.cd = 1.2 + Math.random()*0.8;
       const dir = tmpV.set(tgt.x-sp2.x, 1.4 + (tgt===P ? (G.crouch ? 0.2 : 0.5) : 0.5) - 1.5, tgt.z-sp2.z).normalize();
       // しゃがんでいる自分は ねらいがズレやすい（＝しゃがみの意味）

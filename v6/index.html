@@ -1351,7 +1351,7 @@ function buildEar() {
 // ⚠ 音のファイルは無い。ぜんぶその場で作る（雑音を削って波にする）。
 //    パパがあとで本物の録音に差しかえられるように、音ごとに gain を分けてある。
 const AMB = { on: false, built: false, bus: null, wave: null, wind: null, bug: null, rumble: null,
-              birdT: 0, chirpT: 0, gustT: 0, gust: 1, warT: 2, strafeT: 22, mosqT: 5,
+              birdT: 0, chirpT: 0, gustT: 0, gust: 1, warT: 2, strafeT: 22,
               want: { wave: 0, wind: 0, bug: 0, rumble: 0 } };
 // ざーっという雑音を作る（波・風のもと）。2秒ぶん作ってループさせる
 function noiseSource(ctx) {
@@ -1421,31 +1421,11 @@ function buildAmbient() {
 //    （論文の採集は 18:00〜06:00。ガ島では戦闘より病気で倒れた人のほうが多かった）
 // ⚠ ここは「何がいるか」を調べてから音を決めた。前は種のない ただの「虫」だった
 const hourNow = () => Math.floor(G.gameMin / 60) % 24;
-// 🦟 蚊が耳のそばを通る。
-// ⚠ 2026-09-05 パパ判断で **いったんミュート**。「監督判断案件」。
-//    調べた中身（Anopheles farauti・ガ島では戦闘より病気で倒れた人が多い）は
-//    子どもに出す音として重い。入れるかどうかは監督が決める。
-//    コードは消さない＝「入れる」と決まったら ?mosq=1 を外すだけで戻る。
-//    判断してもらう時は **?mosq=1** を付けて 実際に聞かせる
-const MOSQ_ON = new URLSearchParams(location.search).get('mosq') === '1';
-function mosquito() {
-  if (!AMB.built || !audioCtx) return;
-  AMB.nMosq = (AMB.nMosq || 0) + 1;
-  const ctx = audioCtx, t = ctx.currentTime, dur = 2.2 + Math.random()*1.6;
-  const o = ctx.createOscillator(); o.type = 'sawtooth';
-  const base = 560 + Math.random()*220;
-  o.frequency.setValueAtTime(base, t);
-  const vib = ctx.createOscillator(); vib.frequency.value = 5 + Math.random()*4;   // ふるえ
-  const vibG = ctx.createGain(); vibG.gain.value = 45;
-  vib.connect(vibG).connect(o.frequency); vib.start(t); vib.stop(t + dur);
-  const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = base*2; bp.Q.value = 3;
-  const g = ctx.createGain();
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(0.028, t + dur*0.45);   // 近づいて…
-  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);       // 離れていく
-  o.connect(bp).connect(g).connect(AMB.bus || ctx.destination);
-  o.start(t); o.stop(t + dur + 0.05);
-}
+// 🦟 蚊の音は **入れない**。監督の判断（2026-09-05 夜）。
+// パパが「ガダルカナルでは 鉄砲や戦闘機より 蚊のほうが人をたくさん殺したらしい」と
+// 事実を伝えたうえで、監督「**させなくていいと思う**」。
+// ⚠ 決まったので コードは残さない。戻したくなったら git の版 v6-0906a に入っている。
+//    （調べた中身は 研究記録.md と 監督の回答_0905.md に残してある）
 // 🦗 虫の声をひとつ。⚠ 長さも高さも間かくも毎回変える＝機械に聞こえない
 function bugChirp(vol) {
   if (!AMB.built || !audioCtx || vol <= 0) return;
@@ -1603,10 +1583,6 @@ function updateAmbient(dt) {
       }
     }
     // 蚊：夕方（18時）から朝（6時）まで。⚠ 論文の採集時間と同じ帯
-    if (MOSQ_ON && (hh >= 18 || hh < 6)) {          // ⚠ 既定では鳴らさない（監督判断まち）
-      AMB.mosqT -= dt;
-      if (AMB.mosqT <= 0) { AMB.mosqT = 7 + Math.random()*16; mosquito(); }
-    }
   }
   if (AMB.cicada) {   // セミは昼だけ
     const want = (FOOT.on && !FOOT.onShip) ? 0.055 * dayness : 0;
@@ -3242,7 +3218,7 @@ const NET = { on: false, word: '', me: '', name: localStorage.getItem('pw_name')
 // ⚠ つながらない時に「どこで止まったか」を画面に出す（パパ 9/5・PC×スマホ4Gで入れなかった）。
 // 口で往復するより、1回開けば分かる形にする。止まりうる場所は3つあって、直し方が全部ちがう：
 //   ① リレー（相手さがし）に届かない ② 相手は見つかったがNAT越えできない ③ データが来ない
-const BUILD = 'v6-0906a';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
+const BUILD = 'v6-0906b';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
 const NETDIAG = { lib: '', joined: false, peerJoin: 0, packets: 0, ice: '', srflx: 0, relay: 0, err: '',
                   t0: 0, states: [], pcs: 0, tries: 0, gen: 0 };   // gen=入り直しの世代   // t0=部屋に入った時刻／states=ICEがたどった状態
 // ⚠ ICEの様子は Trystero の内側にあるので、RTCPeerConnection を包んで のぞく
@@ -3929,7 +3905,7 @@ setInterval(() => {
 // ?dev=1 のときだけ、中身をコンソールから見えるようにする（歩きの調べ用・テストもここを読む）。
 // ⚠ 目で見て「歩けてる」と、数字が正しいは別。落ちた/止まったを数字で確かめる口を作っておく
 if (DEV) { window.gameLogPeek = () => gameLog; window.__pw = { FOOT, G, player, NET, footWhere, deckOf, islandTopY, islandDefs, SOLIDS, canWalk,
-    AMB, bigH, critters, mosqOn: () => MOSQ_ON, DRONES, sfxOut, eyePos, initAudio, spawnAIPlane, updateDrones, footHit, THREE, get projs() { return projs; },
+    AMB, bigH, critters, DRONES, sfxOut, eyePos, initAudio, spawnAIPlane, updateDrones, footHit, THREE, get projs() { return projs; },
     // ⚠ units は startGame で作りなおされる（units = []）。値でつかむと 古い配列を見つづけて、
     //    「敵機は0機」のような まちがった観測をする（9/5に実際やった）。必ず今のものを返す
     get units() { return units; },
