@@ -237,7 +237,8 @@
       ⚠ 5分ごとに 敵の増援が来る<br>
       🚶 島のそば・自分の船の上で「🚶 おりる」（キーボードは <b>F</b>）。
       おりると <b>音楽が消えて、波と虫と海鳥の音</b>になり、敵機がどっちから来るかも 音でわかる<br>
-      🔫 おりているあいだは <b>銃がうてる</b>（スペース／🔫ボタン）。前にいる敵に ねらいがつく<br>
+      🔫 おりているあいだは <b>銃がうてる</b>（スペース／🔫ボタン）。前にいる敵に ねらいがつく。
+      弾はむげん・<b>20発あてると 敵の戦闘機が落ちる</b>（監督ルール）<br>
       🕳 大きい島には <b>ぼうくうごう</b>が3つ。中にいると 空からの弾は とどかない
       （かわりに 中からは 上に撃てない）<br>
       🎁 敵をたおすと3チール、勝つと5チール。<b>15チール</b>でガチャが1回
@@ -1157,6 +1158,9 @@ function spawnAISub(side, x, z, mission) {
   return addUnit({ group: g, kind: 'sub', klass: 'sub', faction: side, name: (side === 'enemy' ? '敵の' : '味方の') + '潜水艦',
     hp: 55, maxHp: 55, radius: 18, speed: 14, aaRange: 0, aaTimer: 0, angle: Math.random()*Math.PI*2, mission, shellTimer: 5, barH: 12 });
 }
+// 戦闘機のかたさ。⚠ 名前を付けて1か所にする。監督ルール「銃で20回あてたら墜落」は
+//    この数字を20で割って作るので、ここを直に書きかえると 20回のやくそくが黙って壊れる
+const PLANE_HP = 30;
 function spawnAIPlane(side, x, z) {
   // v5: しるしは「その機体がどっちの国か」で決める。
   // 味方＝プレイヤーと同じ国／敵＝その反対（前は敵をいつも同盟国あつかいにしていて、
@@ -1167,7 +1171,7 @@ function spawnAIPlane(side, x, z) {
   const g = makePlaneMesh(side === 'enemy' ? 0x8d6e63 : 0x1565c0, nation);
   g.position.set(x, 50, z);
   return addUnit({ group: g, kind: 'plane', klass: 'plane', faction: side, name: (side === 'enemy' ? '敵の' : '味方の') + '戦闘機',
-    hp: 30, maxHp: 30, radius: 9, speed: 52, aaRange: 170, aaTimer: 1, yaw: Math.random()*Math.PI*2, barH: 8 });
+    hp: PLANE_HP, maxHp: PLANE_HP, radius: 9, speed: 52, aaRange: 170, aaTimer: 1, yaw: Math.random()*Math.PI*2, barH: 8 });
 }
 
 // ============ ゲーム状態 ============
@@ -1290,7 +1294,11 @@ const footCanBoard = () => FOOT.fall <= 0 && footBackDist() < 34;
 //   だから 前のほうにいる いちばん近い敵に、こちらで ねらいを合わせる。
 //   そうしないと 空から来る敵機には ぜったいに当たらない＝銃を持たせた意味が消える。
 //   （弾は homing で ゆるく追う。まっすぐ撃つと、秒速52mの飛行機には 前に置いていかれる）
-const FOOT_GUN_CD = 0.3, FOOT_GUN_DMG = 7, FOOT_GUN_RANGE = 320;
+// 監督ルール（9/6）「弾無限でいいよ👌 弾に当たると飛行機は、20回で墜落する」。
+// ⚠ 強さを直に書かない。**飛行機のかたさ ÷ 20** で作る＝飛行機を強くしても 20回のままになる。
+//   （調整パネルの「敵のかたさ」を上げた時だけ 20回より増える。それは監督が回したつまみだから正しい）
+const FOOT_GUN_HITS = 20;
+const FOOT_GUN_CD = 0.3, FOOT_GUN_DMG = PLANE_HP / FOOT_GUN_HITS, FOOT_GUN_RANGE = 320;
 function footAimAt() {
   let best = null, bestD = 1e9;
   for (const u of units) {
@@ -3527,7 +3535,7 @@ const NET = { on: false, word: '', me: '', name: localStorage.getItem('pw_name')
 // ⚠ つながらない時に「どこで止まったか」を画面に出す（パパ 9/5・PC×スマホ4Gで入れなかった）。
 // 口で往復するより、1回開けば分かる形にする。止まりうる場所は3つあって、直し方が全部ちがう：
 //   ① リレー（相手さがし）に届かない ② 相手は見つかったがNAT越えできない ③ データが来ない
-const BUILD = 'v6-0907b';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
+const BUILD = 'v6-0907c';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
 // v6.1: タイトル画面のすみに小さく出す。⚠ 版が分からないと「どの版で起きた不具合か」が言えなくなる。
 //   前は画面のどこにも無く、つながらない時の診断にしか出ていなかった
 { const bt = document.getElementById('buildTag'); if (bt) bt.textContent = BUILD; }
@@ -4237,7 +4245,7 @@ setInterval(() => {
 // ⚠ 目で見て「歩けてる」と、数字が正しいは別。落ちた/止まったを数字で確かめる口を作っておく
 if (DEV) { window.dbgGachaIds = () => GACHA.map(g => g.id); window.gameLogPeek = () => gameLog; window.__pw = { FOOT, G, player, NET, footWhere, deckOf, islandTopY, islandDefs, SOLIDS, canWalk,
     AMB, bigH, critters, DRONES, sfxOut, eyePos, initAudio, spawnAIPlane, updateDrones, footHit, THREE, get projs() { return projs; },
-    SHELTERS, shelterAt, shelterRoofY, footAimAt, SH_IN_X, SH_IN_Z, SH_SIDE_H, SH_R, FOOT_GUN_DMG, shoot,   // 🕳🔫 9/6の注文ぶん
+    SHELTERS, shelterAt, shelterRoofY, footAimAt, SH_IN_X, SH_IN_Z, SH_SIDE_H, SH_R, FOOT_GUN_DMG, FOOT_GUN_HITS, PLANE_HP, shoot,   // 🕳🔫 9/6の注文ぶん
     // ⚠ units は startGame で作りなおされる（units = []）。値でつかむと 古い配列を見つづけて、
     //    「敵機は0機」のような まちがった観測をする（9/5に実際やった）。必ず今のものを返す
     get units() { return units; },
