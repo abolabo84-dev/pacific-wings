@@ -261,7 +261,8 @@
       <b>体力が すこしずつ もどる</b>（かわりに 中からは 上に撃てない）<br>
       💥 おりている時に やられたら <b>基地から やりなおし</b>（監督ルール）。
       たいりょくは <b>画面の左下のバー</b>で見る（からっぽから満タンまで20秒・監督ルール）<br>
-      🎁 敵をたおすと3チール、勝つと5チール。<b>15チール</b>でガチャが1回
+      🎁 敵をたおすと3チール、勝つと5チール。<b>15チール</b>でガチャが1回。
+      ひと試合でもらえるのは <b>20チールまで</b>（監督ルール）
     </div>
   </details>
 
@@ -553,9 +554,18 @@ function saveGacha() {
     localStorage.setItem('pw_own', JSON.stringify(owned));
   } catch (e) { console.warn('⚠ チールを保存できなかった。容量オーバーかも', e); }
 }
+// 監督9/7「せめてひと試合二十チール」（パパ「112チールだとひと試合でガチャが7回まわるけど
+//   それはちょうどいい？」→ 監督「いいよ」＋この数字）。ひと試合でもらえるチールの上限。
+// ⚠ ガチャ1回が15チールなので、20＝ひと試合でガチャ1回とおつり。112チールは7回まわせていた
+const CHEER_RUN_MAX = 20;
+// ⚠ 上限のガードは **この共有関数に1つだけ** 置く。撃破と勝ちの2か所に書くと、
+//   あとで3つめのもらいかたを足した時に そこだけ上限を素通りする
 function addCheer(n, why) {
-  cheer += n; saveGacha();
-  logEvent('cheer', { add: n, total: cheer, why });   // ログ計装は常時ON
+  const give = Math.max(0, Math.min(n, CHEER_RUN_MAX - G.cheerRun));
+  G.cheerRun += give;
+  cheer += give; saveGacha();
+  logEvent('cheer', { add: give, asked: n, run: G.cheerRun, total: cheer, why });   // ログ計装は常時ON
+  return give;
 }
 const ownedDefs = () => GACHA.filter(g => owned.includes(g.id));
 
@@ -1201,6 +1211,9 @@ const G = {
   fogCycle: 0, fogActive: false, msgTimer: 0, shake: 0, tutorial: false,
   yaw: 0, pitch: 0, shipSpeed: 0, depth: -3,
   ammo2: 0, reloadT: 0, trumpSpawned: false, reinforceT: 0,
+  // ⚠ このかいでもらったチール。addCheer が上限（ひと試合20）を見るのに使う。
+  //   ここに書いておかないと、出撃前は undefined ＝ 引き算が NaN になって チールが壊れる
+  cheerRun: 0,
 };
 const GAME_MIN_PER_SEC = 0.5;
 // v6: 場所を WORLD 倍に広げたので、往復の距離も WORLD 倍になる。
@@ -2328,7 +2341,7 @@ $('btnGacha').onclick = () => {
   if (!pool.length) { $('gachaResult').textContent = '🏆 ぜんぶ そろった！'; return; }
   if (cheer < GACHA_COST) {
     $('gachaResult').innerHTML = `チールが たりない…（あと ${GACHA_COST - cheer}）<br>` +
-      `<span style="font-size:.62em; color:#b0bec5">敵をたおすと3チール、勝つと5チール</span>`;
+      `<span style="font-size:.62em; color:#b0bec5">敵をたおすと3チール、勝つと5チール（ひと試合 ${CHEER_RUN_MAX}チールまで）</span>`;
     logEvent('gacha_short', { cheer });
     return;
   }
@@ -2615,8 +2628,11 @@ function applyDamage(unit, dmg, role, wtype, attacker) {
 function grantKill(name) {
   G.kills++;
   // v6: 監督「敵を倒すと3チール」。⚠ チュートリアルではもらえない（見せるための時間なので）
-  if (!G.tutorial) { addCheer(CHEER_KILL, 'kill'); G.cheerRun += CHEER_KILL; }
-  showMessage(`🎯 ${name} 撃破！ (${Math.min(G.kills,5)}/5)　🎁+${CHEER_KILL}チール`, 2.5);
+  // ⚠ 上限（ひと試合20チール・監督9/7）に当たると もらえる数が減る。**画面には
+  //   実際にもらった数を出す**。「+3チール」と出して0しか増えていないのが、いちばん悪い
+  const got = G.tutorial ? 0 : addCheer(CHEER_KILL, 'kill');
+  showMessage(`🎯 ${name} 撃破！ (${Math.min(G.kills,5)}/5)　` +
+    (got > 0 ? `🎁+${got}チール` : `🎁 このかいのチールは いっぱい（${CHEER_RUN_MAX}）`), 2.5);
   if (!G.tutorial) netEvent('kill', name);   // v6: みんなでルームの なかまにも知らせる
   // v6: 「自分が何せき出したか」で数える。units の切り札には なかまのぶんも入っているので、
   // そこを数えると、なかまが先に出した時に 自分のごほうびが出なくなる
@@ -2725,7 +2741,7 @@ function win() {
   if (G.tutorial) return;   // v5: チュートリアル中は勝ち負けにしない（見せるための時間）
   G.running = false;
   playBgm('victory');
-  addCheer(CHEER_WIN, 'win'); G.cheerRun += CHEER_WIN;   // v6: 監督「勝つと5チール」
+  addCheer(CHEER_WIN, 'win');   // v6: 監督「勝つと5チール」（上限は addCheer の中）
   logEvent('win', { kills: G.kills, cheerRun: G.cheerRun });
   netEvent('win');
   $('endTitle').textContent = '🏆 だいしょうり！！';
@@ -3595,7 +3611,7 @@ const NET = { on: false, word: '', me: '', name: localStorage.getItem('pw_name')
 // ⚠ つながらない時に「どこで止まったか」を画面に出す（パパ 9/5・PC×スマホ4Gで入れなかった）。
 // 口で往復するより、1回開けば分かる形にする。止まりうる場所は3つあって、直し方が全部ちがう：
 //   ① リレー（相手さがし）に届かない ② 相手は見つかったがNAT越えできない ③ データが来ない
-const BUILD = 'v6-0907f';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
+const BUILD = 'v6-0907g';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
 // v6.1: タイトル画面のすみに小さく出す。⚠ 版が分からないと「どの版で起きた不具合か」が言えなくなる。
 //   前は画面のどこにも無く、つながらない時の診断にしか出ていなかった
 { const bt = document.getElementById('buildTag'); if (bt) bt.textContent = BUILD; }
@@ -4307,6 +4323,7 @@ if (DEV) { window.dbgGachaIds = () => GACHA.map(g => g.id); window.gameLogPeek =
     AMB, bigH, critters, DRONES, sfxOut, eyePos, initAudio, spawnAIPlane, updateDrones, footHit, THREE, get projs() { return projs; },
     SHELTERS, shelterAt, shelterRoofY, footAimAt, SH_IN_X, SH_IN_Z, SH_SIDE_H, SH_R, FOOT_GUN_DMG, FOOT_GUN_HITS, PLANE_HP, shoot,   // 🕳🔫 9/6の注文ぶん
     FOOT_HP, SHELTER_HEAL, SHELTER_FULL_SEC, OUR,   // 💚📊 9/6〜9/7の注文ぶん（回復20秒・左下バー・基地からやり直し）
+    CHEER_RUN_MAX, CHEER_KILL, CHEER_WIN, GACHA_COST, addCheer, grantKill, get cheer() { return cheer; },   // 🎁 ひと試合20チール
     // ⚠ units は startGame で作りなおされる（units = []）。値でつかむと 古い配列を見つづけて、
     //    「敵機は0機」のような まちがった観測をする（9/5に実際やった）。必ず今のものを返す
     get units() { return units; },
