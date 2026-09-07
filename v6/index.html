@@ -178,6 +178,16 @@
   #footHpFill { background: #76ff03; width: 100%; }
   /* ⚠ レーダーを右上にしている時は、レーダーと一時停止ボタンの下へ逃がす（重なると両方読めない） */
   body:not(.radarC) #footHp { top: calc(var(--rh) + 76px); }
+  /* 🚶📡 監督は「レーダーは右上」（9/7）とも「体力バーは右上」（9/6）とも言った＝同じかどの取り合い。
+     どちらも立てるために、**おりている時だけ** レーダーと一時停止をバーのぶんだけ下へずらして、
+     いちばん上のかどをバーにゆずる。のりものに乗っている間は いままでどおりの位置にもどる。
+     ⚠ よこ画面は高さが足りない（ずらすと発射ボタンにぶつかる）ので、そこだけ「レーダーの下」のまま */
+  :root { --fhb: 44px; }
+  @media (min-height: 521px) {
+    body.footing:not(.radarC) #footHp { top: 8px; }
+    body.footing:not(.radarC) #minimap,
+    body.footing:not(.radarC) #pauseBtn { transform: translateY(var(--fhb)); }
+  }
   @media (max-height: 520px) {
     #footHp { font-size: 11px; }
     #footHp .bar { width: 104px; height: 12px; }
@@ -189,6 +199,7 @@
   @media (max-width: 480px) {
     #footHp { font-size: 12px; }
     #footHp .bar { width: 110px; height: 13px; }
+    :root { --fhb: 40px; }
   }
 </style>
 </head>
@@ -2257,18 +2268,24 @@ $('btnAxis').onclick = () => openUnitScreen('axis');
 $('btnBgm').textContent = bgmOn ? '🎵 音楽：ON' : '🔇 音楽：OFF';
 $('btnBgm').onclick = () => { initAudio(); unlockNextBgm(1); setBgm(!bgmOn); };
 
-// v6: レーダーの場所（監督8/26「レーダを真ん中にする」）。
-// 右上にもどせるようにしてある＝どっちが遊びやすいかは監督が遊んでから決める
-let radarCenter = localStorage.getItem('pw_radar') !== 'right';
-function setRadar(c) {
+// v6: レーダーの場所。8/26 監督「レーダを真ん中にする」→ 9/7 遊んだうえで **「レーダーは右上」**。
+// ⚠ 既定を右上に変えた。まんなかにも まだ切りかえられる（監督が また気を変えるかもしれんので消さない）。
+//   前に自分で「まんなか」を選んだ人（localStorage に center が残っている人）は そのまま。
+//   ⚠ 「一度も選んでいない」と「まんなかを選んだ」を同じ顔にしない＝既定の変更が届かなくなる
+// ⚠⚠ 前の版は setRadar() の中で localStorage に書いていて、その setRadar() を **起動時にも**
+//   呼んでいた＝一度でも開いた人は全員「まんなか」が保存ずみ。この状態で既定だけ右上に変えても
+//   **監督の端末には一生届かない**。だから (1)鍵の名前を変えて古い保存を捨て、(2)保存はボタンを
+//   押した時だけにした。「一度も選んでいない」と「自分でまんなかを選んだ」は別のことなので分ける
+let radarCenter = localStorage.getItem('pw_radar2') === 'center';
+function setRadar(c, save) {
   radarCenter = c;
   document.body.classList.toggle('radarC', c);
   $('btnRadar').textContent = c ? '📡 レーダー：まんなか' : '📡 レーダー：右上';
-  try { localStorage.setItem('pw_radar', c ? 'center' : 'right'); } catch (e) {}
-  logEvent('radar_pos', { pos: c ? 'center' : 'right' });
+  if (save) try { localStorage.setItem('pw_radar2', c ? 'center' : 'right'); } catch (e) {}
+  logEvent('radar_pos', { pos: c ? 'center' : 'right', save: !!save });
 }
-$('btnRadar').onclick = () => setRadar(!radarCenter);
-setRadar(radarCenter);
+$('btnRadar').onclick = () => setRadar(!radarCenter, true);
+setRadar(radarCenter, false);
 
 // ============ 🎁 ガチャの画面 ============
 // ガチャで出たものは「えらぶ画面」に足される。
@@ -3398,6 +3415,8 @@ function tick() {
     + `　のりもの ${Math.round(G.hp)}／${G.maxHp}` + extra.replace(/^[^／]*/, '');
   // 🚶 右上の体力バー（監督9/6）。おりている時だけ出す＝のりものの時は左上のHPバーがその役
   $('footHp').style.display = FOOT.on ? 'block' : 'none';
+  // 📡 おりている間だけ レーダーと一時停止を下へずらして、右上のかどをバーにゆずる（CSS側）
+  document.body.classList.toggle('footing', FOOT.on);
   if (FOOT.on) {
     const r = Math.max(0, Math.min(1, G.footHp / FOOT_HP));
     $('footHpFill').style.width = (r * 100) + '%';
@@ -3592,7 +3611,7 @@ const NET = { on: false, word: '', me: '', name: localStorage.getItem('pw_name')
 // ⚠ つながらない時に「どこで止まったか」を画面に出す（パパ 9/5・PC×スマホ4Gで入れなかった）。
 // 口で往復するより、1回開けば分かる形にする。止まりうる場所は3つあって、直し方が全部ちがう：
 //   ① リレー（相手さがし）に届かない ② 相手は見つかったがNAT越えできない ③ データが来ない
-const BUILD = 'v6-0907d';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
+const BUILD = 'v6-0907e';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
 // v6.1: タイトル画面のすみに小さく出す。⚠ 版が分からないと「どの版で起きた不具合か」が言えなくなる。
 //   前は画面のどこにも無く、つながらない時の診断にしか出ていなかった
 { const bt = document.getElementById('buildTag'); if (bt) bt.textContent = BUILD; }
