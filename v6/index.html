@@ -169,6 +169,27 @@
     .tiny { margin-top: .2em; }
   }
   #fogNotice { position: absolute; top: 60px; width: 100%; text-align: center; color: #cfd8dc; font-size: 17px; font-weight: bold; text-shadow: 1px 1px 3px #000; z-index: 10; opacity: 0; transition: opacity 1s; pointer-events: none; }
+  /* 🚶 おりている人の体力バー（監督9/6「右上にバーで出してほしい」）。
+     数字（左上の「じぶん 34／34」）は消さない＝減りかたを読むのは数字、危ないのが分かるのはバー */
+  #footHp { position: absolute; top: 8px; right: 8px; z-index: 11; color: #fff; font-size: 13px;
+            font-weight: bold; text-shadow: 1px 1px 2px #000; pointer-events: none;
+            text-align: right; display: none; }
+  #footHp .bar { width: 150px; height: 15px; margin: 2px 0 0 auto; }
+  #footHpFill { background: #76ff03; width: 100%; }
+  /* ⚠ レーダーを右上にしている時は、レーダーと一時停止ボタンの下へ逃がす（重なると両方読めない） */
+  body:not(.radarC) #footHp { top: calc(var(--rh) + 76px); }
+  @media (max-height: 520px) {
+    #footHp { font-size: 11px; }
+    #footHp .bar { width: 104px; height: 12px; }
+    body:not(.radarC) #footHp { top: calc(var(--rh) + 14px); }
+  }
+  /* ⚠ スマホのたて（390px）で、まんなかのレーダーは 135〜255px を使う。右に残るのは127pxしかない。
+     150pxのままだと レーダーの左上かどにバーの右下かどが1pxかぶった（実測）。ここだけ細くする。
+     ふだ（ことば）も短いものに入れかわる（JS側） */
+  @media (max-width: 480px) {
+    #footHp { font-size: 12px; }
+    #footHp .bar { width: 110px; height: 13px; }
+  }
 </style>
 </head>
 <body>
@@ -182,6 +203,7 @@
   <div id="kills">☆ 撃破 0 / 5</div>
   <div id="extra"></div>
 </div>
+<div id="footHp"><span id="footHpLabel">🚶 じぶんの たいりょく</span><div class="bar"><div id="footHpFill"></div></div></div>
 <canvas id="minimap" width="150" height="150" style="display:none"></canvas>
 <div id="targetArrow" style="display:none">🚩 敵の港 <span id="arrowIcon">▲</span> <span id="arrowDist"></span></div>
 <div id="message"></div>
@@ -239,8 +261,10 @@
       おりると <b>音楽が消えて、波と虫と海鳥の音</b>になり、敵機がどっちから来るかも 音でわかる<br>
       🔫 おりているあいだは <b>銃がうてる</b>（スペース／🔫ボタン）。前にいる敵に ねらいがつく。
       弾はむげん・<b>20発あてると 敵の戦闘機が落ちる</b>（監督ルール）<br>
-      🕳 大きい島には <b>ぼうくうごう</b>が3つ。中にいると 空からの弾は とどかない
-      （かわりに 中からは 上に撃てない）<br>
+      🕳 大きい島には <b>ぼうくうごう</b>が3つ。中にいると 空からの弾は とどかず、
+      <b>体力が すこしずつ もどる</b>（かわりに 中からは 上に撃てない）<br>
+      💥 おりている時に やられたら <b>基地から やりなおし</b>（監督ルール）。
+      たいりょくは <b>画面の右上のバー</b>で見る<br>
       🎁 敵をたおすと3チール、勝つと5チール。<b>15チール</b>でガチャが1回
     </div>
   </details>
@@ -1365,9 +1389,21 @@ function footTick(dt, sx, sy, run) {
     const nowIn = !!shelterAt(FOOT.pos.x, FOOT.pos.z);
     if (nowIn !== FOOT.inShelter) {
       FOOT.inShelter = nowIn;
-      showMessage(nowIn ? '🕳 ぼうくうごうの 中！ 空からの たまは とどかない' : '🌤 ぼうくうごうから 出た',
+      showMessage(nowIn ? '🕳 ぼうくうごうの 中！ 空からの たまは とどかない・体力が すこしずつ もどる'
+                        : '🌤 ぼうくうごうから 出た',
                   nowIn ? 2.5 : 1.2);
-      logEvent('foot_shelter', { in: nowIn });
+      logEvent('foot_shelter', { in: nowIn, hp: Math.round(G.footHp) });
+    }
+    // 💚 中にいるあいだ すこしずつ回復（監督9/6「少しずつゆっくり回復する」）。
+    // ⚠ すぐ全快でも 回復なしでもなく、**待つと戻る**。だから「今は出ない」を選ぶ理由ができる。
+    //   秒2 ＝ 空っぽから満タンまで17秒。敵機の1往復ぶん、じっと待つ長さ
+    if (FOOT.inShelter && G.footHp < FOOT_HP) {
+      const was = G.footHp;
+      G.footHp = Math.min(FOOT_HP, G.footHp + SHELTER_HEAL * dt);
+      if (was < FOOT_HP && G.footHp >= FOOT_HP) {
+        showMessage('💚 体力が ぜんぶ もどった！', 1.8);
+        logEvent('foot_healed', {});
+      }
     }
     fitShadowToGround(FOOT.group, FOOT.pos.x, FOOT.pos.z);
   }
@@ -2636,9 +2672,11 @@ function makeTrumpUnit(nation, name, x, z, owner) {
   return addUnit({ group: g, hp: 500, maxHp: 500, radius: 50, name, fireTimer: 2,
                    faction: 'ally', kind: 'ship', klass: 'trump', nation, owner: owner || '', barH: 26 });
 }
-// 🚶 おりている人が撃たれた時。⚠ 「やられて終わり」にはしない。
-//    のりものに逃げ帰る＝取りかえしがつく。でも のりものは傷つく＝ただではない
+// 🚶 おりている人が撃たれた時。
+// 監督ルール（9/6）「人の時に倒されたら基地からやり直しでいいと思う」＝のりものに逃げ帰るのをやめて、
+//   基地まで もどされる。⚠ これで「島にいる時間」に値段がつく＝防空ごうに入る理由になる
 const FOOT_HP = 34;
+const SHELTER_HEAL = 2;   // 🕳 防空ごうの中の回復（秒あたり）。監督「少しずつゆっくり回復する」
 function footHit(dmg) {
   if (G.tutorial || !FOOT.on) return;
   G.footHp -= dmg * TUNE.edmg;
@@ -2646,8 +2684,14 @@ function footHit(dmg) {
   explode(FOOT.pos.clone(), false);
   logEvent('foot_hit', { hp: Math.round(G.footHp) });
   if (G.footHp <= 0) {
-    G.hp = Math.max(1, G.hp - 15);
-    footExit('💥 うたれた！ のりものに にげかえった');
+    // ⚠ respawn() は のりものを満タンにする（大破のときの処理だから）。
+    //   そのまま使うと **わざと撃たれるのが得** になる＝ねんりょうも体力もタダで戻る。
+    //   だから 基地へもどす所だけ借りて、ねんりょうと体力は自分で書きもどす
+    const keepFuel = G.fuel, keepHp = Math.max(1, G.hp - 15), keepAmmo = G.ammo2;
+    logEvent('foot_down', { fuel: Math.round(keepFuel) });
+    respawn();                      // 中で footExit() が呼ばれる＝おりている状態も終わる
+    G.fuel = keepFuel; G.hp = keepHp; G.ammo2 = keepAmmo;
+    showMessage('💥 やられた！ 基地から やりなおし（監督ルール）', 3);
   } else if (!G.footWarnT || G.footWarnT <= 0) {
     G.footWarnT = 1.2;
     showMessage('⚠ うたれてる！ 走って にげろ！', 1.5);
@@ -3352,6 +3396,19 @@ function tick() {
   if (FOOT.on) extra = `🚶 じぶん ${Math.max(0, Math.round(G.footHp))}／${FOOT_HP}`
     + (FOOT.inShelter ? '　🕳 ぼうくうごうの中' : '')
     + `　のりもの ${Math.round(G.hp)}／${G.maxHp}` + extra.replace(/^[^／]*/, '');
+  // 🚶 右上の体力バー（監督9/6）。おりている時だけ出す＝のりものの時は左上のHPバーがその役
+  $('footHp').style.display = FOOT.on ? 'block' : 'none';
+  if (FOOT.on) {
+    const r = Math.max(0, Math.min(1, G.footHp / FOOT_HP));
+    $('footHpFill').style.width = (r * 100) + '%';
+    // 色でも危なさを出す。⚠ 長さだけだと、走っている時に目のはしで読めない
+    $('footHpFill').style.background = r > 0.6 ? '#76ff03' : r > 0.3 ? '#ffd54f' : '#ff5252';
+    // ⚠ せまい画面ではふだも短くする。長いままだと まんなかのレーダーに右下かどがかぶる（実測）
+    const short = innerWidth < 480;
+    $('footHpLabel').textContent = FOOT.inShelter && G.footHp < FOOT_HP
+      ? (short ? '🕳 かいふく中' : '🚶 たいりょく 🕳 かいふく中')
+      : (short ? '🚶 たいりょく' : '🚶 じぶんの たいりょく');
+  }
   if (NET.on) extra += ` ／ 👥 ${NET.word}（なかま ${NET.peers.size}${NET.peers.size ? (NET.isHost ? '・あずかり役' : '') : ''}）`;
   $('extra').textContent = extra;
   if (FOOT.on && G.mode === 'ship') {
@@ -3535,7 +3592,7 @@ const NET = { on: false, word: '', me: '', name: localStorage.getItem('pw_name')
 // ⚠ つながらない時に「どこで止まったか」を画面に出す（パパ 9/5・PC×スマホ4Gで入れなかった）。
 // 口で往復するより、1回開けば分かる形にする。止まりうる場所は3つあって、直し方が全部ちがう：
 //   ① リレー（相手さがし）に届かない ② 相手は見つかったがNAT越えできない ③ データが来ない
-const BUILD = 'v6-0907c';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
+const BUILD = 'v6-0907d';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
 // v6.1: タイトル画面のすみに小さく出す。⚠ 版が分からないと「どの版で起きた不具合か」が言えなくなる。
 //   前は画面のどこにも無く、つながらない時の診断にしか出ていなかった
 { const bt = document.getElementById('buildTag'); if (bt) bt.textContent = BUILD; }
@@ -4246,6 +4303,7 @@ setInterval(() => {
 if (DEV) { window.dbgGachaIds = () => GACHA.map(g => g.id); window.gameLogPeek = () => gameLog; window.__pw = { FOOT, G, player, NET, footWhere, deckOf, islandTopY, islandDefs, SOLIDS, canWalk,
     AMB, bigH, critters, DRONES, sfxOut, eyePos, initAudio, spawnAIPlane, updateDrones, footHit, THREE, get projs() { return projs; },
     SHELTERS, shelterAt, shelterRoofY, footAimAt, SH_IN_X, SH_IN_Z, SH_SIDE_H, SH_R, FOOT_GUN_DMG, FOOT_GUN_HITS, PLANE_HP, shoot,   // 🕳🔫 9/6の注文ぶん
+    FOOT_HP, SHELTER_HEAL, OUR,   // 💚📊 9/6夜の注文ぶん（回復・右上バー・基地からやり直し）
     // ⚠ units は startGame で作りなおされる（units = []）。値でつかむと 古い配列を見つづけて、
     //    「敵機は0機」のような まちがった観測をする（9/5に実際やった）。必ず今のものを返す
     get units() { return units; },
