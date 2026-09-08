@@ -2,47 +2,108 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>監督への しつもん — 太平洋の鋼</title>
 <style>
-  :root { color-scheme: light dark; }
-  body { margin: 0; padding: 16px 14px 60px; background: #12181d; color: #eceff1;
-         font-family: "Hiragino Maru Gothic ProN", "Yu Gothic", sans-serif; line-height: 1.75;
-         max-width: 760px; margin-inline: auto; font-size: 17px; }
-  h1 { font-size: clamp(21px, 5.5vw, 30px); margin: .2em 0 .1em; }
-  h2 { font-size: clamp(17px, 4.4vw, 22px); margin: 1.4em 0 .3em; color: #ffe082;
+  :root { color-scheme: dark; }
+  body { margin: 0; padding: 14px 12px 48px; background: #12181d; color: #eceff1;
+         font-family: "Hiragino Maru Gothic ProN", "Yu Gothic", sans-serif; line-height: 1.7;
+         max-width: 780px; margin-inline: auto; font-size: 17px; }
+  h1 { font-size: clamp(20px, 5.4vw, 29px); margin: .2em 0 .1em; }
+  h2 { font-size: clamp(16px, 4.3vw, 21px); margin: 1.3em 0 .3em; color: #ffe082;
        border-bottom: 2px solid #455a64; padding-bottom: .2em; }
-  p.lead { color: #b0bec5; margin: .3em 0 1.2em; }
+  p.lead { color: #b0bec5; margin: .3em 0 1em; font-size: .95em; }
+  .note { background: #263238; border-left: 5px solid #ffd54f; padding: 10px 13px;
+          border-radius: 0 10px 10px 0; margin: 12px 0; font-size: 15px; color: #cfd8dc; }
+  .tabs { display: flex; gap: 8px; margin: 10px 0 4px; }
+  .tab { flex: 1; padding: 11px 6px; border-radius: 10px; border: 2px solid #546e7a;
+         background: #263238; color: #eceff1; font-family: inherit; font-size: 15px;
+         font-weight: bold; cursor: pointer; }
+  .tab.on { background: #00695c; border-color: #ffd54f; }
+
   .q { background: #1c262d; border: 2px solid #37474f; border-radius: 12px;
-       padding: 12px 14px; margin: 12px 0; }
-  .q .num { display: inline-block; min-width: 2.1em; font-weight: bold; color: #ffd54f; font-size: 1.05em; }
+       padding: 11px 13px; margin: 11px 0; }
+  .q .num { display: inline-block; min-width: 2em; font-weight: bold; color: #ffd54f; }
   .q .ask { font-weight: bold; }
-  .q .why { color: #90a4ae; font-size: .88em; margin-top: .3em; }
-  .opts { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .q .why { color: #90a4ae; font-size: .87em; margin-top: .25em; }
+  .opts { margin-top: 7px; display: flex; flex-wrap: wrap; gap: 6px; }
   .opt { border: 2px solid #546e7a; background: #263238; color: #eceff1; border-radius: 9px;
-         padding: 7px 12px; font-size: 15px; cursor: pointer; font-family: inherit; }
-  .opt.on { background: #00695c; border-color: #ffd54f; color: #fff; font-weight: bold; }
+         padding: 7px 11px; font-size: 15px; cursor: pointer; font-family: inherit; text-align: left; }
+  .opt .lab { color: #ffd54f; font-weight: bold; margin-right: .35em; }
+  .opt.on { background: #00695c; border-color: #ffd54f; font-weight: bold; }
   .free { width: 100%; margin-top: 6px; padding: 8px; border-radius: 9px; border: 2px solid #546e7a;
           background: #263238; color: #eceff1; font-family: inherit; font-size: 15px; }
-  #out { position: sticky; bottom: 0; background: #0f7b6c; color: #fff; border-radius: 12px;
-         padding: 12px 14px; margin-top: 22px; font-size: 16px; white-space: pre-wrap; }
-  #out b { color: #fff59d; }
-  .note { background: #263238; border-left: 5px solid #ffd54f; padding: 10px 14px;
-          border-radius: 0 10px 10px 0; margin: 14px 0; font-size: 15px; color: #cfd8dc; }
-  .done { color: #80cbc4; }
+
+  /* 📷 おくる用：キッズケータイの ちいさい画面で読めるように 大きく・**1問ずつ**。
+     ⚠ 3問→2問→1問 と落とした。実測でしか決められなかった：
+       3問＝iPhone X の1画面に入らない／2問＝Safariのバーこみ(375x700)で1枚目が29pxはみ出す。
+       はみ出すと スクショが2枚要る＝「1枚＝1問」という約束が崩れる。
+     ⚠ 14枚になるが、ぜんぶ送る運用ではない（大事なのは5番と8番）。
+       それより **キッズケータイの画面で拡大せずに読めること** を取った */
+  body.card .q { display: none; }
+  body.card .q.show { display: block; background: #fff; color: #111; border: 4px solid #263238; }
+  body.card .q.show .num { color: #b71c1c; font-size: 1.15em; }
+  body.card .q.show .ask { font-size: 1.12em; }
+  body.card .q.show .why { color: #555; font-size: .95em; }
+  body.card .q.show .opt { background: #eceff1; color: #111; border-color: #607d8b;
+                           font-size: 1.05em; padding: 9px 12px; cursor: default; }
+  body.card .q.show .opt .lab { color: #b71c1c; }
+  body.card .q.show .free { display: none; }
+  body.card h2, body.card .note.hideOnCard, body.card #out { display: none; }
+  /* ⚠ カードのときは 見出し・説明・タブも隠す。
+     実測：隠さないと 3問が1画面に入らず、スクショが3枚要る＝「1枚＝3問」が成立しない */
+  body.card h1, body.card p.lead, body.card .tabs { display: none; }
+  body.card { padding-top: 8px; }
+  /* ページャは画面の下にはりつける。スクショの写る場所（上）に入れない */
+  body.card .pager { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+                     background: rgba(18,24,29,.94); padding: 6px; margin: 0; }
+  .pager { display: none; gap: 8px; margin: 12px 0; align-items: center; justify-content: center; }
+  .pager button { padding: 10px 16px; font-size: 16px; font-weight: bold; border-radius: 10px;
+                  border: 2px solid #546e7a; background: #263238; color: #fff; font-family: inherit; }
+  #pageNo { font-weight: bold; color: #ffd54f; min-width: 5em; text-align: center; }
+  #shotHint { display: none; background: #004d40; border: 2px dashed #ffd54f; border-radius: 10px;
+              padding: 10px 13px; margin: 10px 0; font-size: 15px; }
+  /* ⚠ これは「パパへの指示」なので **スクショに写ってはいけない**。
+     さらに、下にはりつけても その高さぶん カードが押し出されて 1画面に収まらなくなった
+     （実測 iPhone X 375x812 で 683 > 652）。だから **カードのときは消す**。
+     指示は 上の「パパへ」の枠に書いてある＝2か所に置かない */
+  body.card #shotHint { display: none; }
+  /* 余白をつめる。1枚に2問を 375x700（Safariのバーこみ）でも収めるため */
+  body.card .q.show { margin: 7px 0; padding: 9px 11px; }
+
+  #out { position: sticky; bottom: 0; background: #0f7b6c; border-radius: 12px;
+         padding: 11px 13px; margin-top: 20px; font-size: 15px; }
+  #code { font-size: clamp(21px, 6.4vw, 32px); font-weight: bold; letter-spacing: .06em;
+          background: #004d40; border: 2px dashed #ffd54f; border-radius: 10px;
+          padding: 9px 11px; margin: 7px 0 4px; word-break: break-all; }
 </style>
 
 <h1>⛰ 監督への しつもん</h1>
 <p class="lead">『太平洋の鋼』（陸上戦）を <b>本格的に作る</b>ために、決めてほしいことです。<br>
-ボタンを おしていくと、いちばん下に <b>SMSで送る みじかい文</b>ができます。<br>
-ぜんぶ 答えなくてOK。わかるところだけで だいじょうぶ。</p>
+答えは <b>番号＋アルファベット</b>だけでOK。たとえば <b>1A 5B 6A</b>。<br>ぜんぶ答えなくて だいじょうぶ。</p>
 
-<div class="note">
-📱 <b>長い文は ここで読んで、返事は みじかい番号だけ</b>でいけます。<br>
-そうすれば パパのSMSの文字数を きにしなくてよくなります。
+<div class="tabs">
+  <button class="tab on" id="tabList">📋 ぜんぶ見る</button>
+  <button class="tab" id="tabCard">📷 おくる用（大きい字）</button>
+</div>
+
+<div class="note hideOnCard">
+📱 <b>パパへ：</b>「📷 おくる用」に切りかえると、1枚に1問ずつ・白地の大きい字になります（iPhoneの1画面に入る大きさを実測して決めました）。
+スクショを撮って ＋メッセージで送れば、キッズケータイの画面でも読めます。<br>
+監督は <b>1A 5B</b> のように、番号とアルファベットだけ返せばOK。<br>
+⚠ <b>ぜんぶ送らなくていい。</b>いちばん大事なのは <b>5番</b>（訓練はどこでやる）と <b>8番</b>（生け捕りにしたらどうなる）。
+この2つが決まらないと 練度は作れません。
+</div>
+
+<div id="shotHint">📷 この1枚を スクショして 監督に送ってください。（下の ▶ で 入れかわります）</div>
+
+<div class="pager">
+  <button id="prev">◀</button><span id="pageNo"></span><button id="next">▶</button>
+  <!-- ⚠ カードにすると上のタブが隠れる＝もどる道が消える。ここに出しておく -->
+  <button id="backList">📋 もどる</button>
 </div>
 
 <h2>🗡 サーベル隊（9/7の新しい注文）</h2>
 <div class="q" data-q="1">
   <span class="num">1.</span><span class="ask">サーベル隊は 6つ目の兵科？ それとも ライフル兵が けんを持つの？</span>
-  <div class="why">いまの兵科は ライフル兵・医療兵・工作兵・偵察兵・機関兵の5つ。どっちに足すかで 作り方が変わる。</div>
+  <div class="why">いまの兵科は5つ（ライフル・医療・工作・偵察・機関）</div>
   <div class="opts">
     <button class="opt">6つ目の へいかにする</button>
     <button class="opt">ライフル兵の ぶきちがい</button>
@@ -51,7 +112,7 @@
 </div>
 <div class="q" data-q="2">
   <span class="num">2.</span><span class="ask">けんは ナイフより どれくらい つよい？</span>
-  <div class="why">いま ナイフは 1回さすと 70。てきの体力は 100〜115。</div>
+  <div class="why">いま ナイフは1回70。てきの体力は100〜115</div>
   <div class="opts">
     <button class="opt">1回で たおせる（100）</button>
     <button class="opt">すこし強い（85くらい）</button>
@@ -59,31 +120,29 @@
   </div>
 </div>
 <div class="q" data-q="3">
-  <span class="num">3.</span><span class="ask">「特技をナイフの横のわくにして」は、<b>ボタンを ナイフの となりに置く</b>ってこと？</span>
+  <span class="num">3.</span><span class="ask">「特技をナイフの横のわくにして」は、ボタンを ナイフの となりに置くってこと？</span>
   <div class="opts">
     <button class="opt">そう。ボタンの場所の話</button>
-    <button class="opt">ちがう（下に書く）</button>
+    <button class="opt">ちがう（ことばで教えて）</button>
   </div>
   <input class="free" placeholder="ちがうときは ここに書いて">
 </div>
 
 <h2>📈 練度（9/7の新しい注文）</h2>
-<div class="note">
-こう読んだけど あってる？ → <b>訓練でゲージが3分の1、本番で3分の2たまる。ぜんぶたまるとレベル+1。上は15。</b><br>
-おぼえる技：さいしょ＝つつき・回し切り／2＝カウンターデフェンス／3＝デフェンスに見せかけて攻撃・三段突き／
-4＝峰打ち／5＝飛び降とし／6〜13＝なし／14＝攻撃落とし／15＝打ち上げ打ち落とし
-</div>
 <div class="q" data-q="4">
-  <span class="num">4.</span><span class="ask">上の読み方で あってる？</span>
+  <span class="num">4.</span><span class="ask">読み方は これで あってる？</span>
+  <div class="why">訓練でゲージが3分の1、本番で3分の2たまる。ぜんぶで レベル+1。上は15。<br>
+  さいしょ＝つつき・回し切り／2＝カウンターデフェンス／3＝デフェンスに見せかけて攻撃・三段突き／
+  4＝峰打ち／5＝飛び降とし／6〜13＝なし／14＝攻撃落とし／15＝打ち上げ打ち落とし</div>
   <div class="opts">
     <button class="opt">あってる</button>
-    <button class="opt">ちがう（下に書く）</button>
+    <button class="opt">ちがう（ことばで教えて）</button>
   </div>
   <input class="free" placeholder="ちがうところを ここに">
 </div>
 <div class="q" data-q="5">
   <span class="num">5.</span><span class="ask">「訓練」は どこで やるの？</span>
-  <div class="why">いまのゲームには 本番しかない。訓練する場所を どこに作るか 決めてほしい。</div>
+  <div class="why">いまのゲームには 本番しかない。⚠ ここが決まらないと 練度は作れない。</div>
   <div class="opts">
     <button class="opt">出撃する前の れんしゅうモード</button>
     <button class="opt">じぶんの要塞の中に 訓練場</button>
@@ -91,7 +150,7 @@
   </div>
 </div>
 <div class="q" data-q="6">
-  <span class="num">6.</span><span class="ask">練度は <b>兵科ごとに 別々</b>？ それとも <b>じぶんで1本</b>？</span>
+  <span class="num">6.</span><span class="ask">練度は 兵科ごとに 別々？ それとも じぶんで1本？</span>
   <div class="why">兵科ごとだと、ライフル兵を育てても 医療兵は レベル1のまま。</div>
   <div class="opts">
     <button class="opt">兵科ごとに 別々</button>
@@ -108,7 +167,7 @@
 </div>
 <div class="q" data-q="8">
   <span class="num">8.</span><span class="ask">生け捕りにしたら どうなる？</span>
-  <div class="why">「気絶すると生け捕りに出来る」までは わかった。そのあとが まだ決まってない。</div>
+  <div class="why">「気絶すると生け捕りに出来る」までは わかった。⚠ そのあとが まだ決まってない。</div>
   <div class="opts">
     <button class="opt">味方に なる</button>
     <button class="opt">要塞に つれて帰ると 勝ちに近づく</button>
@@ -127,8 +186,12 @@
   </div>
 </div>
 <div class="q" data-q="10">
-  <span class="num">10.</span><span class="ask">工作兵のクラフト表（画面になまえと どうゆうのかが出る）— 何が作れる？</span>
+  <span class="num">10.</span><span class="ask">工作兵のクラフト表 — 何が作れる？</span>
   <div class="why">いまは 砂袋だけ 置ける。ほかに 作れるものを 教えてほしい。</div>
+  <div class="opts">
+    <button class="opt">すなぶくろ だけでいい</button>
+    <button class="opt">ほかにもある（ことばで教えて）</button>
+  </div>
   <input class="free" placeholder="作れるもの（いくつでも）">
 </div>
 <div class="q" data-q="11">
@@ -139,7 +202,8 @@
   </div>
 </div>
 <div class="q" data-q="12">
-  <span class="num">12.</span><span class="ask">なかまと いっしょに遊べるようにする？（海戦と同じことが できる）</span>
+  <span class="num">12.</span><span class="ask">なかまと いっしょに遊べるようにする？</span>
+  <div class="why">海戦（太平洋の翼）と同じことが できる。</div>
   <div class="opts">
     <button class="opt">やりたい</button>
     <button class="opt">まだ いい</button>
@@ -149,7 +213,7 @@
   <span class="num">13.</span><span class="ask">名前は『太平洋の鋼』で 決定？</span>
   <div class="opts">
     <button class="opt">それでいい</button>
-    <button class="opt">かえる（下に書く）</button>
+    <button class="opt">かえる（ことばで教えて）</button>
   </div>
   <input class="free" placeholder="あたらしい名前">
 </div>
@@ -166,34 +230,73 @@
   </div>
 </div>
 
-<div id="out">まだ なにも えらんでないよ。上の ボタンを おしてね。</div>
+<div id="out">
+  <div><b>監督が おくる みじかい文</b></div>
+  <div id="code">まだ なにも えらんでないよ</div>
+  <div id="extra" style="font-size:14px"></div>
+</div>
 
 <script>
-// ⚠ 番号と答えを みじかい文にする。SMSは送れる文字数がかぎられているので、
-//   長いのは このページで読んで、返すのは番号だけで済むようにする
-const out = document.getElementById('out');
+// ⚠ 監督が読む画面は **キッズケータイ（マモリーノ6・小さい画面）** の可能性がある。
+//   タブレットは お姉ちゃんのを借りているだけで、いつ見られるか分からない。
+//   だから (1) 3問ずつの大きいカード＝写真で送れる形 (2) 答えは「1A 5B」だけで済む形 の2つを用意する。
+const ALPHA = 'ABCDE';
+// 選ぶボタンに A/B/C の札をつける。⚠ 札が無いと、写真で見た監督が「どれ」を指せない
+for (const q of document.querySelectorAll('.q')) {
+  const opts = q.querySelectorAll('.opt');
+  opts.forEach((b, i) => { b.innerHTML = '<span class="lab">' + ALPHA[i] + '</span>' + b.textContent; });
+}
+const code = document.getElementById('code'), extra = document.getElementById('extra');
 function refresh() {
-  const lines = [];
+  const short = [], words = [];
   for (const q of document.querySelectorAll('.q')) {
     const n = q.dataset.q;
-    const on = q.querySelector('.opt.on');
+    const opts = [...q.querySelectorAll('.opt')];
+    const on = opts.find(o => o.classList.contains('on'));
     const free = q.querySelector('.free');
     const txt = free && free.value.trim();
-    if (!on && !txt) continue;
-    lines.push(n + '=' + [on && on.textContent, txt].filter(Boolean).join('／'));
+    if (on) short.push(n + ALPHA[opts.indexOf(on)]);
+    if (txt) words.push(n + '=' + txt);
   }
-  out.innerHTML = lines.length
-    ? '<b>これを パパに 送ってね</b>\n' + lines.join('\n')
-    : 'まだ なにも えらんでないよ。上の ボタンを おしてね。';
-  try { localStorage.setItem('kantokuAnswers', JSON.stringify(lines)); } catch (e) {}
+  code.textContent = short.length || words.length
+    ? [short.join(' '), words.join('／')].filter(Boolean).join('  ')
+    : 'まだ なにも えらんでないよ';
+  extra.textContent = short.length
+    ? '（' + short.length + '問 えらんだ。ぜんぶ答えなくてOK）' : '';
+  try { localStorage.setItem('kantokuAnswers', code.textContent); } catch (e) {}
 }
 for (const b of document.querySelectorAll('.opt')) {
   b.onclick = () => {
+    if (document.body.classList.contains('card')) return;   // 写真用の表示では おさない
     for (const s of b.parentElement.querySelectorAll('.opt')) if (s !== b) s.classList.remove('on');
     b.classList.toggle('on');
     refresh();
   };
 }
 for (const f of document.querySelectorAll('.free')) f.oninput = refresh;
-refresh();
+
+// 📷 おくる用：3問ずつ
+const QS = [...document.querySelectorAll('.q')];
+const PER = 1, PAGES = Math.ceil(QS.length / PER);
+let page = 0;
+function paint() {
+  QS.forEach((q, i) => q.classList.toggle('show', Math.floor(i / PER) === page));
+  document.getElementById('pageNo').textContent = (page + 1) + ' / ' + PAGES;
+}
+document.getElementById('prev').onclick = () => { page = (page + PAGES - 1) % PAGES; paint(); };
+document.getElementById('next').onclick = () => { page = (page + 1) % PAGES; paint(); };
+document.getElementById('tabCard').onclick = () => {
+  document.body.classList.add('card');
+  document.getElementById('tabCard').classList.add('on');
+  document.getElementById('tabList').classList.remove('on');
+  paint();
+};
+const toList = () => {
+  document.body.classList.remove('card');
+  document.getElementById('tabList').classList.add('on');
+  document.getElementById('tabCard').classList.remove('on');
+};
+document.getElementById('tabList').onclick = toList;
+document.getElementById('backList').onclick = toList;
+refresh(); paint();
 </script>
