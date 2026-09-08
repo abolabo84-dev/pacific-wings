@@ -97,6 +97,8 @@
 <div class="fbtn" id="knifeBtn">🔪<br>さす</div>
 <div class="fbtn" id="reviveBtn">🩹<br>そせい</div>
 <div class="fbtn" id="mortarBtn">🎯<br>迫撃砲</div>
+<!-- 🎯 訓練のときだけ出す「おわる」。⚠ 訓練には勝ち負けが無いので、終わる道が要る -->
+<div class="fbtn" id="trainEndBtn" style="left:14px; top:30%; background:rgba(120,80,160,.75); width:74px; height:74px; font-size:12px">🎯<br>おわる</div>
 <div class="fbtn" id="crouchBtn">🧎<br>しゃがむ</div>
 
 <div class="overlay" id="titleScreen">
@@ -116,6 +118,20 @@
   <div id="rowCls" style="display:flex; flex-wrap:wrap; justify-content:center; max-width:640px"></div>
   <p id="clsDesc" style="font-size:.85rem; opacity:.9; min-height:2.4em"></p>
   <button class="btn" id="btnGo">🪖 しゅつげき！</button>
+  <!-- 📈 練度（監督9/8「5C＝訓練はタイトル画面のメニュー」） -->
+  <div id="rendoBox" style="margin:1em auto 0; max-width:min(92vw,560px); text-align:left;
+       background:rgba(0,0,0,.3); border:2px solid #7a8b5a; border-radius:12px; padding:10px 14px">
+    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap">
+      <b style="font-size:1.1rem">📈 練度 レベル <span id="renLv">1</span></b>
+      <span style="font-size:.8rem; opacity:.8">（上は 15）</span>
+      <button class="btn" id="btnTrain" style="margin-left:auto; padding:8px 16px; font-size:1rem">🎯 訓練する</button>
+    </div>
+    <div style="height:14px; background:rgba(0,0,0,.5); border:1px solid #fff; border-radius:5px; margin:6px 0; overflow:hidden">
+      <div id="renFill" style="height:100%; width:0%; background:#8bc34a"></div>
+    </div>
+    <div style="font-size:.78rem; opacity:.85">本番で <b>3分の2</b>・訓練で <b>3分の1</b> たまる。ぜんぶで レベルが1つ上がる</div>
+    <div id="renSkills" style="font-size:.82rem; margin-top:6px; line-height:1.6"></div>
+  </div>
   <p style="margin-top:1em; font-size:.85rem; opacity:.75">
     かんそうを書くときの あいことば：<b id="titleWord" style="font-size:1.1rem"></b></p>
 </div>
@@ -379,6 +395,57 @@ for (const [hx, hz] of [[-60, -20], [-40, 90], [30, -95], [70, 40], [-120, 60], 
   scene.add(g);
   houses.push({ x: hx, z: hz, r: Math.max(w, d2)*0.6 });   // 通れない（あたり判定）
 }
+
+// ============ 📈 練度（監督9/7の注文・9/8の回答 5C・6B・7BC）============
+// 監督の原文（9/7）そのまま：
+//   「練度ゲージというのをつくって訓練と本番で本番は、ゲージの３文の２貯まる
+//     訓練は、ゲージの３文の一貯まる。全部貯まるとレベルがひとつ上がる最上限が十五で
+//     件の技を覚える最初からあるのがつつきと回し切り２つ目がカウンターデベンス
+//     三つ目がデベンスに見せかけて攻撃と三段突き 四つ目が峰打ち五つ目が飛び降とし
+//     六っ目はない１４までない１４は攻撃落とし１５打ち上げ打ち落とし」
+// ⚠ しつもんの4番で監督は「わかんない」と答えたが、それは **私の要約が読めなかった**だけで、
+//   仕様は監督の原文に ぜんぶ書いてある。要約ではなく **原文どおりに**作る。
+// 9/8の回答：5C＝訓練はタイトル画面のメニュー／6B＝練度はじぶんで1本／
+//            7BC＝レベル6〜13は 体力が上がる＋技がつよくなる（両方）
+const REN_MAX_LV = 15;
+const REN_BATTLE = 2/3;    // 本番でたまる（監督「ゲージの３文の２」）
+const REN_TRAIN  = 1/3;    // 訓練でたまる（監督「ゲージの３文の一」）
+// 覚える技。⚠ 名前は監督のことばのまま。lv は「○つ目」＝そのレベルで覚える
+const SKILLS = [
+  { lv: 1,  name: 'つつき',                    eff: '前の1人を つく' },
+  { lv: 1,  name: '回し切り',                  eff: 'まわり ぜんぶを 切る' },
+  { lv: 2,  name: 'カウンターデフェンス',      eff: 'うたれた直後は ダメージが半分' },
+  { lv: 3,  name: 'デフェンスに見せかけて攻撃', eff: 'まもったあとの一撃が つよい' },
+  { lv: 3,  name: '三段突き',                  eff: 'とどく きょりが のびる' },
+  { lv: 4,  name: '峰打ち',                    eff: '**気絶**させる（生け捕りにできる）' },
+  { lv: 5,  name: '飛び降とし',                eff: 'とつげきが 遠くまで とぶ' },
+  { lv: 14, name: '攻撃落とし',                eff: 'まわりを まとめて 切る' },
+  { lv: 15, name: '打ち上げ打ち落とし',        eff: '打ち上げると **気絶**する' },
+];
+// ⚠ 監督「六っ目はない１４までない」＝レベル6〜13で覚える技は無い。
+//   でも 7BC で「体力が上がる」「技がつよくなる」と答えたので、そのぶんを数にする
+const REN_KEY = 'rikusenRendo';
+let rendo = { lv: 1, gauge: 0 };
+try { const r = JSON.parse(localStorage.getItem(REN_KEY) || 'null'); if (r && r.lv) rendo = r; } catch (e) {}
+function saveRendo() {
+  try { localStorage.setItem(REN_KEY, JSON.stringify(rendo)); }
+  catch (e) { console.warn('⚠ 練度を保存できなかった', e); }
+}
+// ゲージを ためる。⚠ 満タンをこえたぶんは 次のレベルへ持ちこす（1回で2レベル上がることもある）
+function addRendo(amount, why) {
+  if (rendo.lv >= REN_MAX_LV) { rendo.gauge = 0; saveRendo(); return { up: 0 }; }
+  rendo.gauge += amount;
+  let up = 0;
+  while (rendo.gauge >= 1 - 1e-9 && rendo.lv < REN_MAX_LV) { rendo.gauge -= 1; rendo.lv++; up++; }
+  if (rendo.lv >= REN_MAX_LV) rendo.gauge = 0;
+  saveRendo();
+  logEvent('rendo', { add: amount, lv: rendo.lv, gauge: +rendo.gauge.toFixed(3), why });
+  return { up };
+}
+const learned = () => SKILLS.filter(s => s.lv <= rendo.lv);
+// 7BC：レベル6〜13のあいだ 体力と けんの強さが 上がる
+const rendoHpBonus  = () => Math.max(0, Math.min(rendo.lv, 13) - 5) * 3;   // 6〜13で +3ずつ（最大+24）
+const rendoDmgMul   = () => 1 + Math.max(0, Math.min(rendo.lv, 13) - 5) * 0.05;  // 同 +5%ずつ
 
 // ============ 🏕 基地と 迫撃砲（監督9/8）============
 // 「基地に一個ずつと塹壕に一個迫撃砲がほしい」＝ 基地12門 ＋ 塹壕2門 = 14門。
@@ -669,7 +736,8 @@ function startGame() {
   // ⚠ +π/2 にすると fwd が -x になり、「まえ」を押すと敵から遠ざかる（最初これで間違えた）
   player.yaw = -Math.PI/2;
   respawn();
-  G.maxHp = G.cls.hp; G.hp = G.maxHp;
+  // 📈 7BC：レベル6〜13のあいだ 体力が上がる（技はふえない）
+  G.maxHp = G.cls.hp + rendoHpBonus(); G.hp = G.maxHp;
   G.gren = 3; G.cannon = 1; G.kills = 0; G.crouch = false; G.scope = false; G.hurtT = 99;
   camera.fov = 70; camera.updateProjectionMatrix();
   // AI兵。⚠ 監督 9/5「あと敵と味方数を増やしたい」→ 味方4→8・敵5→10
@@ -726,7 +794,9 @@ function setupControlsUI() {
 
 // ============ 入力（v6と同じ流儀） ============
 const keys = {};
-addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'Space') e.preventDefault(); });
+addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'Space') e.preventDefault();
+  if (e.code === 'KeyT') endTraining();   // 🎯 訓練をおわる（訓練には勝ち負けが無いので 終わる道が要る）
+});
 addEventListener('keyup', e => { keys[e.code] = false; });
 const stick = { active: false, x: 0, y: 0, id: null };
 const isTouch = 'ontouchstart' in window;
@@ -769,6 +839,8 @@ bindBtn('grenBtn', () => grenPressed = true, () => grenPressed = false);
 bindBtn('knifeBtn', () => knifePressed = true, () => knifePressed = false);
 bindBtn('reviveBtn', () => revivePressed = true, () => revivePressed = false);
 bindBtn('mortarBtn', () => mortarPressed = true, () => mortarPressed = false);
+$('trainEndBtn').addEventListener('touchstart', e => { e.preventDefault(); endTraining(); }, { passive: false });
+$('trainEndBtn').addEventListener('click', () => endTraining());
 bindBtn('skillBtn', () => skillPressed = true, () => skillPressed = false);
 bindBtn('cannonBtn', () => cannonPressed = true, () => cannonPressed = false);
 bindBtn('crouchBtn', () => { G.crouch = !G.crouch; $('crouchBtn').style.opacity = G.crouch ? 1 : 0.7; logEvent('crouch', { on: G.crouch }); });
@@ -837,7 +909,7 @@ let lastT = performance.now(), fireCd = 0, grenCd = 0, skillCd = 0, knifeCd = 0;
 const DEVMODE = new URLSearchParams(location.search).get('dev') === '1';
 // ⚠ 版の印。監督がスマホで試して報告してくるので、**どの版を見ているか**が分からないと
 //    直したはずの物を「まだ直ってない」と言われる（古いキャッシュを見ているだけ、が起きる）
-const BUILD = 'riku-0908b';
+const BUILD = 'riku-0908c';
 { const e = document.getElementById('buildTag'); if (e) e.textContent = '版:' + BUILD; }
 const devPump = (() => {
   if (!DEVMODE) return null;
@@ -930,7 +1002,8 @@ function tick() {
       // 前を向いている相手だけ（うしろは切れない）。ナイフより ひろく なぎ払える
       const dot = (-Math.sin(player.yaw)) * (q.x - P.x) / (d || 1) + (-Math.cos(player.yaw)) * (q.z - P.z) / (d || 1);
       if (dot < SABER_ARC) continue;
-      hitSoldier(s2, G.cls.melee); hit++;
+      // 📈 7BC：レベル6〜13のあいだ けんが つよくなる
+      hitSoldier(s2, Math.round(G.cls.melee * rendoDmgMul())); hit++;
     }
     // 見た目：けんを ふる
     const w2 = player.group && player.group.userData.weapon;
@@ -1048,6 +1121,7 @@ function tick() {
   // 🩹 監督 9/5「蘇生近ずくと蘇生っていうボタンがほしい」。
   // ⚠ 前は 近づくだけで 勝手に蘇生が進んでいた。近くに来たらボタンを出し、押している間だけ進む
   // 🎯 迫撃砲のボタン：そばにある時だけ。⚠ しゃがみボタンと同じ左側だが 高さをずらしてある
+  $('trainEndBtn').style.display = G.training ? 'flex' : 'none';
   $('mortarBtn').style.display = G.nearMortar ? 'flex' : 'none';
   if (G.nearMortar && G.mortarCd <= 0) $('mortarBtn').classList.add('on');
   else $('mortarBtn').classList.remove('on');
@@ -1147,8 +1221,10 @@ function tick() {
       }
     }
     // うつ
+    // 🎯 訓練のときは 敵は撃ってこない（監督5C＝練習の場）。⚠ ここを入れないと
+    //   「訓練」と言いながら 本番と同じ危なさになって、練習にならない
     s.cd -= dt;
-    if (tgt && best < AI_RANGE && s.cd <= 0) {
+    if (tgt && best < AI_RANGE && s.cd <= 0 && !(G.training && s.faction === 'foe')) {
       s.cd = 1.2 + Math.random()*0.8;
       const dir = tmpV.set(tgt.x-sp2.x, 1.4 + (tgt===P ? (G.crouch ? 0.2 : 0.5) : 0.5) - 1.5, tgt.z-sp2.z).normalize();
       // しゃがんでいる自分は ねらいがズレやすい（＝しゃがみの意味）
@@ -1291,10 +1367,19 @@ function drawMinimap() {
 }
 
 // ============ 勝ち負け ============
+// 🎯 訓練を おわる（監督5C：本番とは別のモードなので、勝ち負けではなく「おわる」）
+function endTraining() {
+  if (!G.running || !G.training) return;
+  G.running = false;
+  logEvent('train_end', { kills: G.kills });
+  $('endTitle').textContent = '🎯 訓練 おわり！';
+  $('endText').textContent = 'たおした的：' + G.kills;
+  endCommon();
+}
 function win() {
   G.running = false;
   logEvent('win', { kills: G.kills });
-  $('endTitle').textContent = '🏆 要塞を のっとった！！';
+  $('endTitle').textContent = G.training ? '🎯 訓練 おわり！' : '🏆 要塞を のっとった！！';
   $('endText').textContent = G.myNation.flag + ' ' + G.myNation.name + '軍の かち！　たおした数：' + G.kills;
   endCommon();
 }
@@ -1306,17 +1391,63 @@ function lose() {
   endCommon();
 }
 function endCommon() {
+  // 📈 練度がたまる（監督の数字：本番=3分の2／訓練=3分の1）。
+  // ⚠ 勝っても負けても たまる。監督は「本番で」としか言っていないので 勝ち負けで分けない
+  const before = rendo.lv;
+  const r = addRendo(G.training ? REN_TRAIN : REN_BATTLE, G.training ? 'train' : 'battle');
+  const gaugeTxt = rendo.lv >= REN_MAX_LV ? 'いちばん上！'
+    : 'レベル' + rendo.lv + '（あと ' + Math.round((1 - rendo.gauge) * 100) + '%）';
+  $('endText').innerHTML += '<br>📈 練度 ' + (G.training ? '＋3分の1（訓練）' : '＋3分の2（本番）')
+    + ' → ' + gaugeTxt
+    + (r.up ? '<br><b style="color:#ffd54f">⬆ レベルが ' + before + ' → ' + rendo.lv + ' に上がった！</b>'
+              + (SKILLS.some(x => x.lv > before && x.lv <= rendo.lv)
+                 ? '<br>🗡 おぼえた技：<b>' + SKILLS.filter(x => x.lv > before && x.lv <= rendo.lv).map(x => x.name).join('・') + '</b>'
+                 : '<br>（技はふえないが 体力とけんの強さが 上がった）') : '');
+  paintRendo();
   $('endScreen').style.display = 'flex';
   $('capBarWrap').style.display = 'none';
-  for (const id of ['fireBtn', 'grenBtn', 'skillBtn', 'cannonBtn', 'crouchBtn', 'mortarBtn']) $(id).style.display = 'none';
+  for (const id of ['fireBtn', 'grenBtn', 'skillBtn', 'cannonBtn', 'crouchBtn', 'mortarBtn', 'trainEndBtn']) $(id).style.display = 'none';
 }
-$('btnGo').onclick = startGame;
+// ============ 📈 練度の画面と 訓練モード ============
+function paintRendo() {
+  $('renLv').textContent = rendo.lv;
+  $('renFill').style.width = Math.round(rendo.gauge * 100) + '%';
+  $('renFill').style.background = rendo.lv >= REN_MAX_LV ? '#ffd54f' : '#8bc34a';
+  const got = learned();
+  // ⚠ 覚えたものと、つぎに覚えるものを **両方**出す。つぎが見えないと 訓練する気にならない
+  const next = SKILLS.find(s => s.lv > rendo.lv);
+  $('renSkills').innerHTML =
+    '<b>おぼえた技（' + got.length + '）</b>：' +
+      got.map(s => s.name).join('・') +
+    (next ? '<br><span style="opacity:.8">つぎ：レベル' + next.lv + ' で <b>' + next.name + '</b>（' + next.eff + '）</span>' : '') +
+    (rendo.lv >= 6 && rendo.lv <= 13
+      ? '<br><span style="opacity:.8">レベル6〜13は 技はふえないが <b>体力 +' + rendoHpBonus() +
+        '・けんの強さ ×' + rendoDmgMul().toFixed(2) + '</b>（監督7BC）</span>' : '') +
+    (rendo.lv >= REN_MAX_LV ? '<br><b style="color:#ffd54f">いちばん上まで 上がった！</b>' : '');
+}
+// 🎯 訓練（監督5C：タイトル画面のメニューから）。
+// ⚠ 本番と同じ地図を使うが **敵は撃ってこない**。的を切る／撃つ練習だけ。
+//   終わると ゲージが 3分の1 たまる（監督の数字）
+function startTraining() {
+  G.training = true;
+  startGame();
+  // 敵をぜんぶ「的」にする＝撃ってこない・こちらの練習台になる
+  for (const s of soldiers) if (s.faction === 'foe') { s.training = true; s.cd = 1e9; }
+  showMessage('🎯 訓練！ 的を たおしてみよう（おわると 練度が 3分の1 たまる）', 3.2);
+  logEvent('train_start', { lv: rendo.lv });
+}
+$('btnTrain').onclick = startTraining;
+paintRendo();   // ⚠ 起動したときにも 出す（呼ばないと レベルが1のまま止まって見える）
+$('btnGo').onclick = () => { G.training = false; startGame(); };
 // ?dev=1 のときだけ、テスト用にコンソールから中を触れる（v6と同じ流儀）
 if (DEVMODE) {
   window.dbg = () => ({ G, player, soldiers, projs, sandbags, fortresses, startGame, keys, H, standH, LADDERS, PLATFORMS, houses, rocks, hitPlayer, hitSoldier, THREE, camera, scene,
-    BASES, MORTARS, TRENCH_ZS, TRENCH_HALF, BASE_XS, BASE_ZS, hitsHouse });   // 🏕🎯 9/8の注文ぶん
+    BASES, MORTARS, TRENCH_ZS, TRENCH_HALF, BASE_XS, BASE_ZS, hitsHouse,   // 🏕🎯 9/8の注文ぶん
+    SKILLS, REN_MAX_LV, REN_BATTLE, REN_TRAIN, addRendo, saveRendo, paintRendo, startTraining, endTraining,
+    rendoHpBonus, rendoDmgMul, learned, get rendo() { return rendo; },       // 📈 練度
+    set rendo(v) { rendo = v; saveRendo(); } });
 }
-$('btnRetry').onclick = () => { $('endScreen').style.display = 'none'; $('titleScreen').style.display = 'flex'; };
+$('btnRetry').onclick = () => { $('endScreen').style.display = 'none'; $('titleScreen').style.display = 'flex'; paintRendo(); };
 
 tick();
 </script>
