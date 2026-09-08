@@ -51,6 +51,9 @@
   /* 🔪 さす（全兵科）と 🩹 そせい（近くにたおれた仲間がいる時だけ出す・監督9/5） */
   #knifeBtn { right: 20px; bottom: 210px; background: rgba(120,40,40,0.6); }
   #reviveBtn{ left: 14px; top: 62%; background: rgba(40,120,80,0.72); width: 74px; height: 74px; font-size: 12px; }
+  /* 🎯 迫撃砲。⚠ そばに来た時だけ出す＝ボタンが出ること自体が「ここで使えるよ」の合図 */
+  #mortarBtn{ left: 14px; top: 46%; background: rgba(150,90,30,0.75); width: 74px; height: 74px; font-size: 12px; }
+  #mortarBtn.on { animation: revPulse 1s ease-in-out infinite; }
   #reviveBtn.on { animation: revPulse 1s ease-in-out infinite; }
   @keyframes revPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.1); } }
   /* 🗡 監督9/8「3A＝ボタンの場所の話」＝**とくぎを ナイフの横に置く**。
@@ -93,6 +96,7 @@
 <div class="fbtn" id="cannonBtn">💥<br>大砲</div>
 <div class="fbtn" id="knifeBtn">🔪<br>さす</div>
 <div class="fbtn" id="reviveBtn">🩹<br>そせい</div>
+<div class="fbtn" id="mortarBtn">🎯<br>迫撃砲</div>
 <div class="fbtn" id="crouchBtn">🧎<br>しゃがむ</div>
 
 <div class="overlay" id="titleScreen">
@@ -257,11 +261,23 @@ scene.add(sun, new THREE.AmbientLight(0xbcd4a0, 1.1));
 const FORT_ALLY = { x: -260, z: 0 };
 const FORT_FOE  = { x:  260, z: 0 };
 function hillH(x, z) { return 2.2*Math.sin(x*0.015)*Math.cos(z*0.02) + 1.2*Math.sin(x*0.05+z*0.03); }
+// 🏕 基地12個（監督9/8「基地を１２こつくって間に塹壕がほしい」）。
+// ⚠ 監督は「要塞」（＝のっとったら勝ち）と「基地」を **別のことば**で言っている。
+//   だから 要塞2つはそのままにして、そのあいだに 基地を12個おく。
+//   こう読めば 勝ち負けのルールを こわさない（読みちがえていても 被害が小さいほうを取った）
+// ならびは 6れつ × 2だん。塹壕（z=±55）が ちょうど 2だんの **あいだ**を通る
+const BASE_XS = [-190, -114, -38, 38, 114, 190];
+const BASE_ZS = [-100, 100];
+const BASES = [];
+for (const bz of BASE_ZS) for (const bx of BASE_XS) BASES.push({ x: bx, z: bz });
+const TRENCH_ZS = [-55, 55];
+const TRENCH_HALF = 210;   // ⚠ 150のままだと はしの基地(±190)より内側で切れて「間」にならない
+
 function trenchH(x, z) {
   // 塹壕（ざんごう）2本。z=±55 のあたりを東西に走る溝
   let d = 0;
-  for (const tz of [-55, 55]) {
-    if (Math.abs(x) < 150) {
+  for (const tz of TRENCH_ZS) {
+    if (Math.abs(x) < TRENCH_HALF) {
       const g = Math.exp(-((z-tz)*(z-tz)) / (2*5.5*5.5));
       d -= 2.6 * g;
     }
@@ -363,6 +379,60 @@ for (const [hx, hz] of [[-60, -20], [-40, 90], [30, -95], [70, 40], [-120, 60], 
   scene.add(g);
   houses.push({ x: hx, z: hz, r: Math.max(w, d2)*0.6 });   // 通れない（あたり判定）
 }
+
+// ============ 🏕 基地と 迫撃砲（監督9/8）============
+// 「基地に一個ずつと塹壕に一個迫撃砲がほしい」＝ 基地12門 ＋ 塹壕2門 = 14門。
+// ⚠ 迫撃砲が何をするものかは 監督が言っていない。いちばん素直な形にした：
+//   **そこまで行くと 何回でも使える 曲射の砲**。大砲（1人1回・持ちはこべる）と対になる
+//   ＝「持っている道具」ではなく「**場所**」が強さになる。基地を取りに行く理由になる。
+// ponytail: 敵AIは まだ迫撃砲を使わない（プレイヤーだけ）。監督が遊んで「敵も撃って」と
+//   言ったら足す
+const MORTARS = [];              // {x, z, mesh}
+const MORTAR_RANGE = 13;         // これだけ近づくと使える
+const MORTAR_CD = 2.2, MORTAR_DMG = 85, MORTAR_BLAST = 11;
+function makeMortar(mx, mz) {
+  const g = new THREE.Group();
+  const y = H(mx, mz);
+  // 台
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.4, 0.5, 8),
+    new THREE.MeshLambertMaterial({ color: 0x455a64 }));
+  base.position.y = 0.25;
+  // 砲身（ななめ上を向く＝曲射だと 見て分かる）
+  const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.30, 2.6, 8),
+    new THREE.MeshLambertMaterial({ color: 0x263238 }));
+  tube.position.set(0, 1.5, -0.35); tube.rotation.x = -0.55;
+  g.add(base, tube);
+  g.position.set(mx, y, mz);
+  scene.add(g);
+  MORTARS.push({ x: mx, z: mz, mesh: g });
+}
+function makeBase(bx, bz) {
+  const g = new THREE.Group();
+  const y = H(bx, bz);
+  // 土のうを コの字に積む＝「陣地」に見える最小の形
+  for (let i = -2; i <= 2; i++) {
+    const s = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.1, 1.2),
+      new THREE.MeshLambertMaterial({ color: 0x9e9d24 }));
+    s.position.set(i * 2.4, 0.55, -4.2);
+    g.add(s);
+  }
+  for (const sx of [-6, 6]) for (let i = 0; i < 3; i++) {
+    const s = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.1, 2.4),
+      new THREE.MeshLambertMaterial({ color: 0x9e9d24 }));
+    s.position.set(sx, 0.55, -2.4 + i * 2.4);
+    g.add(s);
+  }
+  // 目じるしの柱（遠くからでも「あそこに基地がある」が分かる）
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 7, 6),
+    new THREE.MeshLambertMaterial({ color: 0x5d4037 }));
+  pole.position.set(0, 3.5, 0);
+  g.add(pole);
+  g.position.set(bx, y, bz);
+  scene.add(g);
+  makeMortar(bx, bz - 1.4);        // 監督「基地に一個ずつ」
+}
+for (const b of BASES) makeBase(b.x, b.z);
+for (const tz of TRENCH_ZS) makeMortar(0, tz);   // 監督「塹壕に一個」
 
 // ============ 要塞と旗と常備柵 ============
 const fortresses = [];
@@ -642,6 +712,7 @@ function setupControlsUI() {
   let hint = '↑↓←→ あるく ／ Shift はしる ／ X しゃがむ ／ スペース うつ ／ B 手榴弾 ／ C 大砲';
   if (G.cls.melee) hint = hint.replace('スペース うつ', 'スペース けんを ふる');
   if (G.cls.skill !== 'none') hint += G.cls.skill === 'dash' ? ' ／ E とつげき' : ' ／ E とくぎ';
+  hint += ' ／ R 迫撃砲（基地・塹壕のそば）';
   if (isTouch) hint = '左スティックであるく（大きくたおすと はしる）';
   $('controlsHint').textContent = hint;
   if (isTouch) {
@@ -661,7 +732,7 @@ const stick = { active: false, x: 0, y: 0, id: null };
 const isTouch = 'ontouchstart' in window;
 const stickZone = $('stick'), stickBase = $('stickBase'), stickKnob = $('stickKnob');
 let firePressed = false, grenPressed = false, skillPressed = false, cannonPressed = false;
-let knifePressed = false, revivePressed = false;
+let knifePressed = false, revivePressed = false, mortarPressed = false;
 stickZone.addEventListener('touchstart', e => {
   const t = e.changedTouches[0];
   stick.active = true; stick.id = t.identifier;
@@ -697,6 +768,7 @@ bindBtn('fireBtn', () => firePressed = true, () => firePressed = false);
 bindBtn('grenBtn', () => grenPressed = true, () => grenPressed = false);
 bindBtn('knifeBtn', () => knifePressed = true, () => knifePressed = false);
 bindBtn('reviveBtn', () => revivePressed = true, () => revivePressed = false);
+bindBtn('mortarBtn', () => mortarPressed = true, () => mortarPressed = false);
 bindBtn('skillBtn', () => skillPressed = true, () => skillPressed = false);
 bindBtn('cannonBtn', () => cannonPressed = true, () => cannonPressed = false);
 bindBtn('crouchBtn', () => { G.crouch = !G.crouch; $('crouchBtn').style.opacity = G.crouch ? 1 : 0.7; logEvent('crouch', { on: G.crouch }); });
@@ -765,7 +837,7 @@ let lastT = performance.now(), fireCd = 0, grenCd = 0, skillCd = 0, knifeCd = 0;
 const DEVMODE = new URLSearchParams(location.search).get('dev') === '1';
 // ⚠ 版の印。監督がスマホで試して報告してくるので、**どの版を見ているか**が分からないと
 //    直したはずの物を「まだ直ってない」と言われる（古いキャッシュを見ているだけ、が起きる）
-const BUILD = 'riku-0908a';
+const BUILD = 'riku-0908b';
 { const e = document.getElementById('buildTag'); if (e) e.textContent = '版:' + BUILD; }
 const devPump = (() => {
   if (!DEVMODE) return null;
@@ -891,6 +963,27 @@ function tick() {
     logEvent('cannon', {});
     playBoom();
   }
+  // ---- 🎯 迫撃砲（監督9/8）。近くにあるときだけ 使える ----
+  // ⚠ 「持っている道具」ではなく「その場所に行くと使えるもの」。だから
+  //   基地や塹壕まで進む理由になる。大砲（1人1回）とちがって 何回でも撃てる
+  G.mortarCd = (G.mortarCd || 0) - dt;
+  let nearMortar = null, nmD = MORTAR_RANGE;
+  for (const m of MORTARS) {
+    const d = Math.hypot(P.x - m.x, P.z - m.z);
+    if (d < nmD) { nmD = d; nearMortar = m; }
+  }
+  G.nearMortar = nearMortar;
+  if (nearMortar && (keys['KeyR'] || mortarPressed) && G.mortarCd <= 0) {
+    G.mortarCd = MORTAR_CD;
+    shoot({ pos: new THREE.Vector3(nearMortar.x, H(nearMortar.x, nearMortar.z) + 2.2, nearMortar.z),
+            vel: fwd.clone().multiplyScalar(30).add(new THREE.Vector3(0, 26, 0)),
+            owner: 'me', dmg: MORTAR_DMG, gravity: 20, blast: MORTAR_BLAST, life: 7,
+            size: 0.45, color: 0x37474f });
+    showMessage('🎯 迫撃砲 発射！（高くとんで 落ちる）', 1.4);
+    logEvent('mortar', {});
+    playBoom();
+  }
+
   // ---- とくぎ（E）：兵科ごと ----
   if ((keys['KeyE'] || skillPressed) && skillCd <= 0) {
     if (G.cls.skill === 'heal') {
@@ -954,6 +1047,10 @@ function tick() {
   }
   // 🩹 監督 9/5「蘇生近ずくと蘇生っていうボタンがほしい」。
   // ⚠ 前は 近づくだけで 勝手に蘇生が進んでいた。近くに来たらボタンを出し、押している間だけ進む
+  // 🎯 迫撃砲のボタン：そばにある時だけ。⚠ しゃがみボタンと同じ左側だが 高さをずらしてある
+  $('mortarBtn').style.display = G.nearMortar ? 'flex' : 'none';
+  if (G.nearMortar && G.mortarCd <= 0) $('mortarBtn').classList.add('on');
+  else $('mortarBtn').classList.remove('on');
   $('reviveBtn').style.display = revTarget ? 'flex' : 'none';
   if (revTarget) $('reviveBtn').classList.add('on'); else $('reviveBtn').classList.remove('on');
   if (revTarget && (revivePressed || keys['KeyE'])) {
@@ -1211,12 +1308,13 @@ function lose() {
 function endCommon() {
   $('endScreen').style.display = 'flex';
   $('capBarWrap').style.display = 'none';
-  for (const id of ['fireBtn', 'grenBtn', 'skillBtn', 'cannonBtn', 'crouchBtn']) $(id).style.display = 'none';
+  for (const id of ['fireBtn', 'grenBtn', 'skillBtn', 'cannonBtn', 'crouchBtn', 'mortarBtn']) $(id).style.display = 'none';
 }
 $('btnGo').onclick = startGame;
 // ?dev=1 のときだけ、テスト用にコンソールから中を触れる（v6と同じ流儀）
 if (DEVMODE) {
-  window.dbg = () => ({ G, player, soldiers, projs, sandbags, fortresses, startGame, keys, H, standH, LADDERS, PLATFORMS, houses, rocks, hitPlayer, hitSoldier, THREE, camera, scene });
+  window.dbg = () => ({ G, player, soldiers, projs, sandbags, fortresses, startGame, keys, H, standH, LADDERS, PLATFORMS, houses, rocks, hitPlayer, hitSoldier, THREE, camera, scene,
+    BASES, MORTARS, TRENCH_ZS, TRENCH_HALF, BASE_XS, BASE_ZS, hitsHouse });   // 🏕🎯 9/8の注文ぶん
 }
 $('btnRetry').onclick = () => { $('endScreen').style.display = 'none'; $('titleScreen').style.display = 'flex'; };
 
