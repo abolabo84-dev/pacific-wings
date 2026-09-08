@@ -1,0 +1,199 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>監督への しつもん — 太平洋の鋼</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { margin: 0; padding: 16px 14px 60px; background: #12181d; color: #eceff1;
+         font-family: "Hiragino Maru Gothic ProN", "Yu Gothic", sans-serif; line-height: 1.75;
+         max-width: 760px; margin-inline: auto; font-size: 17px; }
+  h1 { font-size: clamp(21px, 5.5vw, 30px); margin: .2em 0 .1em; }
+  h2 { font-size: clamp(17px, 4.4vw, 22px); margin: 1.4em 0 .3em; color: #ffe082;
+       border-bottom: 2px solid #455a64; padding-bottom: .2em; }
+  p.lead { color: #b0bec5; margin: .3em 0 1.2em; }
+  .q { background: #1c262d; border: 2px solid #37474f; border-radius: 12px;
+       padding: 12px 14px; margin: 12px 0; }
+  .q .num { display: inline-block; min-width: 2.1em; font-weight: bold; color: #ffd54f; font-size: 1.05em; }
+  .q .ask { font-weight: bold; }
+  .q .why { color: #90a4ae; font-size: .88em; margin-top: .3em; }
+  .opts { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .opt { border: 2px solid #546e7a; background: #263238; color: #eceff1; border-radius: 9px;
+         padding: 7px 12px; font-size: 15px; cursor: pointer; font-family: inherit; }
+  .opt.on { background: #00695c; border-color: #ffd54f; color: #fff; font-weight: bold; }
+  .free { width: 100%; margin-top: 6px; padding: 8px; border-radius: 9px; border: 2px solid #546e7a;
+          background: #263238; color: #eceff1; font-family: inherit; font-size: 15px; }
+  #out { position: sticky; bottom: 0; background: #0f7b6c; color: #fff; border-radius: 12px;
+         padding: 12px 14px; margin-top: 22px; font-size: 16px; white-space: pre-wrap; }
+  #out b { color: #fff59d; }
+  .note { background: #263238; border-left: 5px solid #ffd54f; padding: 10px 14px;
+          border-radius: 0 10px 10px 0; margin: 14px 0; font-size: 15px; color: #cfd8dc; }
+  .done { color: #80cbc4; }
+</style>
+
+<h1>⛰ 監督への しつもん</h1>
+<p class="lead">『太平洋の鋼』（陸上戦）を <b>本格的に作る</b>ために、決めてほしいことです。<br>
+ボタンを おしていくと、いちばん下に <b>SMSで送る みじかい文</b>ができます。<br>
+ぜんぶ 答えなくてOK。わかるところだけで だいじょうぶ。</p>
+
+<div class="note">
+📱 <b>長い文は ここで読んで、返事は みじかい番号だけ</b>でいけます。<br>
+そうすれば パパのSMSの文字数を きにしなくてよくなります。
+</div>
+
+<h2>🗡 サーベル隊（9/7の新しい注文）</h2>
+<div class="q" data-q="1">
+  <span class="num">1.</span><span class="ask">サーベル隊は 6つ目の兵科？ それとも ライフル兵が けんを持つの？</span>
+  <div class="why">いまの兵科は ライフル兵・医療兵・工作兵・偵察兵・機関兵の5つ。どっちに足すかで 作り方が変わる。</div>
+  <div class="opts">
+    <button class="opt">6つ目の へいかにする</button>
+    <button class="opt">ライフル兵の ぶきちがい</button>
+    <button class="opt">ぜんぶの兵科が えらべる</button>
+  </div>
+</div>
+<div class="q" data-q="2">
+  <span class="num">2.</span><span class="ask">けんは ナイフより どれくらい つよい？</span>
+  <div class="why">いま ナイフは 1回さすと 70。てきの体力は 100〜115。</div>
+  <div class="opts">
+    <button class="opt">1回で たおせる（100）</button>
+    <button class="opt">すこし強い（85くらい）</button>
+    <button class="opt">とどく きょりが 長いだけ</button>
+  </div>
+</div>
+<div class="q" data-q="3">
+  <span class="num">3.</span><span class="ask">「特技をナイフの横のわくにして」は、<b>ボタンを ナイフの となりに置く</b>ってこと？</span>
+  <div class="opts">
+    <button class="opt">そう。ボタンの場所の話</button>
+    <button class="opt">ちがう（下に書く）</button>
+  </div>
+  <input class="free" placeholder="ちがうときは ここに書いて">
+</div>
+
+<h2>📈 練度（9/7の新しい注文）</h2>
+<div class="note">
+こう読んだけど あってる？ → <b>訓練でゲージが3分の1、本番で3分の2たまる。ぜんぶたまるとレベル+1。上は15。</b><br>
+おぼえる技：さいしょ＝つつき・回し切り／2＝カウンターデフェンス／3＝デフェンスに見せかけて攻撃・三段突き／
+4＝峰打ち／5＝飛び降とし／6〜13＝なし／14＝攻撃落とし／15＝打ち上げ打ち落とし
+</div>
+<div class="q" data-q="4">
+  <span class="num">4.</span><span class="ask">上の読み方で あってる？</span>
+  <div class="opts">
+    <button class="opt">あってる</button>
+    <button class="opt">ちがう（下に書く）</button>
+  </div>
+  <input class="free" placeholder="ちがうところを ここに">
+</div>
+<div class="q" data-q="5">
+  <span class="num">5.</span><span class="ask">「訓練」は どこで やるの？</span>
+  <div class="why">いまのゲームには 本番しかない。訓練する場所を どこに作るか 決めてほしい。</div>
+  <div class="opts">
+    <button class="opt">出撃する前の れんしゅうモード</button>
+    <button class="opt">じぶんの要塞の中に 訓練場</button>
+    <button class="opt">タイトル画面の メニュー</button>
+  </div>
+</div>
+<div class="q" data-q="6">
+  <span class="num">6.</span><span class="ask">練度は <b>兵科ごとに 別々</b>？ それとも <b>じぶんで1本</b>？</span>
+  <div class="why">兵科ごとだと、ライフル兵を育てても 医療兵は レベル1のまま。</div>
+  <div class="opts">
+    <button class="opt">兵科ごとに 別々</button>
+    <button class="opt">じぶんで 1本</button>
+  </div>
+</div>
+<div class="q" data-q="7">
+  <span class="num">7.</span><span class="ask">レベル6〜13は 技が増えない。そのあいだは 何かいいことある？</span>
+  <div class="opts">
+    <button class="opt">なにもない（技だけ）</button>
+    <button class="opt">体力が すこしずつ上がる</button>
+    <button class="opt">技が つよくなる</button>
+  </div>
+</div>
+<div class="q" data-q="8">
+  <span class="num">8.</span><span class="ask">生け捕りにしたら どうなる？</span>
+  <div class="why">「気絶すると生け捕りに出来る」までは わかった。そのあとが まだ決まってない。</div>
+  <div class="opts">
+    <button class="opt">味方に なる</button>
+    <button class="opt">要塞に つれて帰ると 勝ちに近づく</button>
+    <button class="opt">たおしたのと 同じ</button>
+  </div>
+  <input class="free" placeholder="ほかの考えが あれば ここに">
+</div>
+
+<h2>🪜 まだ作ってないもの（前から）</h2>
+<div class="q" data-q="9">
+  <span class="num">9.</span><span class="ask">はしご（全員が持ってる）は 何に のぼるの？</span>
+  <div class="opts">
+    <button class="opt">要塞のかべ</button>
+    <button class="opt">建物の やね</button>
+    <button class="opt">塹壕から 出るとき</button>
+  </div>
+</div>
+<div class="q" data-q="10">
+  <span class="num">10.</span><span class="ask">工作兵のクラフト表（画面になまえと どうゆうのかが出る）— 何が作れる？</span>
+  <div class="why">いまは 砂袋だけ 置ける。ほかに 作れるものを 教えてほしい。</div>
+  <input class="free" placeholder="作れるもの（いくつでも）">
+</div>
+<div class="q" data-q="11">
+  <span class="num">11.</span><span class="ask">迫撃砲と 重機関銃は べつの武器にする？</span>
+  <div class="opts">
+    <button class="opt">べつの武器にする</button>
+    <button class="opt">機関兵の連射で じゅうぶん</button>
+  </div>
+</div>
+<div class="q" data-q="12">
+  <span class="num">12.</span><span class="ask">なかまと いっしょに遊べるようにする？（海戦と同じことが できる）</span>
+  <div class="opts">
+    <button class="opt">やりたい</button>
+    <button class="opt">まだ いい</button>
+  </div>
+</div>
+<div class="q" data-q="13">
+  <span class="num">13.</span><span class="ask">名前は『太平洋の鋼』で 決定？</span>
+  <div class="opts">
+    <button class="opt">それでいい</button>
+    <button class="opt">かえる（下に書く）</button>
+  </div>
+  <input class="free" placeholder="あたらしい名前">
+</div>
+
+<h2>✋ さいごに</h2>
+<div class="q" data-q="14">
+  <span class="num">14.</span><span class="ask">つぎに いちばん やってほしいのは どれ？</span>
+  <div class="opts">
+    <button class="opt">サーベル隊</button>
+    <button class="opt">練度</button>
+    <button class="opt">はしご</button>
+    <button class="opt">クラフト表</button>
+    <button class="opt">なかまと いっしょ</button>
+  </div>
+</div>
+
+<div id="out">まだ なにも えらんでないよ。上の ボタンを おしてね。</div>
+
+<script>
+// ⚠ 番号と答えを みじかい文にする。SMSは送れる文字数がかぎられているので、
+//   長いのは このページで読んで、返すのは番号だけで済むようにする
+const out = document.getElementById('out');
+function refresh() {
+  const lines = [];
+  for (const q of document.querySelectorAll('.q')) {
+    const n = q.dataset.q;
+    const on = q.querySelector('.opt.on');
+    const free = q.querySelector('.free');
+    const txt = free && free.value.trim();
+    if (!on && !txt) continue;
+    lines.push(n + '=' + [on && on.textContent, txt].filter(Boolean).join('／'));
+  }
+  out.innerHTML = lines.length
+    ? '<b>これを パパに 送ってね</b>\n' + lines.join('\n')
+    : 'まだ なにも えらんでないよ。上の ボタンを おしてね。';
+  try { localStorage.setItem('kantokuAnswers', JSON.stringify(lines)); } catch (e) {}
+}
+for (const b of document.querySelectorAll('.opt')) {
+  b.onclick = () => {
+    for (const s of b.parentElement.querySelectorAll('.opt')) if (s !== b) s.classList.remove('on');
+    b.classList.toggle('on');
+    refresh();
+  };
+}
+for (const f of document.querySelectorAll('.free')) f.oninput = refresh;
+refresh();
+</script>
