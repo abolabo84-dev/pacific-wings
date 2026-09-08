@@ -68,6 +68,18 @@
   /* 余白をつめる。1枚に2問を 375x700（Safariのバーこみ）でも収めるため */
   body.card .q.show { margin: 7px 0; padding: 9px 11px; }
 
+  /* 📝 文字でおくる：＋メッセージなら長文が通る。コピーして貼るだけにする */
+  #textBox { display: none; }
+  body.text #textBox { display: block; }
+  body.text .q, body.text h2, body.text .note.hideOnCard, body.text #out, body.text #shotHint { display: none; }
+  #textOut { width: 100%; height: 46vh; min-height: 300px; background: #1c262d; color: #eceff1;
+             border: 2px solid #546e7a; border-radius: 10px; padding: 10px; font-size: 14px;
+             font-family: inherit; line-height: 1.55; }
+  #copyBtn { margin-top: 8px; padding: 12px 20px; font-size: 17px; font-weight: bold;
+             border-radius: 10px; border: 2px solid #fff; background: #e65100; color: #fff;
+             font-family: inherit; cursor: pointer; }
+  #copyMsg { margin-left: 10px; color: #80cbc4; font-weight: bold; }
+
   #out { position: sticky; bottom: 0; background: #0f7b6c; border-radius: 12px;
          padding: 11px 13px; margin-top: 20px; font-size: 15px; }
   #code { font-size: clamp(21px, 6.4vw, 32px); font-weight: bold; letter-spacing: .06em;
@@ -81,7 +93,8 @@
 
 <div class="tabs">
   <button class="tab on" id="tabList">📋 ぜんぶ見る</button>
-  <button class="tab" id="tabCard">📷 おくる用（大きい字）</button>
+  <button class="tab" id="tabCard">📷 写真でおくる</button>
+  <button class="tab" id="tabText">📝 文字でおくる</button>
 </div>
 
 <div class="note hideOnCard">
@@ -98,6 +111,15 @@
   <button id="prev">◀</button><span id="pageNo"></span><button id="next">▶</button>
   <!-- ⚠ カードにすると上のタブが隠れる＝もどる道が消える。ここに出しておく -->
   <button id="backList">📋 もどる</button>
+</div>
+
+<div id="textBox">
+  <p style="margin:.2em 0 .4em;color:#b0bec5;font-size:15px">
+  ⚠ ＋メッセージ（プラメ）なら 長い文が送れます。下をコピーして 監督に送ってください。<br>
+  ぜんぶ送らなくてOK。<b>5番</b>と<b>8番</b>だけでも十分です。</p>
+  <textarea id="textOut" readonly></textarea>
+  <button id="copyBtn">📋 コピーする</button>
+  <span id="copyMsg"></span>
 </div>
 
 <h2>🗡 サーベル隊（9/7の新しい注文）</h2>
@@ -286,17 +308,46 @@ function paint() {
 document.getElementById('prev').onclick = () => { page = (page + PAGES - 1) % PAGES; paint(); };
 document.getElementById('next').onclick = () => { page = (page + 1) % PAGES; paint(); };
 document.getElementById('tabCard').onclick = () => {
+  document.body.classList.remove('text');
   document.body.classList.add('card');
   document.getElementById('tabCard').classList.add('on');
   document.getElementById('tabList').classList.remove('on');
   paint();
 };
 const toList = () => {
-  document.body.classList.remove('card');
+  document.body.classList.remove('card'); document.body.classList.remove('text');
   document.getElementById('tabList').classList.add('on');
   document.getElementById('tabCard').classList.remove('on');
 };
 document.getElementById('tabList').onclick = toList;
 document.getElementById('backList').onclick = toList;
+// 📝 文字でおくる。⚠ 質問文をそのまま並べると長すぎるので、聞きたいことと選択肢だけにする
+const NL = String.fromCharCode(10);   // ⚠ 改行。書きかえツールで壊れやすいので 定数にしておく
+function buildText() {
+  const L = ['【太平洋の鋼 しつもん】', '番号＋アルファベットで答えてね（れい：1A 5B）', ''];
+  for (const q of QS) {
+    const ask = q.querySelector('.ask').textContent.replace(/\s+/g, ' ').trim();
+    const opts = [...q.querySelectorAll('.opt')]
+      .map((o, i) => ALPHA[i] + o.textContent.replace(ALPHA[i], '').trim());
+    L.push(q.dataset.q + ' ' + ask);
+    L.push('  ' + opts.join(' / '));
+  }
+  L.push('', '⚠ ぜんぶ答えなくてOK。5番と8番がいちばん大事');
+  return L.join(NL);
+}
+const toText = () => {
+  document.body.classList.remove('card'); document.body.classList.add('text');
+  document.getElementById('textOut').value = buildText();
+  for (const t of document.querySelectorAll('.tab')) t.classList.remove('on');
+  document.getElementById('tabText').classList.add('on');
+};
+document.getElementById('tabText').onclick = toText;
+document.getElementById('copyBtn').onclick = async () => {
+  const ta = document.getElementById('textOut');
+  try { await navigator.clipboard.writeText(ta.value); }
+  catch (e) { ta.select(); document.execCommand('copy'); }   // ⚠ 古いブラウザ用のたおしどころ
+  document.getElementById('copyMsg').textContent = 'コピーした！';
+  setTimeout(() => document.getElementById('copyMsg').textContent = '', 2500);
+};
 refresh(); paint();
 </script>
