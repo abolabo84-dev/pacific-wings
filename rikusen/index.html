@@ -110,14 +110,6 @@
   たおれた なかまには 近づくと <b>ほうたいで 蘇生（そせい）</b>できる（30秒いない！）<br>
   💥 大砲は <b>1人1回</b>だけ。💣 手榴弾は じぶんの要塞で ほきゅうできる<br>
   ❤ HPは うたれても 待ってると じわじわ回復する</p>
-  <p style="margin-bottom:.2em">じぶんの国</p>
-  <div id="rowMe" style="display:flex; flex-wrap:wrap; justify-content:center; max-width:640px"></div>
-  <p style="margin-bottom:.2em">敵の国</p>
-  <div id="rowFoe" style="display:flex; flex-wrap:wrap; justify-content:center; max-width:640px"></div>
-  <p style="margin-bottom:.2em">兵科（へいか）を えらぼう</p>
-  <div id="rowCls" style="display:flex; flex-wrap:wrap; justify-content:center; max-width:640px"></div>
-  <p id="clsDesc" style="font-size:.85rem; opacity:.9; min-height:2.4em"></p>
-  <button class="btn" id="btnGo">🪖 しゅつげき！</button>
   <!-- 📈 練度（監督9/8「5C＝訓練はタイトル画面のメニュー」） -->
   <div id="rendoBox" style="margin:1em auto 0; max-width:min(92vw,560px); text-align:left;
        background:rgba(0,0,0,.3); border:2px solid #7a8b5a; border-radius:12px; padding:10px 14px">
@@ -132,6 +124,14 @@
     <div style="font-size:.78rem; opacity:.85">本番で <b>3分の2</b>・訓練で <b>3分の1</b> たまる。ぜんぶで レベルが1つ上がる</div>
     <div id="renSkills" style="font-size:.82rem; margin-top:6px; line-height:1.6"></div>
   </div>
+  <p style="margin-bottom:.2em">じぶんの国</p>
+  <div id="rowMe" style="display:flex; flex-wrap:wrap; justify-content:center; max-width:640px"></div>
+  <p style="margin-bottom:.2em">敵の国</p>
+  <div id="rowFoe" style="display:flex; flex-wrap:wrap; justify-content:center; max-width:640px"></div>
+  <p style="margin-bottom:.2em">兵科（へいか）を えらぼう</p>
+  <div id="rowCls" style="display:flex; flex-wrap:wrap; justify-content:center; max-width:640px"></div>
+  <p id="clsDesc" style="font-size:.85rem; opacity:.9; min-height:2.4em"></p>
+  <button class="btn" id="btnGo">🪖 しゅつげき！</button>
   <p style="margin-top:1em; font-size:.85rem; opacity:.75">
     かんそうを書くときの あいことば：<b id="titleWord" style="font-size:1.1rem"></b></p>
 </div>
@@ -909,7 +909,7 @@ let lastT = performance.now(), fireCd = 0, grenCd = 0, skillCd = 0, knifeCd = 0;
 const DEVMODE = new URLSearchParams(location.search).get('dev') === '1';
 // ⚠ 版の印。監督がスマホで試して報告してくるので、**どの版を見ているか**が分からないと
 //    直したはずの物を「まだ直ってない」と言われる（古いキャッシュを見ているだけ、が起きる）
-const BUILD = 'riku-0908c';
+const BUILD = 'riku-0908d';
 { const e = document.getElementById('buildTag'); if (e) e.textContent = '版:' + BUILD; }
 const devPump = (() => {
   if (!DEVMODE) return null;
