@@ -52,6 +52,10 @@
   #knifeBtn { right: 20px; bottom: 210px; background: rgba(120,40,40,0.6); }
   #reviveBtn{ left: 14px; top: 62%; background: rgba(40,120,80,0.72); width: 74px; height: 74px; font-size: 12px; }
   /* 🎯 迫撃砲。⚠ そばに来た時だけ出す＝ボタンが出ること自体が「ここで使えるよ」の合図 */
+  /* ⏸ 一時停止（監督9/8「太平洋の鋼にも一時停止ボタンがほしい」）。
+     ⚠ 下の段に置くと 撃つつもりで誤爆する（海戦で監督から報告があった）。右上へ逃がす */
+  #pauseBtn { right: 8px; top: 128px; width: 56px; height: 56px; font-size: 10px;
+              background: rgba(0,150,200,.5); border-width: 2px; }
   #mortarBtn{ left: 14px; top: 46%; background: rgba(150,90,30,0.75); width: 74px; height: 74px; font-size: 12px; }
   #mortarBtn.on { animation: revPulse 1s ease-in-out infinite; }
   #reviveBtn.on { animation: revPulse 1s ease-in-out infinite; }
@@ -96,6 +100,7 @@
 <div class="fbtn" id="cannonBtn">💥<br>大砲</div>
 <div class="fbtn" id="knifeBtn">🔪<br>さす</div>
 <div class="fbtn" id="reviveBtn">🩹<br>そせい</div>
+<div class="fbtn" id="pauseBtn">⏸<br>一時停止</div>
 <div class="fbtn" id="mortarBtn">🎯<br>迫撃砲</div>
 <!-- 🎯 訓練のときだけ出す「おわる」。⚠ 訓練には勝ち負けが無いので、終わる道が要る -->
 <div class="fbtn" id="trainEndBtn" style="left:14px; top:30%; background:rgba(120,80,160,.75); width:74px; height:74px; font-size:12px">🎯<br>おわる</div>
@@ -124,6 +129,12 @@
     <div style="font-size:.78rem; opacity:.85">本番で <b>3分の2</b>・訓練で <b>3分の1</b> たまる。ぜんぶで レベルが1つ上がる</div>
     <div id="renSkills" style="font-size:.82rem; margin-top:6px; line-height:1.6"></div>
   </div>
+  <!-- ⚔🛡 攻める／守る（監督9/8「あれホームページに攻める 守るをつけて
+       攻めるな敵の首都がある／守るなら自分の首都がある」）。
+       ⚠ 監督は「首都」と呼んだ。画面のことばも 監督のことばに合わせる -->
+  <p style="margin-bottom:.2em">どっちで あそぶ？</p>
+  <div id="rowMode" style="display:flex; justify-content:center; gap:8px; flex-wrap:wrap"></div>
+  <p id="modeDesc" style="font-size:.85rem; opacity:.9; min-height:2.2em; margin:.2em 12px .6em"></p>
   <p style="margin-bottom:.2em">じぶんの国</p>
   <div id="rowMe" style="display:flex; flex-wrap:wrap; justify-content:center; max-width:640px"></div>
   <p style="margin-bottom:.2em">敵の国</p>
@@ -251,6 +262,29 @@ const CLASSES = [
     desc: '銃のかわりに けん。1回で たおせる（ナイフより強い）。足がはやい。近づかないと 何もできない',
     skill: 'dash', melee: SABER_DMG },
 ];
+// ============ ⚔🛡 攻める／守る（監督9/8）============
+// 「攻めるな敵の首都がある／守るなら自分の首都がある」＝ 目あてが入れかわる。
+// ⚠ 「守る」には いままで **終わり方が無かった**（こちらが取りに行かないと 何も起きない）。
+//   だから 守るは **時間で決まる**ようにした：DEFEND_SEC まで もちこたえたら かち。
+//   ⚠ この長さは私が決めた数字。監督が遊んで「長い／みじかい」と言ったら変える
+const DEFEND_SEC = 150;
+const MODES = [
+  { id: 'attack', name: '⚔ 攻める', desc: '敵の首都（要塞）の旗の下に 3秒立ったら かち！ じぶんの首都を とられたら まけ' },
+  { id: 'defend', name: '🛡 守る',   desc: 'じぶんの首都を まもりきったら かち！ ' + Math.round(DEFEND_SEC/60) + '分ちょっと もちこたえろ。とられたら まけ' },
+];
+let pickMode = 0;
+function paintModes() {
+  const box = $('rowMode'); box.innerHTML = '';
+  MODES.forEach((m, i) => {
+    const b = document.createElement('button');
+    b.className = 'btn pick' + (i === pickMode ? ' on' : '');   // ⚠ 既存のボタンと同じ作り（btn が要る）
+    b.textContent = m.name;
+    b.onclick = () => { pickMode = i; logEvent('pick_mode', { id: m.id }); paintModes(); };
+    box.appendChild(b);
+  });
+  $('modeDesc').textContent = MODES[pickMode].desc;
+}
+
 // ponytail: はしご・クラフト表UI・服3種・迫撃砲は未実装, 監督が最小形で遊んで「次はどれ」と決めたら足す
 
 // ============ 3D基本 ============
@@ -489,11 +523,16 @@ function makeBase(bx, bz) {
     s.position.set(sx, 0.55, -2.4 + i * 2.4);
     g.add(s);
   }
-  // 目じるしの柱（遠くからでも「あそこに基地がある」が分かる）
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 7, 6),
+  // 目じるしの柱と旗。
+  // ⚠ 監督がクリップを見て「きちかな塹壕かな」と **見分けがつかなかった**（9/8 22:03）。
+  //   土のうだけでは伝わらない。**旗**を立てる＝遠くからでも「基地だ」と分かる形にする
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 8, 6),
     new THREE.MeshLambertMaterial({ color: 0x5d4037 }));
-  pole.position.set(0, 3.5, 0);
-  g.add(pole);
+  pole.position.set(0, 4, 0);
+  const flag = new THREE.Mesh(new THREE.BoxGeometry(3.6, 2.2, 0.2),
+    new THREE.MeshLambertMaterial({ color: 0xeceff1 }));
+  flag.position.set(1.9, 6.8, 0);
+  g.add(pole, flag);
   g.position.set(bx, y, bz);
   scene.add(g);
   makeMortar(bx, bz - 1.4);        // 監督「基地に一個ずつ」
@@ -700,6 +739,7 @@ function buildPicks() {
   };
   mk('rowMe',  NATIONS, () => pickMe,  i => { pickMe = i;  if (pickFoe === i) pickFoe = (i+1) % NATIONS.length; }, n => n.flag + ' ' + n.name);
   mk('rowFoe', NATIONS, () => pickFoe, i => { if (i !== pickMe) pickFoe = i; }, n => n.flag + ' ' + n.name);
+  paintModes();
   mk('rowCls', CLASSES, () => pickCls, i => { pickCls = i; }, c => c.icon + ' ' + c.name);
   $('clsDesc').textContent = CLASSES[pickCls].desc;
 }
@@ -709,6 +749,9 @@ buildPicks();
 function startGame() {
   initAudio();
   G.myNation = NATIONS[pickMe]; G.foeNation = NATIONS[pickFoe]; G.cls = CLASSES[pickCls];
+  // ⚔🛡 攻める／守る（監督9/8）。⚠ 訓練は どちらでもない（練習なので）
+  G.mode = G.training ? 'attack' : MODES[pickMode].id;
+  G.defendT = 0;
   logEvent('start', { nation: G.myNation.id, foe: G.foeNation.id, cls: G.cls.id,
     platform: PLATFORM, touch: TOUCH, word: WORD });
   // そうじ
@@ -784,7 +827,7 @@ function setupControlsUI() {
   if (isTouch) hint = '左スティックであるく（大きくたおすと はしる）';
   $('controlsHint').textContent = hint;
   if (isTouch) {
-    for (const id of ['fireBtn', 'grenBtn', 'cannonBtn', 'crouchBtn', 'knifeBtn']) $(id).style.display = 'flex';
+    for (const id of ['fireBtn', 'grenBtn', 'cannonBtn', 'crouchBtn', 'knifeBtn', 'pauseBtn']) $(id).style.display = 'flex';
     $('skillBtn').style.display = G.cls.skill !== 'none' ? 'flex' : 'none';
     // 🗡 サーベル隊は 銃が無い。ボタンの札も変える（「うつ」のままだと 何が起きるか読めない）
     $('fireBtn').innerHTML = G.cls.melee ? '🗡<br>きる' : '🔫<br>うつ';
@@ -796,6 +839,7 @@ function setupControlsUI() {
 const keys = {};
 addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'Space') e.preventDefault();
   if (e.code === 'KeyT') endTraining();   // 🎯 訓練をおわる（訓練には勝ち負けが無いので 終わる道が要る）
+  if (e.code === 'KeyP') togglePause();   // ⏸ 一時停止（監督9/8）
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
 const stick = { active: false, x: 0, y: 0, id: null };
@@ -839,6 +883,16 @@ bindBtn('grenBtn', () => grenPressed = true, () => grenPressed = false);
 bindBtn('knifeBtn', () => knifePressed = true, () => knifePressed = false);
 bindBtn('reviveBtn', () => revivePressed = true, () => revivePressed = false);
 bindBtn('mortarBtn', () => mortarPressed = true, () => mortarPressed = false);
+// ⏸ 一時停止（監督9/8「太平洋の鋼にも一時停止ボタンがほしい」）
+function togglePause() {
+  if (!G.running) return;
+  G.paused = !G.paused;
+  $('pauseBtn').innerHTML = G.paused ? '▶<br>つづける' : '⏸<br>一時停止';
+  showMessage(G.paused ? '⏸ 一時停止中（もういちど おすと つづく）' : '▶ さいかい！', G.paused ? 99 : 1);
+  logEvent('pause', { on: G.paused });
+}
+$('pauseBtn').addEventListener('touchstart', e => { e.preventDefault(); togglePause(); }, { passive: false });
+$('pauseBtn').addEventListener('click', () => togglePause());
 $('trainEndBtn').addEventListener('touchstart', e => { e.preventDefault(); endTraining(); }, { passive: false });
 $('trainEndBtn').addEventListener('click', () => endTraining());
 bindBtn('skillBtn', () => skillPressed = true, () => skillPressed = false);
@@ -909,7 +963,7 @@ let lastT = performance.now(), fireCd = 0, grenCd = 0, skillCd = 0, knifeCd = 0;
 const DEVMODE = new URLSearchParams(location.search).get('dev') === '1';
 // ⚠ 版の印。監督がスマホで試して報告してくるので、**どの版を見ているか**が分からないと
 //    直したはずの物を「まだ直ってない」と言われる（古いキャッシュを見ているだけ、が起きる）
-const BUILD = 'riku-0908d';
+const BUILD = 'riku-0908e';
 { const e = document.getElementById('buildTag'); if (e) e.textContent = '版:' + BUILD; }
 const devPump = (() => {
   if (!DEVMODE) return null;
@@ -928,7 +982,8 @@ function tick() {
   const now = performance.now();
   const dt = Math.min((now - lastT)/1000, 0.05);
   lastT = now;
-  if (!G.running) { renderer.render(scene, camera); return; }
+  // ⏸ 一時停止（監督9/8）。⚠ 描画は続ける＝画面が真っ黒にならない。中の時間だけ止める
+  if (!G.running || G.paused) { renderer.render(scene, camera); return; }
   const P = player.group.position;
 
   // ---- 移動（せんしゃ式：左右でむきをかえ、前後であるく。海戦とおなじ操作の芯） ----
@@ -1281,6 +1336,14 @@ function tick() {
     if (e.life <= 0) { scene.remove(e.mesh); explosions.splice(i, 1); }
   }
 
+  // ---- 🛡 守る：時間でかち（監督9/8「守るなら自分の首都がある」）----
+  // ⚠ 「守る」には もともと終わり方が無い（こちらが取りに行かないと何も起きない）。
+  //   だから 時間で決める。のこり時間は HUD に出す＝あと何秒がんばればいいか 見えないと つらい
+  if (G.mode === 'defend' && !G.training) {
+    G.defendT += dt;
+    if (G.defendT >= DEFEND_SEC) return win();
+  }
+
   // ---- のっとり（監督ルール：敵の要塞をのっとったら勝ち） ----
   const capBar = $('capBarWrap');
   let showBar = false;
@@ -1318,7 +1381,17 @@ function tick() {
   // ---- HUD ----
   $('hpFill').style.width = Math.max(0, G.hp/G.maxHp*100) + '%';
   $('grenCt').textContent = G.gren;
-  $('cdRow').textContent = grenCd > 0 ? '⏳ つぎの手榴弾まで ' + Math.ceil(grenCd) + '秒' : '';
+
+  // ⚠ ここは 1つの場所に 2つのことを出す。前は 守るののこり時間を上に書いていたが、
+  //   この行が **すぐ下で上書き**していて 一度も出ていなかった（実測で発見）。
+  //   出す先が同じなら **組み立ても1か所**にする
+  const cdParts = [];
+  if (G.mode === 'defend' && !G.training) {
+    const left = Math.max(0, Math.ceil(DEFEND_SEC - G.defendT));
+    cdParts.push('🛡 のこり ' + Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0'));
+  }
+  if (grenCd > 0) cdParts.push('⏳ つぎの手榴弾まで ' + Math.ceil(grenCd) + '秒');
+  $('cdRow').textContent = cdParts.join('　');
   $('cannonCt').textContent = G.cannon;
   const dx = FORT_FOE.x - P.x, dz = FORT_FOE.z - P.z;
   const rel = Math.atan2(dx, dz) - (player.yaw + Math.PI);
@@ -1379,7 +1452,8 @@ function endTraining() {
 function win() {
   G.running = false;
   logEvent('win', { kills: G.kills });
-  $('endTitle').textContent = G.training ? '🎯 訓練 おわり！' : '🏆 要塞を のっとった！！';
+  $('endTitle').textContent = G.training ? '🎯 訓練 おわり！'
+    : G.mode === 'defend' ? '🛡 首都を まもりきった！！' : '🏆 敵の首都を のっとった！！';
   $('endText').textContent = G.myNation.flag + ' ' + G.myNation.name + '軍の かち！　たおした数：' + G.kills;
   endCommon();
 }
@@ -1406,7 +1480,7 @@ function endCommon() {
   paintRendo();
   $('endScreen').style.display = 'flex';
   $('capBarWrap').style.display = 'none';
-  for (const id of ['fireBtn', 'grenBtn', 'skillBtn', 'cannonBtn', 'crouchBtn', 'mortarBtn', 'trainEndBtn']) $(id).style.display = 'none';
+  for (const id of ['fireBtn', 'grenBtn', 'skillBtn', 'cannonBtn', 'crouchBtn', 'mortarBtn', 'trainEndBtn', 'pauseBtn']) $(id).style.display = 'none';
 }
 // ============ 📈 練度の画面と 訓練モード ============
 function paintRendo() {
@@ -1445,6 +1519,7 @@ if (DEVMODE) {
     BASES, MORTARS, TRENCH_ZS, TRENCH_HALF, BASE_XS, BASE_ZS, hitsHouse,   // 🏕🎯 9/8の注文ぶん
     SKILLS, REN_MAX_LV, REN_BATTLE, REN_TRAIN, addRendo, saveRendo, paintRendo, startTraining, endTraining,
     rendoHpBonus, rendoDmgMul, learned, get rendo() { return rendo; },       // 📈 練度
+    DEFEND_SEC, MODES, togglePause,                                          // ⚔🛡⏸ 9/8 22:07・22:10
     set rendo(v) { rendo = v; saveRendo(); } });
 }
 $('btnRetry').onclick = () => { $('endScreen').style.display = 'none'; $('titleScreen').style.display = 'flex'; paintRendo(); };
