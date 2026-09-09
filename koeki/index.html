@@ -1,0 +1,387 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>交易物語 〜1887〜 第1号</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: #101820; color: #eceff1;
+               font-family: "Hiragino Maru Gothic ProN", "Yu Gothic", sans-serif; overflow: hidden;
+               -webkit-user-select: none; user-select: none; }
+  #wrap { display: flex; flex-direction: column; height: 100%; }
+  #mapBox { position: relative; flex: 0 0 46%; background: #16324a; overflow: hidden; }
+  #map { width: 100%; height: 100%; display: block; touch-action: manipulation; }
+  #hud { position: absolute; top: 6px; left: 8px; right: 8px; display: flex; justify-content: space-between;
+         font-size: 13px; font-weight: bold; text-shadow: 1px 1px 2px #000; pointer-events: none; }
+  #msg { position: absolute; left: 0; right: 0; top: 34%; text-align: center; color: #ffeb3b;
+         font-size: clamp(15px, 4vw, 24px); font-weight: bold; text-shadow: 2px 2px 4px #000;
+         opacity: 0; transition: opacity .35s; pointer-events: none; }
+  #panel { flex: 1; overflow-y: auto; padding: 10px 12px 30px; background: #101820; }
+  h2 { font-size: 17px; margin: .2em 0 .3em; color: #ffe082; }
+  .sub { font-size: 12px; color: #90a4ae; }
+  table { width: 100%; border-collapse: collapse; margin: 6px 0; }
+  td { padding: 5px 4px; font-size: 14px; border-bottom: 1px solid #263238; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .up { color: #ff8a80; } .down { color: #80d8ff; }
+  button { font-family: inherit; font-size: 14px; font-weight: bold; color: #fff;
+           background: #37474f; border: 2px solid #78909c; border-radius: 9px;
+           padding: 7px 12px; margin: 2px; cursor: pointer; min-height: 40px; }
+  button:disabled { opacity: .35; }
+  button.buy { background: #1565c0; } button.sell { background: #e65100; }
+  button.build { background: #2e7d32; }
+  .row { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+  #overlay { position: fixed; inset: 0; z-index: 40; background: linear-gradient(#0d2438, #143a2b);
+             display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+             overflow-y: auto; padding: 18px 10px 30px; text-align: center; }
+  #overlay h1 { font-size: clamp(24px, 7vw, 42px); margin: .2em 0 .1em; letter-spacing: .1em; }
+  #overlay p { font-size: clamp(13px, 3.5vw, 17px); line-height: 1.7; color: #cfd8dc; margin: 6px 14px; }
+  .pick { display: flex; flex-wrap: wrap; justify-content: center; max-width: 700px; }
+  .pick button { min-width: 108px; opacity: .6; }
+  .pick button.on { opacity: 1; border-color: #ffe066; box-shadow: 0 0 10px #ffe066; }
+  #go { background: #e65100; font-size: clamp(19px, 5vw, 28px); padding: 10px 30px; margin-top: 10px; }
+  .tiny { font-size: .72rem; opacity: .5; margin-top: .8em; }
+</style>
+
+<div id="overlay">
+  <h1>交易物語</h1>
+  <p>1887年。<b>安く買って、高く売る。</b><br>
+  もうけた お金で 土地を買い、工場と市場を作って、<br>
+  <b>いろんな国に じぶんの会社</b>を作ろう。<br>
+  <span class="sub">🚂 陸の道と 🚢 海の道で 世界をまわれる</span></p>
+  <p style="margin-bottom:.1em">じぶんの国を えらぼう（そこから 出発）</p>
+  <div class="pick" id="natRow"></div>
+  <button id="go">🧳 出発！</button>
+  <p class="tiny">かんそうの あいことば：<b id="titleWord">-</b>　／　<span id="buildTag"></span></p>
+</div>
+
+<div id="wrap">
+  <div id="mapBox">
+    <canvas id="map"></canvas>
+    <div id="hud"><span id="hudDate"></span><span id="hudMoney"></span><span id="hudCo"></span></div>
+    <div id="msg"></div>
+  </div>
+  <div id="panel"></div>
+</div>
+
+<script>
+const BUILD = 'koeki-0909a';   // ⚠ 版の印
+document.getElementById('buildTag').textContent = BUILD;
+const Q = new URLSearchParams(location.search);
+
+// ============ ログ計装（常時ON・パパ方針「テストプレイは全部データ」）============
+const LOG_TAG = Q.get('tag') || 'koeki';
+const STARTED = new Date().toISOString();
+const LOG_KEY = 'yuujinKoekiLog_' + STARTED.replace(/[:.]/g, '-') + '_' + LOG_TAG;
+const gameLog = [];
+function logEvent(type, data) { gameLog.push({ t: Math.round(performance.now()), type, data }); }
+function saveLog() {
+  try { localStorage.setItem(LOG_KEY, JSON.stringify({ ver: location.pathname, tag: LOG_TAG, started: STARTED, events: gameLog.slice(-3000) })); }
+  catch (e) { console.warn('⚠ ログを保存できなかった', e); }
+}
+setInterval(saveLog, 10000);
+addEventListener('beforeunload', saveLog);
+window.gameLog = gameLog;
+const CLOUD_URL = 'https://script.google.com/macros/s/AKfycbyMDP1lVKD7YRe3A0Z37qr9W6fMOcIyPiy-c_d2kZs1ywQCeeBrwLz7sm6-5tKqYomX/exec';
+if (!localStorage.getItem('yuujinDevice')) localStorage.setItem('yuujinDevice', 'pc-' + Math.random().toString(36).slice(2, 7));
+if (!localStorage.getItem('yuujinWord')) {
+  const B = ['ねこ','いぬ','くじら','さめ','かめ','たか','わし','ぺんぎん','らっこ','きつね'];
+  localStorage.setItem('yuujinWord', B[Math.floor(Math.random()*B.length)] + (100 + Math.floor(Math.random()*900)));
+}
+document.getElementById('titleWord').textContent = localStorage.getItem('yuujinWord');
+let sentCount = 0, sending = false;
+async function sendLog() {
+  if (sending || sentCount >= gameLog.length) return;
+  sending = true;
+  const upto = gameLog.length;
+  try {
+    const res = await fetch(CLOUD_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ key: 'yuujin2026', runId: LOG_KEY, device: localStorage.getItem('yuujinDevice'),
+        ver: location.pathname, tag: LOG_TAG, build: BUILD, word: localStorage.getItem('yuujinWord'),
+        nation: G.nation ? G.nation.id : '', events: gameLog.slice(sentCount, upto) }) });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    sentCount = upto;
+  } catch (e) { console.warn('⚠ ログを送れなかった。次の60秒でまた試す', e); }
+  finally { sending = false; }
+}
+setInterval(sendLog, 60000);
+addEventListener('beforeunload', () => {
+  if (sentCount < gameLog.length)
+    navigator.sendBeacon(CLOUD_URL, new Blob([JSON.stringify({ key: 'yuujin2026', runId: LOG_KEY,
+      device: localStorage.getItem('yuujinDevice'), ver: location.pathname, tag: LOG_TAG, build: BUILD,
+      events: gameLog.slice(sentCount) })], { type: 'text/plain' }));
+});
+logEvent('open', { ua: navigator.userAgent, w: innerWidth, h: innerHeight });
+
+// ============ 監督の確定仕様（9/9「交易物語」）============
+// 「まず最初に世界地図が出てきて海が無くても陸で動ける」「世界地図で自分は、どこの国か選べる」
+// 「どんどんいろんな国に自分の会社お作る」「土地も買えるし工場も市場も作れる駄々しお金があれば」
+// 「ゲームの核は、お金で買えること」「１８８７年」
+// 参考（パパ）：東インド会社ボドゲ＝安く買って高く売る・株価変動
+// 11か国は 陸上戦と同じ（監督8/25の並びのまま）
+const NATIONS = [
+  { id:'jp', name:'日本',     color:'#e53935', city:'東京' },
+  { id:'gb', name:'イギリス', color:'#1e88e5', city:'ロンドン' },
+  { id:'de', name:'ドイツ',   color:'#546e7a', city:'ベルリン' },
+  { id:'in', name:'インド',   color:'#fb8c00', city:'ボンベイ' },
+  { id:'ru', name:'ロシア',   color:'#8e24aa', city:'モスクワ' },
+  { id:'fr', name:'フランス', color:'#29b6f6', city:'パリ' },
+  { id:'it', name:'イタリア', color:'#43a047', city:'ローマ' },
+  { id:'cn', name:'中国',     color:'#d81b60', city:'北京' },
+  { id:'nl', name:'オランダ', color:'#fdd835', city:'アムステルダム' },
+  { id:'pt', name:'ポルトガル', color:'#00897b', city:'リスボン' },
+  { id:'es', name:'スペイン', color:'#c62828', city:'マドリード' },
+];
+// 商品。産地では安い＝はこぶと もうかる（地域差が交易の動機・監督8/25の構造そのまま）
+const GOODS = [
+  { id:'tea',  name:'茶',  icon:'🍵', base:22 },
+  { id:'silk', name:'絹',  icon:'🎀', base:36 },
+  { id:'cot',  name:'綿',  icon:'🧶', base:16 },
+  { id:'iron', name:'鉄',  icon:'⚙', base:26 },
+];
+// 世界地図の街。mult=その街の値段のくせ（1より小さい＝安い産地）。⚠ 地図の絵は簡単に、
+// 「どこで安く どこで高いか」の**構造**を本物にする（それが交易ゲームの核だから）
+const CITIES = [
+  { id:'london', name:'ロンドン',     nat:'gb', x:432, y:148, mult:{tea:1.6, silk:1.5, cot:1.1, iron:0.6} },
+  { id:'amst',   name:'アムステルダム', nat:'nl', x:472, y:138, mult:{tea:1.4, silk:1.3, cot:1.0, iron:0.9} },
+  { id:'paris',  name:'パリ',         nat:'fr', x:458, y:178, mult:{tea:1.3, silk:1.7, cot:1.0, iron:0.9} },
+  { id:'berlin', name:'ベルリン',     nat:'de', x:508, y:150, mult:{tea:1.3, silk:1.2, cot:1.3, iron:0.7} },
+  { id:'rome',   name:'ローマ',       nat:'it', x:505, y:212, mult:{tea:1.2, silk:1.1, cot:0.9, iron:1.1} },
+  { id:'madrid', name:'マドリード',   nat:'es', x:420, y:215, mult:{tea:1.2, silk:1.2, cot:0.9, iron:1.2} },
+  { id:'lisbon', name:'リスボン',     nat:'pt', x:396, y:222, mult:{tea:1.1, silk:1.2, cot:0.9, iron:1.2} },
+  { id:'moscow', name:'モスクワ',     nat:'ru', x:592, y:118, mult:{tea:1.1, silk:1.3, cot:1.4, iron:0.8} },
+  { id:'cairo',  name:'カイロ',       nat:null, x:552, y:258, mult:{tea:1.0, silk:1.0, cot:0.6, iron:1.3} },
+  { id:'bombay', name:'ボンベイ',     nat:'in', x:688, y:298, mult:{tea:0.8, silk:0.9, cot:0.5, iron:1.4} },
+  { id:'sing',   name:'シンガポール', nat:null, x:762, y:344, mult:{tea:0.8, silk:0.8, cot:0.9, iron:1.4} },
+  { id:'beijing',name:'北京',         nat:'cn', x:800, y:196, mult:{tea:0.5, silk:0.6, cot:1.1, iron:1.5} },
+  { id:'tokyo',  name:'東京',         nat:'jp', x:878, y:206, mult:{tea:0.6, silk:0.5, cot:1.2, iron:1.5} },
+  { id:'ny',     name:'ニューヨーク', nat:null, x:236, y:178, mult:{tea:1.5, silk:1.4, cot:0.8, iron:0.9} },
+  { id:'rio',    name:'リオ',         nat:null, x:308, y:390, mult:{tea:1.3, silk:1.3, cot:0.7, iron:1.4} },
+];
+// 道。kind: 'land'（🚂）／'sea'（🚢）。監督「海が無くても陸で動ける」＝陸の道を主役に
+const ROADS = [
+  ['london','paris','sea'], ['london','amst','sea'], ['paris','amst','land'],
+  ['amst','berlin','land'], ['paris','madrid','land'], ['madrid','lisbon','land'],
+  ['paris','rome','land'], ['rome','berlin','land'], ['berlin','moscow','land'],
+  ['rome','cairo','sea'], ['moscow','beijing','land'],   // 🚂 シベリアの陸路
+  ['cairo','bombay','sea'], ['bombay','sing','land'], ['sing','beijing','land'],
+  ['beijing','tokyo','sea'], ['london','ny','sea'], ['ny','rio','land'], ['lisbon','rio','sea'],
+];
+const LAND_COST = 80, FACTORY_COST = 120, MARKET_COST = 100;
+const CARGO_MAX = 10, START_MONEY = 100;
+const cityById = id => CITIES.find(c => c.id === id);
+const linked = (a, b) => ROADS.some(r => (r[0] === a && r[1] === b) || (r[0] === b && r[1] === a));
+
+// ============ 状態 ============
+const G = { started: false, nation: null, at: null, day: 0, money: START_MONEY,
+            cargo: {}, own: {}, msgT: 0 };
+// own[cityId] = { land:true, factory:false, market:false, stock:0（工場でたまった名産） }
+GOODS.forEach(g => G.cargo[g.id] = 0);
+const cargoCount = () => GOODS.reduce((a, g) => a + G.cargo[g.id], 0);
+// その街の いちばんの名産（mult最小の商品）＝工場が作るもの
+const specialty = c => GOODS.reduce((a, g) => c.mult[g.id] < c.mult[a.id] ? g : a, GOODS[0]);
+// 値段。⚠ 「株価変動」（参考ボドゲ）：日ごとに ゆっくり波打つ＋街ごとに位相をずらす。
+//    乱数でなく波にする＝「待てば変わる」「よその街は今どうか」を考えられる
+function price(c, g, day = G.day) {
+  const wave = 1 + 0.22 * Math.sin(day * 0.55 + c.x * 0.05 + GOODS.indexOf(g) * 1.7);
+  return Math.max(3, Math.round(g.base * c.mult[g.id] * wave));
+}
+const companyNations = () => {
+  const set = new Set();
+  for (const [cid, o] of Object.entries(G.own)) if (o.land) {
+    const c = cityById(cid);
+    set.add(c.nat || c.id);   // 中立の街（カイロ等）は その街じたいを1つと数える
+  }
+  return set;
+};
+const $ = id => document.getElementById(id);
+function showMessage(t, sec = 2.2) { $('msg').textContent = t; $('msg').style.opacity = 1; G.msgT = sec;
+  clearTimeout(showMessage._t); showMessage._t = setTimeout(() => $('msg').style.opacity = 0, sec * 1000); }
+
+// ============ 世界地図（canvas）============
+const cv = $('map'), ctx = cv.getContext('2d');
+const MAPW = 1000, MAPH = 470;
+function drawMap() {
+  const w = cv.clientWidth, h = cv.clientHeight;
+  cv.width = w * devicePixelRatio; cv.height = h * devicePixelRatio;
+  const s = Math.min(w / MAPW, h / MAPH);
+  const ox = (w - MAPW * s) / 2, oy = (h - MAPH * s) / 2;
+  ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  ctx.fillStyle = '#16324a'; ctx.fillRect(0, 0, w, h);
+  const X = c => ox + c.x * s, Y = c => oy + c.y * s;
+  // 大陸のかんじ（ざっくりの形。⚠ 正確な地図より「どの街とどの街がつながるか」が本体）
+  ctx.fillStyle = '#1f4a33';
+  const blobs = [[240,220,90,120],[300,400,70,90],[470,180,110,80],[540,270,70,60],
+                 [640,180,180,90],[720,300,90,80],[850,210,60,50]];
+  for (const [bx, by, rx, ry] of blobs) {
+    ctx.beginPath(); ctx.ellipse(ox + bx*s, oy + by*s, rx*s, ry*s, 0, 0, Math.PI*2); ctx.fill();
+  }
+  // 道
+  for (const [a, b, kind] of ROADS) {
+    const A = cityById(a), B = cityById(b);
+    ctx.strokeStyle = kind === 'land' ? 'rgba(255,224,130,.55)' : 'rgba(129,212,250,.45)';
+    ctx.lineWidth = 2; ctx.setLineDash(kind === 'sea' ? [6, 5] : []);
+    ctx.beginPath(); ctx.moveTo(X(A), Y(A)); ctx.lineTo(X(B), Y(B)); ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  // 街
+  for (const c of CITIES) {
+    const own = G.own[c.id];
+    const here = G.at === c.id;
+    const canGo = G.at && linked(G.at, c.id);
+    // 🏢 会社（土地）を持つ街には じぶんの国の色の輪 ＝「占領目標」の見た目（監督9/9「入れてほしい」）
+    if (own && own.land) {
+      ctx.strokeStyle = G.nation.color; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.arc(X(c), Y(c), 12, 0, Math.PI*2); ctx.stroke();
+    }
+    ctx.fillStyle = here ? '#ffe066' : canGo ? '#fff' : '#90a4ae';
+    ctx.beginPath(); ctx.arc(X(c), Y(c), here ? 8 : 6, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.font = 'bold ' + Math.max(10, 13*s) + 'px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(c.name, X(c), Y(c) - 12);
+    if (own && own.factory) ctx.fillText('🏭', X(c) + 16, Y(c) + 5);
+  }
+  // タップ判定用に保存
+  drawMap._geo = { s, ox, oy };
+}
+cv.addEventListener('pointerdown', e => {
+  if (!G.started || !drawMap._geo) return;
+  const r = cv.getBoundingClientRect();
+  const { s, ox, oy } = drawMap._geo;
+  const mx = (e.clientX - r.left - ox) / s, my = (e.clientY - r.top - oy) / s;
+  let hit = null, hd = 26;
+  for (const c of CITIES) { const d = Math.hypot(c.x - mx, c.y - my); if (d < hd) { hd = d; hit = c; } }
+  if (!hit) return;
+  if (hit.id === G.at) return;
+  if (!linked(G.at, hit.id)) { showMessage('⚠ ' + hit.name + 'へは 道がつながってない', 1.6); return; }
+  travel(hit);
+});
+
+// ============ すすむ ============
+function travel(c) {
+  G.at = c.id; G.day++;
+  // 🏭 工場は 行ってない街でも 毎日つくる（名産が倉庫にたまる）
+  for (const [cid, o] of Object.entries(G.own))
+    if (o.factory) o.stock = Math.min(20, (o.stock || 0) + 1);
+  const road = ROADS.find(r => (r[0] === G.at || r[1] === G.at));
+  logEvent('travel', { to: c.id, day: G.day, money: G.money });
+  showMessage((linked(G.at, G.at) ? '' : '') + '🧳 ' + c.name + 'に ついた', 1.4);
+  render();
+}
+function dateStr() {
+  // 1887年1月1日から 1日ずつ。⚠ 監督「１８８７年」＝年は画面にいつも出す
+  const d = new Date(1887, 0, 1); d.setDate(d.getDate() + G.day);
+  return '1887年' + (d.getMonth() + 1) + '月' + d.getDate() + '日';
+}
+
+// ============ 画面 ============
+function render() {
+  drawMap();
+  $('hudDate').textContent = '📅 ' + dateStr();
+  $('hudMoney').textContent = '💰 ' + G.money;
+  $('hudCo').textContent = '🏢 ' + companyNations().size + 'か国';
+  const c = cityById(G.at);
+  const own = G.own[c.id] || {};
+  const sp = specialty(c);
+  let h = '<h2>📍 ' + c.name + (c.nat ? '（' + NATIONS.find(n => n.id === c.nat).name + '）' : '') + '</h2>';
+  h += '<div class="sub">名産は ' + sp.icon + sp.name + '。にもつ ' + cargoCount() + '/' + CARGO_MAX + '</div>';
+  h += '<table>';
+  for (const g of GOODS) {
+    const p = price(c, g), py = price(c, g, G.day - 1);
+    const arrow = p > py ? '<span class="up">▲</span>' : p < py ? '<span class="down">▼</span>' : '・';
+    const sellP = Math.round(p * (own.market ? 1.5 : 1));
+    h += '<tr><td>' + g.icon + ' ' + g.name + '（もってる ' + G.cargo[g.id] + '）</td>' +
+      '<td class="num">' + p + ' ' + arrow + '</td>' +
+      '<td><button class="buy" data-buy="' + g.id + '"' + (G.money < p || cargoCount() >= CARGO_MAX ? ' disabled' : '') + '>買う</button>' +
+      '<button class="sell" data-sell="' + g.id + '"' + (G.cargo[g.id] <= 0 ? ' disabled' : '') + '>売る ' + sellP + '</button></td></tr>';
+  }
+  h += '</table>';
+  // たてもの（監督「土地も買えるし工場も市場も作れる駄々しお金があれば」＝順番も値段も見せる）
+  h += '<div class="row">';
+  if (!own.land) h += '<button class="build" data-act="land"' + (G.money < LAND_COST ? ' disabled' : '') + '>🏢 土地を買う（' + LAND_COST + '）</button>';
+  else {
+    h += '<span>🏢 会社あり</span>';
+    if (!own.factory) h += '<button class="build" data-act="factory"' + (G.money < FACTORY_COST ? ' disabled' : '') + '>🏭 工場（' + FACTORY_COST + '）名産が毎日たまる</button>';
+    else h += '<button class="build" data-act="collect"' + (!(own.stock > 0) ? ' disabled' : '') + '>🏭 ' + sp.icon + 'を回収（' + (own.stock || 0) + 'こ）</button>';
+    if (!own.market) h += '<button class="build" data-act="market"' + (G.money < MARKET_COST ? ' disabled' : '') + '>🏪 市場（' + MARKET_COST + '）売値1.5倍</button>';
+    else h += '<span>🏪 市場あり</span>';
+  }
+  h += '</div>';
+  h += '<div class="sub" style="margin-top:6px">🗺 地図の 白い街を おすと すすむ（1日たつ）。' +
+       '黄色い線は 🚂陸の道、点線は 🚢海の道</div>';
+  $('panel').innerHTML = h;
+  for (const b of $('panel').querySelectorAll('[data-buy]')) b.onclick = () => trade(b.dataset.buy, +1);
+  for (const b of $('panel').querySelectorAll('[data-sell]')) b.onclick = () => trade(b.dataset.sell, -1);
+  for (const b of $('panel').querySelectorAll('[data-act]')) b.onclick = () => act(b.dataset.act);
+}
+function trade(gid, dir) {
+  const c = cityById(G.at), g = GOODS.find(x => x.id === gid);
+  const own = G.own[c.id] || {};
+  if (dir > 0) {
+    const p = price(c, g);
+    if (G.money < p || cargoCount() >= CARGO_MAX) return;
+    G.money -= p; G.cargo[gid]++;
+    logEvent('buy', { g: gid, p, at: c.id });
+  } else {
+    if (G.cargo[gid] <= 0) return;
+    const p = Math.round(price(c, g) * (own.market ? 1.5 : 1));
+    G.money += p; G.cargo[gid]--;
+    logEvent('sell', { g: gid, p, at: c.id });
+  }
+  render();
+}
+function act(kind) {
+  const c = cityById(G.at);
+  const own = G.own[c.id] = G.own[c.id] || { land: false, factory: false, market: false, stock: 0 };
+  if (kind === 'land' && !own.land && G.money >= LAND_COST) {
+    G.money -= LAND_COST; own.land = true;
+    const n = companyNations().size;
+    showMessage('🏢 ' + c.name + 'に 会社をつくった！（' + n + 'か国め）', 2.4);
+    logEvent('land', { at: c.id, nations: n });
+    if (n === 5) { showMessage('🎉 5か国に 会社ができた！ りっぱな商人だ！', 3.5); logEvent('five_nations', {}); }
+  } else if (kind === 'factory' && own.land && !own.factory && G.money >= FACTORY_COST) {
+    G.money -= FACTORY_COST; own.factory = true;
+    showMessage('🏭 工場を建てた！ ' + specialty(c).name + 'が 毎日たまる', 2.4);
+    logEvent('factory', { at: c.id });
+  } else if (kind === 'market' && own.land && !own.market && G.money >= MARKET_COST) {
+    G.money -= MARKET_COST; own.market = true;
+    showMessage('🏪 市場を作った！ この街では 高く売れる', 2.4);
+    logEvent('market', { at: c.id });
+  } else if (kind === 'collect' && own.stock > 0) {
+    const sp = specialty(c);
+    const take = Math.min(own.stock, CARGO_MAX - cargoCount());
+    if (take <= 0) { showMessage('⚠ にもつが いっぱい', 1.4); return; }
+    own.stock -= take; G.cargo[sp.id] += take;
+    showMessage('🏭 ' + sp.icon + sp.name + 'を ' + take + 'こ 回収した', 1.8);
+    logEvent('collect', { at: c.id, n: take });
+  }
+  render();
+}
+
+// ============ タイトル ============
+let pickNat = 0;
+const natRow = $('natRow');
+NATIONS.forEach((n, i) => {
+  const b = document.createElement('button');
+  b.textContent = n.name;
+  b.style.borderColor = n.color;
+  b.className = i === pickNat ? 'on' : '';
+  b.onclick = () => { pickNat = i; logEvent('pick_nation', { id: n.id });
+    for (const x of natRow.children) x.className = ''; b.className = 'on'; };
+  natRow.appendChild(b);
+});
+$('go').onclick = () => {
+  G.nation = NATIONS[pickNat];
+  const home = CITIES.find(c => c.nat === G.nation.id);
+  G.at = home.id; G.started = true;
+  $('overlay').style.display = 'none';
+  showMessage('🧳 ' + home.name + 'から 出発！ 安く買って 高く売ろう', 3);
+  logEvent('start', { nation: G.nation.id });
+  render();
+};
+addEventListener('resize', () => { if (G.started) drawMap(); });
+
+// ?dev=1：外から数字を見る口（⚠ 目で「動いてる」と 数字が正しいは別）
+if (Q.get('dev') === '1') {
+  window.dbg = () => ({ G, CITIES, GOODS, NATIONS, ROADS, price, linked, travel, trade, act,
+    specialty, companyNations, cargoCount, cityById,
+    LAND_COST, FACTORY_COST, MARKET_COST, CARGO_MAX, START_MONEY, BUILD, render });
+}
+</script>
