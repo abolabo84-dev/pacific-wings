@@ -79,7 +79,7 @@
 </div>
 
 <script>
-const BUILD = 'koeki-0909d';   // ⚠ 版の印
+const BUILD = 'koeki-0909f';   // ⚠ 版の印
 document.getElementById('buildTag').textContent = BUILD;
 const Q = new URLSearchParams(location.search);
 
@@ -188,7 +188,25 @@ const ROADS = [
   ['beijing','tokyo','sea',2], ['london','ny','sea',2], ['ny','rio','sea',2], ['lisbon','rio','sea',2],
 ];
 const ROAD_ICON = { rail:'🚂', sea:'🚢', camel:'🐫' };
-const roadOf = (a, b) => ROADS.find(r => (r[0] === a && r[1] === b) || (r[0] === b && r[1] === a));
+// 🚂 監督9/9 22:28「線路もお金がかかるけど引けたら」＝**線路は 買うもの**（核「お金で買える」）。
+//   パパ「シベリア鉄道作る側にもなる的な？」→ 監督「そう 会社で売ったり買ったりできるけど
+//   交通も整備したりできる」。
+//   史実：シベリア鉄道は1891年着工・全線1916年（25年がかり）。ゲームでは1887年に
+//   **じぶんが作る側**になれる＝歴史より4年はやい。それがこのゲームの遊び。
+// ponytail: いまはシベリア鉄道1本だけ。監督が「ほかの道も」と言ったら足す
+const RAIL_PROJECTS = [
+  { a:'moscow', b:'beijing', name:'シベリア鉄道', cost:500, fee:40 },
+];
+
+// ⚠ 道は 同じ2つの街のあいだに **何本あってもいい**。
+//   （線路を引いても 🐫の道は消さない＝パパ9/9「選択肢として共存できる形をさぐりたい」）
+const roadsBetween = (a, b) => ROADS.filter(r => (r[0] === a && r[1] === b) || (r[0] === b && r[1] === a));
+const roadOf = (a, b) => roadsBetween(a, b)[0];
+// 通行料。⚠ 🐫とお船はタダ。🚂は石炭代がかかる＝**はやいけど お金がへる**。
+//   これで「急ぐか、節約するか」を えらべる（どちらかが消えない）
+// ⚠ 道が無いところへ動かされることがある（テストや、あとで足す機能）。
+//   r が無いのに r[4] を読むと **そこでゲームが止まる**。0を返して先へ進める
+const roadFee = r => (r && r[4]) || 0;
 // 🏗 建物の大きさ（監督9/9 22:16「最初は小さい工場と小さい茶畑しかない」）。
 // ⚠ 「小さい」と言った＝**大きくできる**ということ。監督の核「お金で買える」がここにも効く。
 //    小さい(1) → ふつう(2) → 大きい(3)。作る数／売値が 大きさぶん増える
@@ -204,7 +222,7 @@ const linked = (a, b) => ROADS.some(r => (r[0] === a && r[1] === b) || (r[0] ===
 
 // ============ 状態 ============
 const G = { started: false, nation: null, at: null, day: 0, money: START_MONEY,
-            cargo: {}, own: {}, msgT: 0 };
+            cargo: {}, own: {}, msgT: 0, choose: null };
 // own[cityId] = { land:true, farm:0, factory:0, market:0, stock:{商品id: 数} }
 //   farm/factory/market は **大きさ**（0=無い／1小さい／2ふつう／3大きい）
 GOODS.forEach(g => G.cargo[g.id] = 0);
@@ -291,14 +309,22 @@ cv.addEventListener('pointerdown', e => {
   for (const c of CITIES) { const d = Math.hypot(c.x - mx, c.y - my); if (d < hd) { hd = d; hit = c; } }
   if (!hit) return;
   if (hit.id === G.at) return;
-  if (!linked(G.at, hit.id)) { showMessage('⚠ ' + hit.name + 'へは 道がつながってない', 1.6); return; }
-  travel(hit);
+  const rs = roadsBetween(G.at, hit.id);
+  if (!rs.length) { showMessage('⚠ ' + hit.name + 'へは 道がつながってない', 1.6); return; }
+  if (rs.length === 1) { travel(hit, rs[0]); return; }
+  // ⚠ 道が2本あるときは **えらばせる**。かってに はやいほうを使うと、
+  //   「線路を引いた意味」も「ラクダのほうが得な時がある」も 分からなくなる
+  G.choose = { city: hit, roads: rs };
+  render();
 });
 
 // ============ すすむ ============
-function travel(c) {
-  const road = roadOf(G.at, c.id);
+function travel(c, road) {
+  road = road || roadOf(G.at, c.id);
   const days = road ? road[3] : 1;
+  const fee = roadFee(road);
+  if (fee > G.money) { showMessage('⚠ 石炭代（' + fee + '）が たりない', 1.8); return; }
+  G.money -= fee;
   G.at = c.id; G.day += days;
   // 🌱🏭 畑と工場は 行ってない街でも 毎日つくる。⚠ 3日の道なら 3日ぶん、大きさぶん たまる
   for (const [cid, o] of Object.entries(G.own)) {
@@ -309,9 +335,9 @@ function travel(c) {
       o.stock[sp2.id] = Math.min(30, (o.stock[sp2.id] || 0) + o.factory * days);
     }
   }
-  logEvent('travel', { to: c.id, day: G.day, days, kind: road ? road[2] : '?', money: G.money });
+  logEvent('travel', { to: c.id, day: G.day, days, kind: road ? road[2] : '?', fee, money: G.money });
   const icon = road ? ROAD_ICON[road[2]] : '🧳';
-  showMessage(icon + ' ' + days + '日かけて ' + c.name + 'に ついた', 1.6);
+  showMessage(icon + ' ' + days + '日かけて ' + c.name + 'に ついた' + (fee ? '（石炭 -' + fee + '）' : ''), 1.6);
   render();
 }
 function dateStr() {
@@ -365,14 +391,39 @@ function render() {
       '<button class="sell" data-sell="' + g.id + '"' + (G.cargo[g.id] <= 0 ? ' disabled' : '') + '>売る ' + sellP + '</button></td></tr>';
   }
   h += '</table>';
+  // 🛤 道が2本あるとき：どっちで行くかを えらぶ
+  if (G.choose) {
+    h += '<div class="row" style="background:#1b3a2a;border-radius:9px;padding:6px;margin:4px 0">' +
+      '<b>' + G.choose.city.name + 'へ どっちで行く？</b>';
+    G.choose.roads.forEach((r, i) => {
+      const fee = roadFee(r);
+      h += '<button class="build" data-go="' + i + '">' + ROAD_ICON[r[2]] + ' ' + r[3] + '日' +
+        (fee ? '（石炭 ' + fee + '）' : '（タダ）') + '</button>';
+    });
+    h += '<button data-go="x">やめる</button></div>';
+  }
   h += bh;
+  // 🚂 線路を引く（この街から出ている 🐫の道があるとき）
+  for (const rp of RAIL_PROJECTS) {
+    if (c.id !== rp.a && c.id !== rp.b) continue;
+    if (roadsBetween(rp.a, rp.b).some(r => r[2] === 'rail')) continue;   // もう引いてあれば出さない
+    h += '<div class="row"><button class="build" data-rail="' + rp.a + ':' + rp.b + '"' +
+      (G.money < rp.cost ? ' disabled' : '') + '>🚂 ' + rp.name + 'を引く（' + rp.cost + '）' +
+      '🐫3日タダ の となりに 🚂1日(石炭' + rp.fee + ')が できる</button></div>';
+  }
 
   h += '<div class="sub" style="margin-top:6px">🗺 地図の 白い街を おすと すすむ。' +
-       '🚂鉄道=1日・🚢船=2日・🐫キャラバン=3日（日がたつと 値段がかわる・工場がたまる）</div>';
+       '🚂鉄道=1日・🚢船=2日・🐫キャラバン=3日。道が2本あるときは えらべる</div>';
   $('panel').innerHTML = h;
   for (const b of $('panel').querySelectorAll('[data-buy]')) b.onclick = () => trade(b.dataset.buy, +1);
   for (const b of $('panel').querySelectorAll('[data-sell]')) b.onclick = () => trade(b.dataset.sell, -1);
   for (const b of $('panel').querySelectorAll('[data-act]')) b.onclick = () => act(b.dataset.act);
+  for (const b of $('panel').querySelectorAll('[data-rail]')) b.onclick = () => buildRail(b.dataset.rail);
+  for (const b of $('panel').querySelectorAll('[data-go]')) b.onclick = () => {
+    const ch = G.choose; G.choose = null;
+    if (b.dataset.go === 'x' || !ch) { render(); return; }
+    travel(ch.city, ch.roads[+b.dataset.go]);
+  };
 }
 function trade(gid, dir) {
   const c = cityById(G.at), g = GOODS.find(x => x.id === gid);
@@ -425,6 +476,25 @@ function act(kind) {
   render();
 }
 
+// 🚂 線路を引く。⚠ ROADS の中身を書きかえる＝地図も日数も そのまま新しくなる
+//   （別の場所に「引いた印」を持つと、地図と日数が古いまま残る事故になる）
+function buildRail(key) {
+  const [ra, rb] = key.split(':');
+  const rp = RAIL_PROJECTS.find(x => x.a === ra && x.b === rb);
+  if (!rp || roadsBetween(ra, rb).some(r => r[2] === 'rail') || G.money < rp.cost) return;
+  G.money -= rp.cost;
+  // ⚠⚠ 前は 🐫の道を 🚂に**書きかえて**いた＝せっかくの「遠くて もうかる道」が消えた。
+  //   パパ9/9「選択肢として共存できる形をさぐりたい」→ **2本目の道として足す**。
+  //   🐫3日タダ ／ 🚂1日だけど石炭代。どっちで行くかを えらべるようになる
+  ROADS.push([rp.a, rp.b, 'rail', 1, rp.fee]);
+  // ⚠ 引くと 🐫の道が 地図から消える。それは「史実が消えた」のではなく
+  //   **ゆうじんが歴史を作った**ということ。そう言わないと ただ道が変わっただけに見える
+  showMessage('🚂 ' + rp.name + ' かんせい！ ほんものより4年はやい！ ' +
+    '🐫3日タダ と 🚂1日(石炭' + rp.fee + ') どっちでも行ける', 4.4);
+  logEvent('rail', { name: rp.name, cost: rp.cost, day: G.day });
+  render();
+}
+
 // ============ タイトル ============
 let pickNat = 0;
 const natRow = $('natRow');
@@ -454,6 +524,7 @@ addEventListener('resize', () => { if (G.started) drawMap(); });
 // ?dev=1：外から数字を見る口（⚠ 目で「動いてる」と 数字が正しいは別）
 if (Q.get('dev') === '1') {
   window.dbg = () => ({ G, CITIES, GOODS, NATIONS, ROADS, roadOf, price, linked, travel, trade, act,
+    RAIL_PROJECTS, buildRail, roadsBetween, roadFee,
     specialty, companyNations, cargoCount, cityById,
     LAND_COST, FARM_COST, FACTORY_COST, MARKET_COST, MARKET_MUL, SIZE_NAME, CARGO_MAX, START_MONEY, BUILD, render });
 }
