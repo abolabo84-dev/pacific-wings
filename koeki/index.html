@@ -45,7 +45,7 @@
   <p>1887年。<b>安く買って、高く売る。</b><br>
   もうけた お金で 土地を買い、工場と市場を作って、<br>
   <b>いろんな国に じぶんの会社</b>を作ろう。<br>
-  <span class="sub">🚂 陸の道と 🚢 海の道で 世界をまわれる</span></p>
+  <span class="sub">🚂 鉄道1日・🚢 船2日・🐫 ラクダのキャラバン3日で 世界をまわれる</span></p>
   <p style="margin-bottom:.1em">じぶんの国を えらぼう（そこから 出発）</p>
   <div class="pick" id="natRow"></div>
   <button id="go">🧳 出発！</button>
@@ -67,7 +67,7 @@
 </div>
 
 <script>
-const BUILD = 'koeki-0909a';   // ⚠ 版の印
+const BUILD = 'koeki-0909b';   // ⚠ 版の印
 document.getElementById('buildTag').textContent = BUILD;
 const Q = new URLSearchParams(location.search);
 
@@ -151,7 +151,7 @@ const CITIES = [
   { id:'rome',   name:'ローマ',       nat:'it', x:505, y:212, mult:{tea:1.2, silk:1.1, cot:0.9, iron:1.1} },
   { id:'madrid', name:'マドリード',   nat:'es', x:420, y:215, mult:{tea:1.2, silk:1.2, cot:0.9, iron:1.2} },
   { id:'lisbon', name:'リスボン',     nat:'pt', x:396, y:222, mult:{tea:1.1, silk:1.2, cot:0.9, iron:1.2} },
-  { id:'moscow', name:'モスクワ',     nat:'ru', x:592, y:118, mult:{tea:1.1, silk:1.3, cot:1.4, iron:0.8} },
+  { id:'moscow', name:'モスクワ',     nat:'ru', x:592, y:118, mult:{tea:1.5, silk:1.3, cot:1.4, iron:0.8} },   // 茶1.5＝ロシアは茶の大輸入国（キャフタ貿易）
   { id:'cairo',  name:'カイロ',       nat:null, x:552, y:258, mult:{tea:1.0, silk:1.0, cot:0.6, iron:1.3} },
   { id:'bombay', name:'ボンベイ',     nat:'in', x:688, y:298, mult:{tea:0.8, silk:0.9, cot:0.5, iron:1.4} },
   { id:'sing',   name:'シンガポール', nat:null, x:762, y:344, mult:{tea:0.8, silk:0.8, cot:0.9, iron:1.4} },
@@ -160,15 +160,21 @@ const CITIES = [
   { id:'ny',     name:'ニューヨーク', nat:null, x:236, y:178, mult:{tea:1.5, silk:1.4, cot:0.8, iron:0.9} },
   { id:'rio',    name:'リオ',         nat:null, x:308, y:390, mult:{tea:1.3, silk:1.3, cot:0.7, iron:1.4} },
 ];
-// 道。kind: 'land'（🚂）／'sea'（🚢）。監督「海が無くても陸で動ける」＝陸の道を主役に
+// 道。kind: 'rail'（🚂・1日）／'sea'（🚢・2日）／'camel'（🐫・3日）。
+// 🐫はパパの発案（9/9「ほんとはラクダとか むしろおもしろくない？」）＝**史実をそのまま遊びにする**。
+//   モスクワ⇔北京は シベリア鉄道がまだ無い（着工1891）ので ラクダのキャラバン＝3日かかる。
+//   そのかわり 茶のもうけが大きい（ほんもののキャフタ茶貿易とおなじ理くつ）。
+// ⚠ ボンベイ⇔シンガポール等も ほんとうは船の時代なので 海の道に直した（教材ページと合わせる）
 const ROADS = [
-  ['london','paris','sea'], ['london','amst','sea'], ['paris','amst','land'],
-  ['amst','berlin','land'], ['paris','madrid','land'], ['madrid','lisbon','land'],
-  ['paris','rome','land'], ['rome','berlin','land'], ['berlin','moscow','land'],
-  ['rome','cairo','sea'], ['moscow','beijing','land'],   // 🚂 シベリアの陸路
-  ['cairo','bombay','sea'], ['bombay','sing','land'], ['sing','beijing','land'],
-  ['beijing','tokyo','sea'], ['london','ny','sea'], ['ny','rio','land'], ['lisbon','rio','sea'],
+  ['london','paris','sea',2], ['london','amst','sea',2], ['paris','amst','rail',1],
+  ['amst','berlin','rail',1], ['paris','madrid','rail',1], ['madrid','lisbon','rail',1],
+  ['paris','rome','rail',1], ['rome','berlin','rail',1], ['berlin','moscow','rail',1],
+  ['rome','cairo','sea',2], ['moscow','beijing','camel',3],   // 🐫 ほんものの「茶の道」
+  ['cairo','bombay','sea',2], ['bombay','sing','sea',2], ['sing','beijing','sea',2],
+  ['beijing','tokyo','sea',2], ['london','ny','sea',2], ['ny','rio','sea',2], ['lisbon','rio','sea',2],
 ];
+const ROAD_ICON = { rail:'🚂', sea:'🚢', camel:'🐫' };
+const roadOf = (a, b) => ROADS.find(r => (r[0] === a && r[1] === b) || (r[0] === b && r[1] === a));
 const LAND_COST = 80, FACTORY_COST = 120, MARKET_COST = 100;
 const CARGO_MAX = 10, START_MONEY = 100;
 const cityById = id => CITIES.find(c => c.id === id);
@@ -218,12 +224,19 @@ function drawMap() {
   for (const [bx, by, rx, ry] of blobs) {
     ctx.beginPath(); ctx.ellipse(ox + bx*s, oy + by*s, rx*s, ry*s, 0, 0, Math.PI*2); ctx.fill();
   }
-  // 道
+  // 道（🚂実線・🚢点線・🐫あらい点線＋ラクダのしるし）
   for (const [a, b, kind] of ROADS) {
     const A = cityById(a), B = cityById(b);
-    ctx.strokeStyle = kind === 'land' ? 'rgba(255,224,130,.55)' : 'rgba(129,212,250,.45)';
-    ctx.lineWidth = 2; ctx.setLineDash(kind === 'sea' ? [6, 5] : []);
+    ctx.strokeStyle = kind === 'rail' ? 'rgba(255,224,130,.6)'
+                    : kind === 'camel' ? 'rgba(255,171,64,.75)' : 'rgba(129,212,250,.45)';
+    ctx.lineWidth = kind === 'camel' ? 3 : 2;
+    ctx.setLineDash(kind === 'sea' ? [6, 5] : kind === 'camel' ? [2, 6] : []);
     ctx.beginPath(); ctx.moveTo(X(A), Y(A)); ctx.lineTo(X(B), Y(B)); ctx.stroke();
+    if (kind === 'camel') {
+      ctx.setLineDash([]);
+      ctx.font = Math.max(12, 15*s) + 'px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('🐫', (X(A)+X(B))/2, (Y(A)+Y(B))/2 - 4);
+    }
   }
   ctx.setLineDash([]);
   // 街
@@ -261,13 +274,15 @@ cv.addEventListener('pointerdown', e => {
 
 // ============ すすむ ============
 function travel(c) {
-  G.at = c.id; G.day++;
-  // 🏭 工場は 行ってない街でも 毎日つくる（名産が倉庫にたまる）
+  const road = roadOf(G.at, c.id);
+  const days = road ? road[3] : 1;
+  G.at = c.id; G.day += days;
+  // 🏭 工場は 行ってない街でも 毎日つくる。⚠ 3日の道なら 3日ぶん たまる
   for (const [cid, o] of Object.entries(G.own))
-    if (o.factory) o.stock = Math.min(20, (o.stock || 0) + 1);
-  const road = ROADS.find(r => (r[0] === G.at || r[1] === G.at));
-  logEvent('travel', { to: c.id, day: G.day, money: G.money });
-  showMessage((linked(G.at, G.at) ? '' : '') + '🧳 ' + c.name + 'に ついた', 1.4);
+    if (o.factory) o.stock = Math.min(20, (o.stock || 0) + days);
+  logEvent('travel', { to: c.id, day: G.day, days, kind: road ? road[2] : '?', money: G.money });
+  const icon = road ? ROAD_ICON[road[2]] : '🧳';
+  showMessage(icon + ' ' + days + '日かけて ' + c.name + 'に ついた', 1.6);
   render();
 }
 function dateStr() {
@@ -309,8 +324,8 @@ function render() {
     else h += '<span>🏪 市場あり</span>';
   }
   h += '</div>';
-  h += '<div class="sub" style="margin-top:6px">🗺 地図の 白い街を おすと すすむ（1日たつ）。' +
-       '黄色い線は 🚂陸の道、点線は 🚢海の道</div>';
+  h += '<div class="sub" style="margin-top:6px">🗺 地図の 白い街を おすと すすむ。' +
+       '🚂鉄道=1日・🚢船=2日・🐫キャラバン=3日（日がたつと 値段がかわる・工場がたまる）</div>';
   $('panel').innerHTML = h;
   for (const b of $('panel').querySelectorAll('[data-buy]')) b.onclick = () => trade(b.dataset.buy, +1);
   for (const b of $('panel').querySelectorAll('[data-sell]')) b.onclick = () => trade(b.dataset.sell, -1);
@@ -385,7 +400,7 @@ addEventListener('resize', () => { if (G.started) drawMap(); });
 
 // ?dev=1：外から数字を見る口（⚠ 目で「動いてる」と 数字が正しいは別）
 if (Q.get('dev') === '1') {
-  window.dbg = () => ({ G, CITIES, GOODS, NATIONS, ROADS, price, linked, travel, trade, act,
+  window.dbg = () => ({ G, CITIES, GOODS, NATIONS, ROADS, roadOf, price, linked, travel, trade, act,
     specialty, companyNations, cargoCount, cityById,
     LAND_COST, FACTORY_COST, MARKET_COST, CARGO_MAX, START_MONEY, BUILD, render });
 }
