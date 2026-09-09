@@ -318,8 +318,15 @@ function hillH(x, z) { return 2.2*Math.sin(x*0.015)*Math.cos(z*0.02) + 1.2*Math.
 // ならびは 6れつ × 2だん。塹壕（z=±55）が ちょうど 2だんの **あいだ**を通る
 const BASE_XS = [-190, -114, -38, 38, 114, 190];
 const BASE_ZS = [-100, 100];
+// ⚠ 監督9/9「あの基地は、以前までの占領目標物のやつで」＝ **取り合うもの**。
+//   owner: 'none'（だれのものでもない）→ 'ally' / 'foe'
+//   ⚠ 「占領目標物」ということばは こちらの記録に無い。文も途中で切れている。
+//     だから **勝ち負けには直結させない**（首都＝要塞のまま）。
+//     取ると「その基地の迫撃砲が使える」「手榴弾がほきゅうできる」＝取る意味だけ作る。
+//     まちがった読みでも 被害が小さいほうを選んだ
 const BASES = [];
-for (const bz of BASE_ZS) for (const bx of BASE_XS) BASES.push({ x: bx, z: bz });
+for (const bz of BASE_ZS) for (const bx of BASE_XS) BASES.push({ x: bx, z: bz, owner: 'none', capT: 0 });
+const BASE_ZONE = 11, BASE_CAP_SEC = 3;
 const TRENCH_ZS = [-55, 55];
 const TRENCH_HALF = 210;   // ⚠ 150のままだと はしの基地(±190)より内側で切れて「間」にならない
 
@@ -505,7 +512,9 @@ function makeMortar(mx, mz) {
   g.add(base, tube);
   g.position.set(mx, y, mz);
   scene.add(g);
-  MORTARS.push({ x: mx, z: mz, mesh: g });
+  const m = { x: mx, z: mz, mesh: g };
+  MORTARS.push(m);
+  return m;
 }
 function makeBase(bx, bz) {
   const g = new THREE.Group();
@@ -535,7 +544,9 @@ function makeBase(bx, bz) {
   g.add(pole, flag);
   g.position.set(bx, y, bz);
   scene.add(g);
-  makeMortar(bx, bz - 1.4);        // 監督「基地に一個ずつ」
+  const b = BASES.find(v => v.x === bx && v.z === bz);
+  if (b) { b.flag = flag; b.mortar = makeMortar(bx, bz - 1.4); }   // 監督「基地に一個ずつ」
+  else makeMortar(bx, bz - 1.4);
 }
 for (const b of BASES) makeBase(b.x, b.z);
 for (const tz of TRENCH_ZS) makeMortar(0, tz);   // 監督「塹壕に一個」
@@ -795,7 +806,8 @@ function startGame() {
       g.position.set(x, H(x, z), z);
       scene.add(g);
       const s = { group: g, faction, hp: 90, maxHp: 90, state: 'fight', downT: 0, revT: 0, saber: aiSaber,
-        cd: 1 + Math.random()*2, mission: i < 3 ? 'capture' : 'fight', yaw: 0,
+        // 🏕 3人は要塞のっとり係／つぎの3人は **基地をねらう係**（監督9/9）／のこりは戦う係
+        cd: 1 + Math.random()*2, mission: i < 3 ? 'capture' : i < 6 ? 'base' : 'fight', yaw: 0,
         // 🚶 横にちらす＝一列に固まって突っこまない／押しと止まりの周期
         lane: (Math.random()-0.5)*90, pushT: Math.random()*2, pushing: Math.random() < 0.5 };
       attachHpBar(s, 3.1);
@@ -963,7 +975,7 @@ let lastT = performance.now(), fireCd = 0, grenCd = 0, skillCd = 0, knifeCd = 0;
 const DEVMODE = new URLSearchParams(location.search).get('dev') === '1';
 // ⚠ 版の印。監督がスマホで試して報告してくるので、**どの版を見ているか**が分からないと
 //    直したはずの物を「まだ直ってない」と言われる（古いキャッシュを見ているだけ、が起きる）
-const BUILD = 'riku-0908e';
+const BUILD = 'riku-0909a';
 { const e = document.getElementById('buildTag'); if (e) e.textContent = '版:' + BUILD; }
 const devPump = (() => {
   if (!DEVMODE) return null;
@@ -1098,7 +1110,12 @@ function tick() {
   let nearMortar = null, nmD = MORTAR_RANGE;
   for (const m of MORTARS) {
     const d = Math.hypot(P.x - m.x, P.z - m.z);
-    if (d < nmD) { nmD = d; nearMortar = m; }
+    if (d >= nmD) continue;
+    // 🏕 基地の迫撃砲は **その基地を取ってから**（監督9/9「占領目標物」＝取る意味）。
+    //    塹壕の2門は だれのものでもないので いつでも使える
+    const owner = BASES.find(v => v.mortar === m);
+    if (owner && owner.owner !== 'ally') continue;
+    nmD = d; nearMortar = m;
   }
   G.nearMortar = nearMortar;
   if (nearMortar && (keys['KeyR'] || mortarPressed) && G.mortarCd <= 0) {
@@ -1156,8 +1173,10 @@ function tick() {
       logEvent('dash', {});
     }
   }
-  // じぶんの要塞で ほきゅう
-  if (Math.hypot(P.x-FORT_ALLY.x, P.z-FORT_ALLY.z) < 14) {
+  // じぶんの要塞で ほきゅう。🏕 取った基地でも できる（＝前線で補給できる＝取る意味）
+  const atHome = Math.hypot(P.x-FORT_ALLY.x, P.z-FORT_ALLY.z) < 14
+    || BASES.some(v => v.owner === 'ally' && Math.hypot(P.x-v.x, P.z-v.z) < BASE_ZONE);
+  if (atHome) {
     if (G.gren < 3) { G.gren = 3; showMessage('💣 手榴弾を ほきゅうした！', 1.5); }
   }
 
@@ -1235,9 +1254,23 @@ function tick() {
       const dp = P.distanceTo(sp2);
       if (dp < best) { best = dp; tgt = P; }
     }
-    // 目的地：のっとり係は相手の要塞へ／戦う係は敵のいるほうへ。
+    // 目的地：のっとり係は相手の要塞へ／基地係は いちばん近い「自分のものでない基地」へ／
+    //         戦う係は敵のいるほうへ。
     // ⚠ lane で横にずらす＝全員が同じ一点に集まって 一列で突っこむのを防ぐ
-    const base = s.mission === 'capture'
+    // 🏕 監督9/9「あの基地は、以前までの占領目標物のやつで」。
+    //   ⚠ **敵も取りに来ないと「取り合い」にならない**。だから基地をねらう係を作る
+    //     （probe で「敵も取りかえせる」が通らなかったのは、そもそも敵が基地へ行かないから）
+    let baseGoal = null;
+    if (s.mission === 'base') {
+      let bd = 1e9;
+      for (const bs of BASES) {
+        if (bs.owner === s.faction) continue;              // 自分のものは ねらわない
+        const d = Math.hypot(bs.x - sp2.x, bs.z - sp2.z);
+        if (d < bd) { bd = d; baseGoal = bs; }
+      }
+    }
+    const base = baseGoal ? { x: baseGoal.x, z: baseGoal.z }
+      : s.mission === 'capture'
       ? (s.faction === 'ally' ? FORT_FOE : FORT_ALLY)
       : (tgt ? { x: tgt.x, z: tgt.z } : (s.faction === 'ally' ? FORT_FOE : FORT_ALLY));
     const goal = { x: base.x, z: base.z + (s.mission === 'capture' ? s.lane : 0) };
@@ -1251,7 +1284,8 @@ function tick() {
       s.pushT = s.pushing ? (1.0 + Math.random()*1.4) : (2.2 + Math.random()*2.6);
     }
     const engaged = tgt && best < AI_RANGE;
-    if ((!engaged || s.pushing) && gd > (s.mission === 'capture' ? 6 : 22)) {
+    // 🏕 基地係は 近づいたら 止まる（そこに立っていないと 取れない）
+    if ((!engaged || s.pushing) && gd > (s.mission === 'capture' ? 6 : baseGoal ? 4 : 22)) {
       const dx = (goal.x-sp2.x)/gd, dz = (goal.z-sp2.z)/gd;
       sp2.x += dx * 6.5 * dt; sp2.z += dz * 6.5 * dt;
       sp2.y = H(sp2.x, sp2.z);
@@ -1336,6 +1370,32 @@ function tick() {
     if (e.life <= 0) { scene.remove(e.mesh); explosions.splice(i, 1); }
   }
 
+  // ---- 🏕 基地の取り合い（監督9/9「あの基地は、以前までの占領目標物のやつで」）----
+  // ⚠ 勝ち負けには直結させない。取ると **その基地の迫撃砲が使える**・**手榴弾がほきゅうできる**。
+  //   「取る意味」だけを先に作って、勝ちに関係させるかは 監督に聞く
+  for (const bs of BASES) {
+    let mine = 0, foe = 0;
+    if (Math.hypot(P.x - bs.x, P.z - bs.z) < BASE_ZONE) mine++;
+    for (const s2 of soldiers) {
+      if (s2.state !== 'fight') continue;
+      if (Math.hypot(s2.group.position.x - bs.x, s2.group.position.z - bs.z) >= BASE_ZONE) continue;
+      if (s2.faction === 'ally') mine++; else foe++;
+    }
+    // ⚠ 両方いる時は 取れない（取り合っている最中）。片方だけの時に進む
+    const side = (mine > 0 && foe === 0) ? 'ally' : (foe > 0 && mine === 0) ? 'foe' : null;
+    if (!side || bs.owner === side) { bs.capT = 0; continue; }
+    bs.capT += dt;
+    if (bs.capT >= BASE_CAP_SEC) {
+      bs.capT = 0;
+      const was = bs.owner;
+      bs.owner = side;
+      if (bs.flag) bs.flag.material.color.set(side === 'ally' ? G.myNation.color : G.foeNation.color);
+      if (side === 'ally') showMessage('🏕 基地を とった！（' + BASES.filter(v => v.owner === 'ally').length + '/12）', 2);
+      else if (was === 'ally') showMessage('⚠ 基地を とりかえされた…', 2);
+      logEvent('base_capture', { side, x: bs.x, z: bs.z, mine: BASES.filter(v => v.owner === 'ally').length });
+    }
+  }
+
   // ---- 🛡 守る：時間でかち（監督9/8「守るなら自分の首都がある」）----
   // ⚠ 「守る」には もともと終わり方が無い（こちらが取りに行かないと何も起きない）。
   //   だから 時間で決める。のこり時間は HUD に出す＝あと何秒がんばればいいか 見えないと つらい
@@ -1385,7 +1445,9 @@ function tick() {
   // ⚠ ここは 1つの場所に 2つのことを出す。前は 守るののこり時間を上に書いていたが、
   //   この行が **すぐ下で上書き**していて 一度も出ていなかった（実測で発見）。
   //   出す先が同じなら **組み立ても1か所**にする
-  const cdParts = [];
+  // 🏕 取った基地の数。⚠ 数が見えないと「取り合っている」ことに気づけない
+  $('cannonCt').textContent = G.cannon;
+  const cdParts = ['🏕 ' + BASES.filter(v => v.owner === 'ally').length + '/12'];
   if (G.mode === 'defend' && !G.training) {
     const left = Math.max(0, Math.ceil(DEFEND_SEC - G.defendT));
     cdParts.push('🛡 のこり ' + Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0'));
@@ -1519,7 +1581,7 @@ if (DEVMODE) {
     BASES, MORTARS, TRENCH_ZS, TRENCH_HALF, BASE_XS, BASE_ZS, hitsHouse,   // 🏕🎯 9/8の注文ぶん
     SKILLS, REN_MAX_LV, REN_BATTLE, REN_TRAIN, addRendo, saveRendo, paintRendo, startTraining, endTraining,
     rendoHpBonus, rendoDmgMul, learned, get rendo() { return rendo; },       // 📈 練度
-    DEFEND_SEC, MODES, togglePause,                                          // ⚔🛡⏸ 9/8 22:07・22:10
+    DEFEND_SEC, MODES, togglePause, BASE_ZONE, BASE_CAP_SEC,                 // ⚔🛡⏸🏕 9/8〜9/9
     set rendo(v) { rendo = v; saveRendo(); } });
 }
 $('btnRetry').onclick = () => { $('endScreen').style.display = 'none'; $('titleScreen').style.display = 'flex'; paintRendo(); };
