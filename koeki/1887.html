@@ -1,0 +1,181 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>1887年って どんな年？ — 交易物語の ほんとうの歴史</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; padding: 14px 12px 60px; background: #12181d; color: #eceff1;
+         font-family: "Hiragino Maru Gothic ProN", "Yu Gothic", sans-serif; line-height: 1.75;
+         max-width: 780px; margin-inline: auto; font-size: 17px; }
+  h1 { font-size: clamp(20px, 5.4vw, 29px); margin: .2em 0 .1em; }
+  p.lead { color: #b0bec5; margin: .3em 0 1em; font-size: .95em; }
+  .tabs { display: flex; gap: 8px; margin: 10px 0 4px; }
+  .tab { flex: 1; padding: 11px 6px; border-radius: 10px; border: 2px solid #546e7a;
+         background: #263238; color: #eceff1; font-family: inherit; font-size: 15px;
+         font-weight: bold; cursor: pointer; }
+  .tab.on { background: #00695c; border-color: #ffd54f; }
+  .q { background: #1c262d; border: 2px solid #37474f; border-radius: 12px;
+       padding: 11px 13px; margin: 11px 0; }
+  .q .num { display: inline-block; min-width: 1.6em; font-weight: bold; color: #ffd54f; }
+  .q .ask { font-weight: bold; }
+  .q .why { color: #b0bec5; font-size: .92em; margin-top: .35em; }
+  .q .game { color: #80cbc4; font-size: .85em; margin-top: .35em; }
+  /* 📷 写真でおくる：1問1枚・白地・大きい字（かんとくページで実証ずみの形） */
+  body.card .q { display: none; }
+  body.card .q.show { display: block; background: #fff; color: #111; border: 4px solid #263238; margin: 7px 0; padding: 10px 12px; }
+  body.card .q.show .num { color: #b71c1c; font-size: 1.1em; }
+  body.card .q.show .ask { font-size: 1.1em; }
+  body.card .q.show .why { color: #333; }
+  body.card .q.show .game { color: #00695c; }
+  body.card h1, body.card p.lead, body.card .tabs, body.card #src, body.card #textBox { display: none; }
+  body.card { padding-top: 8px; }
+  body.card .pager { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+                     background: rgba(18,24,29,.94); padding: 6px; margin: 0; }
+  .pager { display: none; gap: 8px; align-items: center; justify-content: center; }
+  .pager button { padding: 10px 16px; font-size: 16px; font-weight: bold; border-radius: 10px;
+                  border: 2px solid #546e7a; background: #263238; color: #fff; font-family: inherit; }
+  #pageNo { font-weight: bold; color: #ffd54f; min-width: 4.5em; text-align: center; }
+  #textBox { display: none; }
+  body.text #textBox { display: block; }
+  body.text .q, body.text #src { display: none; }
+  #textOut { width: 100%; height: 46vh; min-height: 300px; background: #1c262d; color: #eceff1;
+             border: 2px solid #546e7a; border-radius: 10px; padding: 10px; font-size: 14px;
+             font-family: inherit; line-height: 1.55; }
+  #copyBtn { margin-top: 8px; padding: 12px 20px; font-size: 17px; font-weight: bold;
+             border-radius: 10px; border: 2px solid #fff; background: #e65100; color: #fff;
+             font-family: inherit; cursor: pointer; }
+  #copyMsg { margin-left: 10px; color: #80cbc4; font-weight: bold; }
+  #src { font-size: .72em; color: #78909c; margin-top: 2em; line-height: 1.6; word-break: break-all; }
+  #src a { color: #90a4ae; }
+</style>
+
+<h1>📖 1887年って どんな年？</h1>
+<p class="lead">『交易物語』の舞台は 監督がきめた <b>1887年</b>。<br>
+ゲームの中の「あれ」が、ほんとうの歴史と どうつながっているか しらべた。<br>
+<b>年号はぜんぶ 出典（下にあるよ）で たしかめてある。</b></p>
+
+<div class="tabs">
+  <button class="tab on" id="tabList">📋 ぜんぶ見る</button>
+  <button class="tab" id="tabCard">📷 写真でおくる</button>
+  <button class="tab" id="tabText">📝 文字でおくる</button>
+</div>
+
+<div id="textBox">
+  <p style="margin:.2em 0 .4em;color:#b0bec5;font-size:15px">プラメ用。コピーして送ってね。</p>
+  <textarea id="textOut" readonly></textarea><br>
+  <button id="copyBtn">📋 コピーする</button><span id="copyMsg"></span>
+</div>
+
+<div class="pager"><button id="prev">◀</button><span id="pageNo"></span><button id="next">▶</button><button id="backList">📋 もどる</button></div>
+
+<div class="q" data-q="1">
+  <span class="num">1.</span><span class="ask">🚂 モスクワ⇔北京の道に、じつは電車はまだ無い</span>
+  <div class="why">シベリア鉄道が作られはじめたのは <b>1891年</b>（ぜんぶつながったのは1916年）。
+  1887年は <b>ラクダや馬の隊商（キャラバン）</b>が歩いた。</div>
+  <div class="game">🎮 ゲームでは モスクワ⇔北京に陸の道がある。ほんとうは電車じゃなくて 隊商の道だった。</div>
+</div>
+<div class="q" data-q="2">
+  <span class="num">2.</span><span class="ask">🍵 その道は ほんものの「茶の道」だった</span>
+  <div class="why">ロシアと清（中国）は <b>1727年のキャフタ条約</b>から、キャフタという町で
+  <b>キャラバンが茶をはこぶ商売</b>を160年つづけていた。ロシアの茶、中国の毛皮・布と交換。</div>
+  <div class="game">🎮 ゲームで「北京で茶を安く買って モスクワへはこぶ」のは、<b>ほんとうにあった商売そのまま</b>！</div>
+</div>
+<div class="q" data-q="3">
+  <span class="num">3.</span><span class="ask">💡 1887年、東京に 電気がともった</span>
+  <div class="why">ちょうどゲームの年の <b>1887年11月</b>、東京で日本ではじめての
+  電気の送電がはじまった（東京電燈という会社）。</div>
+  <div class="game">🎮 ゲームの出発の年に、東京の夜が 電気で明るくなりはじめた。</div>
+</div>
+<div class="q" data-q="4">
+  <span class="num">4.</span><span class="ask">🎀 東京の絹（きぬ）が安いのは 歴史のとおり</span>
+  <div class="why">明治の日本の いちばんの輸出品は <b>生糸（きいと・絹のもと）</b>。
+  フランスのリヨンで蚕（かいこ）の病気がはやったとき、<b>日本の強い蚕が助けた</b>。
+  だから日本の絹は ヨーロッパで大人気だった。</div>
+  <div class="game">🎮 ゲームで「東京の絹66 → パリで198」になるのは、ほんとうの貿易とおなじ形。</div>
+</div>
+<div class="q" data-q="5">
+  <span class="num">5.</span><span class="ask">🧶 ボンベイの綿（めん）が安いのも 歴史のとおり</span>
+  <div class="why">アメリカで戦争（南北戦争・1861年〜）がおきて 綿がたりなくなり、
+  インドの綿花が大人気に。<b>1863年にはインドいちばんの輸出品</b>になった。</div>
+  <div class="game">🎮 ボンベイで綿が安いのは そのなごり。</div>
+</div>
+<div class="q" data-q="6">
+  <span class="num">6.</span><span class="ask">🚢 カイロの海の道は スエズ運河</span>
+  <div class="why"><b>1869年11月17日</b>にスエズ運河が開通。アフリカをぐるっとまわらなくても、
+  地中海からインドへ 船で行けるようになった。</div>
+  <div class="game">🎮 ローマ⇔カイロ⇔ボンベイの点線（海の道）は、この運河のおかげ。</div>
+</div>
+<div class="q" data-q="7">
+  <span class="num">7.</span><span class="ask">🏛 「東インド会社」は 1887年にはもう無い</span>
+  <div class="why">パパが参考にくれたボードゲームの会社。オランダのは <b>1799年</b>、
+  イギリスのは <b>1874年</b>に解散ずみ。1887年は「1つの大会社が国を動かす」時代がおわって、
+  <b>いろんな人が会社を作る</b>時代。</div>
+  <div class="game">🎮 監督の「いろんな国に自分の会社を作る」は、じつは<b>1887年にぴったり</b>の遊びかた。</div>
+</div>
+<div class="q" data-q="8">
+  <span class="num">8.</span><span class="ask">🇮🇳 1887年のインドは、ほんとうは イギリスのもの</span>
+  <div class="why"><b>1877年から</b>イギリスのヴィクトリア女王が「インド皇帝」になっていて、
+  インドは独立した国ではなかった。</div>
+  <div class="game">🎮 ゲームでは インドを独立した国としてあつかっている（ゲームの都合。ほんとうは ちがった）。</div>
+</div>
+<div class="q" data-q="9">
+  <span class="num">9.</span><span class="ask">☕ リオの ほんとうの名産は コーヒー</span>
+  <div class="why">ブラジルは <b>1850年ごろにコーヒーの生産が世界一</b>になっていた。</div>
+  <div class="game">🎮 いまのゲームにコーヒーは無い＝<b>ここはゲームが歴史とちがう</b>。
+  ❓ 商品に「☕コーヒー」を足す？ 監督が決めて。</div>
+</div>
+<div class="q" data-q="10">
+  <span class="num">10.</span><span class="ask">⚙ ロンドンとベルリンの鉄が安いのは 産業革命の国だから</span>
+  <div class="why">イギリスとドイツは 工場と機械の国。鉄をたくさん作れたので 安かった。
+  遠くの国へはこぶと 高く売れた。</div>
+  <div class="game">🎮 「安いところで買って 遠くで売る」——ゲームの核は、1887年の商人が毎日やっていたこと。</div>
+</div>
+
+<div id="src">出典（たしかめた場所）：
+<a href="https://ja.wikipedia.org/wiki/シベリア鉄道">シベリア鉄道</a>／
+<a href="https://ja.wikipedia.org/wiki/キャフタ">キャフタ</a>・<a href="https://ja.wikipedia.org/wiki/ロシアの茶文化">ロシアの茶文化</a>／
+<a href="https://ja.wikipedia.org/wiki/東京電燈">東京電燈</a>／
+<a href="https://www.tomioka-silk.jp/tomioka-silk/bland/detail/about-quality.html">富岡製糸場（生糸とリヨン）</a>／
+<a href="https://www.y-history.net/appendix/wh1002-082_1.html">綿花（世界史の窓）</a>／
+<a href="https://ja.wikipedia.org/wiki/スエズ運河">スエズ運河</a>／
+<a href="https://ja.wikipedia.org/wiki/イギリス東インド会社">イギリス東インド会社</a>・<a href="https://ja.wikipedia.org/wiki/オランダ東インド会社">オランダ東インド会社</a>／
+<a href="https://ja.wikipedia.org/wiki/インド皇帝">インド皇帝</a>／
+<a href="https://ja.wikipedia.org/wiki/ブラジルにおけるコーヒー生産">ブラジルのコーヒー</a>
+</div>
+
+<script>
+// ⚠ かんとくページ（/kantoku/）で実証ずみの形をそのまま使う：
+//   1問1枚の白カード＝スクショでプラメ送信／文字コピー＝長文プラメ。改行は NL 定数（3回こわした教訓）
+const NL = String.fromCharCode(10);
+const QS = [...document.querySelectorAll('.q')];
+let page = 0;
+function paint() {
+  QS.forEach((q, i) => q.classList.toggle('show', i === page));
+  document.getElementById('pageNo').textContent = (page + 1) + ' / ' + QS.length;
+}
+document.getElementById('prev').onclick = () => { page = (page + QS.length - 1) % QS.length; paint(); };
+document.getElementById('next').onclick = () => { page = (page + 1) % QS.length; paint(); };
+const setTab = id => { for (const t of document.querySelectorAll('.tab')) t.classList.toggle('on', t.id === id); };
+document.getElementById('tabCard').onclick = () => { document.body.classList.add('card'); document.body.classList.remove('text'); setTab('tabCard'); paint(); };
+const toList = () => { document.body.classList.remove('card'); document.body.classList.remove('text'); setTab('tabList'); };
+document.getElementById('tabList').onclick = toList;
+document.getElementById('backList').onclick = toList;
+document.getElementById('tabText').onclick = () => {
+  document.body.classList.remove('card'); document.body.classList.add('text'); setTab('tabText');
+  const L = ['【1887年って どんな年？】ゲームと ほんとの歴史', ''];
+  for (const q of QS) {
+    L.push(q.dataset.q + ' ' + q.querySelector('.ask').textContent.trim());
+    L.push('  ' + q.querySelector('.why').textContent.replace(/\s+/g, ' ').trim());
+    const g = q.querySelector('.game');
+    if (g) L.push('  ' + g.textContent.replace(/\s+/g, ' ').trim());
+    L.push('');
+  }
+  document.getElementById('textOut').value = L.join(NL);
+};
+document.getElementById('copyBtn').onclick = async () => {
+  const ta = document.getElementById('textOut');
+  try { await navigator.clipboard.writeText(ta.value); } catch (e) { ta.select(); document.execCommand('copy'); }
+  document.getElementById('copyMsg').textContent = 'コピーした！';
+  setTimeout(() => document.getElementById('copyMsg').textContent = '', 2500);
+};
+paint();
+</script>
