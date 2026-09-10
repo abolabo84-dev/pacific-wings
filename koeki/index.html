@@ -93,8 +93,10 @@
   <div id="panel"></div>
 </div>
 
+<!-- ⏳ よみこみ画面（3本共通・パパ9/10）。module より先に走らせて 開いた瞬間から出す -->
+<script src="../common/loading.js" data-title="交易物語" data-sub="🗺 地図を ひろげ中…"></script>
 <script>
-const BUILD = 'koeki-0910d';   // ⚠ 版の印
+const BUILD = 'koeki-0910e';   // ⚠ 版の印
 document.getElementById('buildTag').textContent = BUILD;
 const Q = new URLSearchParams(location.search);
 
@@ -762,4 +764,6 @@ if (Q.get('dev') === '1') {
     specialty, companyNations, cargoCount, cityById,
     LAND_COST, FARM_COST, FACTORY_COST, MARKET_COST, MARKET_MUL, SIZE_NAME, CARGO_MAX, START_MONEY, BUILD, render });
 }
+// ⏳ 落とすものが無いゲーム＝共通の「よみこみ中」を 一呼吸（0.8秒）だけ出して閉じる（3本の入り口をそろえる・パパ9/10）
+if (window.YuLoad) YuLoad.done();
 </script>

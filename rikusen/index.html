@@ -153,6 +153,8 @@
   <button class="btn" id="btnRetry">もういちど！</button>
 </div>
 
+<!-- ⏳ よみこみ画面（3本共通・パパ9/10）。module より先に走らせて 開いた瞬間から出す -->
+<script src="../common/loading.js" data-title="太平洋の鋼" data-sub="🪖 部品を よみこみ中…"></script>
 <script type="importmap">
 { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
 </script>
@@ -975,7 +977,7 @@ let lastT = performance.now(), fireCd = 0, grenCd = 0, skillCd = 0, knifeCd = 0;
 const DEVMODE = new URLSearchParams(location.search).get('dev') === '1';
 // ⚠ 版の印。監督がスマホで試して報告してくるので、**どの版を見ているか**が分からないと
 //    直したはずの物を「まだ直ってない」と言われる（古いキャッシュを見ているだけ、が起きる）
-const BUILD = 'riku-0909a';
+const BUILD = 'riku-0910a';
 { const e = document.getElementById('buildTag'); if (e) e.textContent = '版:' + BUILD; }
 const devPump = (() => {
   if (!DEVMODE) return null;
@@ -1585,6 +1587,10 @@ if (DEVMODE) {
     set rendo(v) { rendo = v; saveRendo(); } });
 }
 $('btnRetry').onclick = () => { $('endScreen').style.display = 'none'; $('titleScreen').style.display = 'flex'; paintRendo(); };
+
+// ⏳ ここまで来た＝Three.js も読めて 部品もそろった。よみこみ画面を閉じる（3本共通・パパ9/10）。
+//   ⚠ ここに来られない時（CDNが死んでいる等）は 共通部品が 25秒で「よみこみが おわらない」と言う
+if (window.YuLoad) YuLoad.done();
 
 tick();
 </script>

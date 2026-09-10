@@ -339,6 +339,8 @@
   <button class="btn" id="btnRetry">もういちど！</button>
 </div>
 
+<!-- ⏳ よみこみ画面（3本共通・パパ9/10）。module より先に走らせて 開いた瞬間から出す -->
+<script src="../common/loading.js" data-title="太平洋の翼" data-sub="🎵 曲を よみこみ中…"></script>
 <script type="importmap">
 { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
 </script>
@@ -2022,6 +2024,37 @@ for (const [k, src] of Object.entries(BGM_FILES)) {
   a.addEventListener('error', () => { bgm.tracks[k] = null; });
   bgm.tracks[k] = a;
 }
+
+// ============ ⏳ よみこみ画面で 曲を先に落とす（パパ 9/10） ============
+// 「始まる前にローディングのバー演出がでて、その間に曲をDLする形にするってのはどうかな？
+//   最初のローディング演出がついてれば割とそんなもんかと納得されるきもする」
+// ⚠ 前は preload='none' で「鳴らす瞬間に1本ずつ」＝待ちが**見えない**ので詰まったように感じた。
+//   待ちを消せなくても **見えれば納得できる**、というのがパパの読み。
+// ⚠ 時間で打ち切る（パパ9/10「時間を決めてそこで打ち切る」）。落ちなかった曲は今までどおり
+//   鳴らす時に取りにいく＝悪くはならない。落ちた曲だけ blob に差しかえる（28MB を全部かかえない）。
+const LOAD_BUDGET_SEC = 12;                                   // ここ1か所。?loadbudget=3 で測定用に短くできる
+const LOAD_ORDER = ['title', 'battle', 'fog', 'trump', 'victory', 'defeat', 'tutorial'];   // 要る順（title=最初のひとさわり／battle=出撃の瞬間）
+(async () => {
+  if (!window.YuLoad) return;                                 // 共通部品が読めなかった時は 今までどおり
+  const items = LOAD_ORDER.filter(k => BGM_FILES[k]).map(k => ({ name: k, url: BGM_FILES[k] }));
+  const r = await YuLoad.fetchAll(items, { budgetSec: LOAD_BUDGET_SEC });
+  for (const [k, u] of Object.entries(r.ok)) {
+    const a = bgm.tracks[k]; if (!a) continue;
+    a.src = u; a.preload = 'auto'; a.load();                  // ⚠ loop/volume/fanfare は要素に残る（src を変えても消えない）
+  }
+  for (const e of YuLoad.log) logEvent('bgm_load', e);        // 1本ごと1件（3000件の上限を食わない）
+  logEvent('bgm_load_done', { ok: Object.keys(r.ok), ng: r.ng, mb: +(r.bytes / 1048576).toFixed(1), ms: r.ms, cut: r.cut });
+  const n = Object.keys(r.ok).length;
+  const auto = new URLSearchParams(location.search).get('auto');   // 記録用の自動スタートでは おさせない
+  await YuLoad.done(auto ? {} : {
+    startLabel: '▶ はじめる',
+    sub: r.cut ? '時間になったので ここまで（のこりは あそびながら）' : 'じゅんび できた！',
+    text: n + '/' + items.length + '本の曲（' + (r.bytes / 1048576).toFixed(1) + 'MB）',
+  });
+  // 「はじめる」の ひとさわりで、落とした曲を **まとめて解禁**（ローカルなので一瞬）。
+  // ⚠ 落とせなかった曲は 今までどおり「1さわり1本」の経路（unlockNextBgm）に残す
+  unlockTracks(Object.keys(r.ok));
+})();
 // 【自由研究・実験②の条件D】音楽は ?bgm=on のときだけ鳴る。
 // mp3を置いたら勝手に鳴る、にすると A/B/C を比べている途中で条件が変わってしまうため、
 // 曲が入っても既定は「音楽なし」のまま。D＝いまの耳（B or C）＋音楽 として後から足す。
@@ -2386,16 +2419,30 @@ let titleBgmStarted = false;
 // ⚠ muted が iPhone で効くことは 実機で未確認。効かない時のために pause も即かける（二重の守り）
 const UNLOCK_ORDER = ['title', 'battle', 'fog', 'trump', 'tutorial', 'victory', 'defeat'];
 let unlockIdx = 0;
+// 1本ぶんの解禁（muted で一瞬鳴らして止める）。⚠ 2か所から使うので ここ1つに
+function unlockOne(a, onFail) {
+  a.unlocked = true;
+  a.muted = true;
+  const done = () => { if (a !== bgm.current) { a.pause(); try { a.currentTime = 0; } catch (e) {} } a.muted = false; };
+  const pr = a.play();
+  if (pr && pr.then) pr.then(done).catch(() => { a.muted = false; a.unlocked = false; if (onFail) onFail(); });
+  else done();
+}
 function unlockNextBgm(n = 1) {
   while (unlockIdx < UNLOCK_ORDER.length && n > 0) {
     const a = bgm.tracks[UNLOCK_ORDER[unlockIdx++]];
     if (!a || a.unlocked || a === bgm.current) continue;
-    a.unlocked = true; n--;
-    a.muted = true;
-    const done = () => { if (a !== bgm.current) { a.pause(); try { a.currentTime = 0; } catch (e) {} } a.muted = false; };
-    const pr = a.play();
-    if (pr && pr.then) pr.then(done).catch(() => { a.muted = false; a.unlocked = false; unlockIdx--; });
-    else done();
+    n--;
+    unlockOne(a, () => { unlockIdx--; });
+  }
+}
+// ⏳ よみこみ画面で落とした曲を まとめて解禁（ローカルにあるので 7本でも一瞬）。
+//   ⚠ 順番の cursor（unlockIdx）は動かさない＝落とせなかった曲は 今までどおり1さわり1本
+function unlockTracks(names) {
+  for (const k of names) {
+    const a = bgm.tracks[k];
+    if (!a || a.unlocked || a === bgm.current) continue;
+    unlockOne(a);
   }
 }
 function startTitleBgm() {
@@ -3611,7 +3658,7 @@ const NET = { on: false, word: '', me: '', name: localStorage.getItem('pw_name')
 // ⚠ つながらない時に「どこで止まったか」を画面に出す（パパ 9/5・PC×スマホ4Gで入れなかった）。
 // 口で往復するより、1回開けば分かる形にする。止まりうる場所は3つあって、直し方が全部ちがう：
 //   ① リレー（相手さがし）に届かない ② 相手は見つかったがNAT越えできない ③ データが来ない
-const BUILD = 'v6-0907g';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
+const BUILD = 'v6-0910a';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
 // v6.1: タイトル画面のすみに小さく出す。⚠ 版が分からないと「どの版で起きた不具合か」が言えなくなる。
 //   前は画面のどこにも無く、つながらない時の診断にしか出ていなかった
 { const bt = document.getElementById('buildTag'); if (bt) bt.textContent = BUILD; }
