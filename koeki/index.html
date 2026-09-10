@@ -60,6 +60,11 @@
   <span class="sub">🚂 鉄道1日・🚢 船2日・🐫 ラクダのキャラバン3日で 世界をまわれる</span></p>
   <p style="margin-bottom:.1em">じぶんの国を えらぼう（そこから 出発）</p>
   <div class="pick" id="natRow"></div>
+  <div id="contBox" style="display:none;margin:.4em 0">
+    <button id="cont" style="background:#2e7d32;font-size:clamp(17px,4.5vw,24px);padding:10px 26px">
+      💾 つづきから</button>
+    <div id="contInfo" class="sub" style="margin-top:.2em"></div>
+  </div>
   <button id="go">🧳 出発！</button>
   <!-- 📖 教材への入口（パパ9/9「最初のメニュー画面から飛べるように」）。字のリンクでは
        小さくて見つからないので ボタンにする -->
@@ -79,7 +84,7 @@
 </div>
 
 <script>
-const BUILD = 'koeki-0909f';   // ⚠ 版の印
+const BUILD = 'koeki-0910a';   // ⚠ 版の印
 document.getElementById('buildTag').textContent = BUILD;
 const Q = new URLSearchParams(location.search);
 
@@ -348,6 +353,9 @@ function dateStr() {
 
 // ============ 画面 ============
 function render() {
+  // ⚠ ほぞんは **1か所**に置く。買う・売る・進む・建てる…と場所ごとに書くと
+  //   あとで足した操作で ほぞんし忘れる（監督の500が消える事故になる）
+  saveGame();
   drawMap();
   $('hudDate').textContent = '📅 ' + dateStr();
   $('hudMoney').textContent = '💰 ' + G.money;
@@ -495,6 +503,48 @@ function buildRail(key) {
   render();
 }
 
+// ============ 💾 ほぞん（監督9/10「ほぞん出来るようにして」）============
+// ⚠ 交易物語は 何日もかけて お金をためるゲーム。閉じたら消えるのでは 遊びにならない。
+//   なにか動くたびに 自動でほぞんする（「セーブを押しわすれた」が起きない形）。
+// ⚠ 引いた線路も ほぞんする。ROADS を書きかえているので、そこを覚えておかないと
+//   つづきから始めたときに **500はらった線路が消える**
+const SAVE_KEY = 'koekiSave1';
+function saveGame() {
+  if (!G.started) return;
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      v: 1, build: BUILD,
+      nation: G.nation.id, at: G.at, day: G.day, money: G.money,
+      cargo: G.cargo, own: G.own,
+      rails: ROADS.filter(r => r[2] === 'rail' && r[4]).map(r => [r[0], r[1], r[3], r[4]]),
+      savedAt: new Date().toISOString(),
+    }));
+  } catch (e) { console.warn('⚠ ほぞんできなかった（容量オーバーかも）', e); }
+}
+function readSave() {
+  try { const d = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); return (d && d.v === 1) ? d : null; }
+  catch (e) { return null; }
+}
+function loadGame() {
+  const d = readSave();
+  if (!d) return false;
+  const nat = NATIONS.find(n => n.id === d.nation);
+  if (!nat) return false;
+  G.nation = nat; G.at = d.at; G.day = d.day; G.money = d.money;
+  GOODS.forEach(g => G.cargo[g.id] = (d.cargo && d.cargo[g.id]) || 0);
+  G.own = d.own || {};
+  // 引いた線路を もどす。⚠ 二重に足さないよう、同じ区間に rail が無いときだけ
+  for (const [ra, rb, days, fee] of (d.rails || []))
+    if (!roadsBetween(ra, rb).some(r => r[2] === 'rail')) ROADS.push([ra, rb, 'rail', days, fee]);
+  G.started = true; G.choose = null;
+  $('overlay').style.display = 'none';
+  showMessage('💾 つづきから！ ' + dateStr() + '・💰' + G.money, 3);
+  logEvent('load', { day: G.day, money: G.money, at: G.at });
+  render();
+  return true;
+}
+function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} }
+
 // ============ タイトル ============
 let pickNat = 0;
 const natRow = $('natRow');
@@ -507,7 +557,23 @@ NATIONS.forEach((n, i) => {
     for (const x of natRow.children) x.className = ''; b.className = 'on'; };
   natRow.appendChild(b);
 });
+// 💾 ほぞんがあれば「つづきから」を出す。⚠ 出さないと ほぞんされていても 気づけない
+{
+  const sv = readSave();
+  if (sv) {
+    const nat = NATIONS.find(n => n.id === sv.nation);
+    $('contBox').style.display = 'block';
+    const d0 = new Date(1887, 0, 1); d0.setDate(d0.getDate() + sv.day);
+    $('contInfo').textContent = (nat ? nat.name : '?') + '／1887年' + (d0.getMonth()+1) + '月' + d0.getDate() + '日／💰' + sv.money;
+    $('cont').onclick = () => { if (!loadGame()) showMessage('⚠ つづきを読めなかった', 2); };
+  }
+}
 $('go').onclick = () => {
+  // ⚠ 新しく始めるときは 前のほぞんを消す。残すと つぎに開いたとき
+  //   「つづきから」が 前の回のままになって、混ざる
+  clearSave();
+  G.day = 0; G.money = START_MONEY; G.own = {}; G.choose = null;
+  GOODS.forEach(g => G.cargo[g.id] = 0);
   G.nation = NATIONS[pickNat];
   const home = CITIES.find(c => c.nat === G.nation.id);
   G.at = home.id; G.started = true;
@@ -524,7 +590,7 @@ addEventListener('resize', () => { if (G.started) drawMap(); });
 // ?dev=1：外から数字を見る口（⚠ 目で「動いてる」と 数字が正しいは別）
 if (Q.get('dev') === '1') {
   window.dbg = () => ({ G, CITIES, GOODS, NATIONS, ROADS, roadOf, price, linked, travel, trade, act,
-    RAIL_PROJECTS, buildRail, roadsBetween, roadFee,
+    RAIL_PROJECTS, buildRail, roadsBetween, roadFee, saveGame, loadGame, readSave, clearSave, SAVE_KEY,
     specialty, companyNations, cargoCount, cityById,
     LAND_COST, FARM_COST, FACTORY_COST, MARKET_COST, MARKET_MUL, SIZE_NAME, CARGO_MAX, START_MONEY, BUILD, render });
 }
