@@ -41,30 +41,46 @@
   #capBar { width: 100%; height: 16px; background: rgba(0,0,0,0.55); border: 2px solid #fff; border-radius: 8px; overflow: hidden; }
   #capFill { height: 100%; background: #ffe066; width: 0%; }
   #controlsHint { position: absolute; bottom: 6px; width: 100%; text-align: center; color: rgba(255,255,255,0.85); font-size: 12px; text-shadow: 1px 1px 2px #000; z-index: 10; }
+  /* 🔍 ボタンの大きさ（パパ 9/10「オプションでボタンの大きさを調整できるようにできる？
+     大人と同じ大きさでも良いって子もいるとしごろだ」）。
+     ⚠ 年齢で分けない。**好みで変えられる**ようにする。理由：
+       ① 年齢は当てにならない（2歳差でも振る舞いが変わる／NN/G）
+       ② 10歳は「キッズモード」を自分では選ばない
+       ③ Xbox Accessibility Guideline 107 が「タッチ対象の大きさ・間隔・位置を
+          プレイヤーが変えられるようにせよ」＝タッチのゲームでは これが業界の答え
+       ④ Switchにボタンの大きさ調整が無いのは 不要だからではなく **ボタンが物理だから**。
+          Switch2のテキストサイズ設定も「HOMEメニューと設定にしか効かない」と明記されている
+     ⚠ 大きさを持つのは **この変数1つだけ**。ボタンごとに手で書くと、また そろわなくなる
+     ⚠ いちばん小さくしても どのボタンも 44px（Appleの目安）を下回らないこと（probeで見る） */
+  :root { --ui-scale: 1; }
+  /* ⚠⚠ **大きさだけ伸ばすと ボタンどうしが ぶつかる。** 実測：1.0 で かさなり4組 →
+     1.3 で **10組** に増えた（間隔が固定pxのままだったから）。
+     → right/bottom/top の **間隔も 同じ --ui-scale で伸ばす**＝かたまりごと 相似に大きくなる。
+     ⚠ 「大きくできた」で終わらせず、大きくした状態で **かさなりを測り直す**こと */
   /* タッチそうさ（v6と同じ流儀） */
   #stick { position: absolute; left: 0; bottom: 0; width: 45%; height: 55%; z-index: 12; }
-  #stickBase { position: absolute; width: 110px; height: 110px; border: 2px solid rgba(255,255,255,0.5); border-radius: 50%; background: rgba(255,255,255,0.08); display: none; }
-  #stickKnob { position: absolute; width: 50px; height: 50px; border-radius: 50%; background: rgba(255,255,255,0.45); display: none; }
-  .fbtn { position: absolute; width: 74px; height: 74px; border-radius: 50%; border: 3px solid #fff; color: #fff; font-weight: bold; font-size: 13px; display: none; align-items: center; justify-content: center; text-align: center; z-index: 12; text-shadow: 1px 1px 2px #000; user-select: none; -webkit-user-select: none; }
-  #fireBtn  { right: 14px; bottom: 96px; background: rgba(230,60,40,0.55); }
-  #grenBtn  { right: 100px; bottom: 34px; background: rgba(60,60,60,0.6); }
+  #stickBase { position: absolute; width: calc(110px * var(--ui-scale)); height: calc(110px * var(--ui-scale)); border: 2px solid rgba(255,255,255,0.5); border-radius: 50%; background: rgba(255,255,255,0.08); display: none; }
+  #stickKnob { position: absolute; width: calc(50px * var(--ui-scale)); height: calc(50px * var(--ui-scale)); border-radius: 50%; background: rgba(255,255,255,0.45); display: none; }
+  .fbtn { position: absolute; width: calc(74px * var(--ui-scale)); height: calc(74px * var(--ui-scale)); border-radius: 50%; border: 3px solid #fff; color: #fff; font-weight: bold; font-size: 13px; display: none; align-items: center; justify-content: center; text-align: center; z-index: 12; text-shadow: 1px 1px 2px #000; user-select: none; -webkit-user-select: none; }
+  #fireBtn  { right: calc(14px * var(--ui-scale)); bottom: calc(96px * var(--ui-scale)); background: rgba(230,60,40,0.55); }
+  #grenBtn  { right: calc(100px * var(--ui-scale)); bottom: calc(34px * var(--ui-scale)); background: rgba(60,60,60,0.6); }
   /* 🔪 さす（全兵科）と 🩹 そせい（近くにたおれた仲間がいる時だけ出す・監督9/5） */
-  #knifeBtn { right: 20px; bottom: 210px; background: rgba(120,40,40,0.6); }
-  #reviveBtn{ left: 14px; top: 62%; background: rgba(40,120,80,0.72); width: 74px; height: 74px; font-size: 12px; }
+  #knifeBtn { right: calc(20px * var(--ui-scale)); bottom: calc(210px * var(--ui-scale)); background: rgba(120,40,40,0.6); }
+  #reviveBtn{ left: 14px; top: 62%; background: rgba(40,120,80,0.72); font-size: 12px; }
   /* 🎯 迫撃砲。⚠ そばに来た時だけ出す＝ボタンが出ること自体が「ここで使えるよ」の合図 */
   /* ⏸ 一時停止（監督9/8「太平洋の鋼にも一時停止ボタンがほしい」）。
      ⚠ 下の段に置くと 撃つつもりで誤爆する（海戦で監督から報告があった）。右上へ逃がす */
-  #pauseBtn { right: 8px; top: 128px; width: 56px; height: 56px; font-size: 10px;
-              background: rgba(0,150,200,.5); border-width: 2px; }
-  #mortarBtn{ left: 14px; top: 46%; background: rgba(150,90,30,0.75); width: 74px; height: 74px; font-size: 12px; }
+  #pauseBtn { right: calc(8px * var(--ui-scale)); top: calc(128px * var(--ui-scale)); width: calc(56px * var(--ui-scale)); height: calc(56px * var(--ui-scale));
+              font-size: 10px; background: rgba(0,150,200,.5); border-width: 2px; }
+  #mortarBtn{ left: 14px; top: 46%; background: rgba(150,90,30,0.75); font-size: 12px; }
   #mortarBtn.on { animation: revPulse 1s ease-in-out infinite; }
   #reviveBtn.on { animation: revPulse 1s ease-in-out infinite; }
   @keyframes revPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.1); } }
   /* 🗡 監督9/8「3A＝ボタンの場所の話」＝**とくぎを ナイフの横に置く**。
      ⚠ 前は right:14/bottom:190 で、ナイフ(right:20/bottom:210)と ほぼ重なっていた */
-  #skillBtn { right: 100px; bottom: 210px; background: rgba(40,140,200,0.55); }
-  #cannonBtn{ right: 100px; bottom: 128px; background: rgba(160,80,200,0.55); width: 64px; height: 64px; }
-  #crouchBtn{ left: 14px; top: 46%; background: rgba(90,120,60,0.55); width: 58px; height: 58px; font-size: 11px; }
+  #skillBtn { right: calc(100px * var(--ui-scale)); bottom: calc(210px * var(--ui-scale)); background: rgba(40,140,200,0.55); }
+  #cannonBtn{ right: calc(100px * var(--ui-scale)); bottom: calc(128px * var(--ui-scale)); background: rgba(160,80,200,0.55); width: calc(64px * var(--ui-scale)); height: calc(64px * var(--ui-scale)); }
+  #crouchBtn{ left: 14px; top: 46%; background: rgba(90,120,60,0.55); width: calc(58px * var(--ui-scale)); height: calc(58px * var(--ui-scale)); font-size: 11px; }
   /* ⚠ ここは style の最後。上に書くと、あとに出てくる #targetArrow の基本ルールに負ける
      （最初それで効かなかった）。せまい画面では矢印をレーダーの下へ逃がす */
   @media (max-width: 480px) {
@@ -72,9 +88,9 @@
   }
   @media (max-height: 520px) {
     #hud { font-size: 11px; } .bar { width: 110px; height: 10px; }
-    .fbtn { width: 58px; height: 58px; font-size: 11px; }
-    #fireBtn { bottom: 74px; } #grenBtn { right: 82px; bottom: 22px; }
-    #skillBtn { bottom: 148px; } #cannonBtn { right: 82px; bottom: 96px; width: 52px; height: 52px; }
+    .fbtn { width: calc(58px * var(--ui-scale)); height: calc(58px * var(--ui-scale)); font-size: 11px; }
+    #fireBtn { bottom: calc(74px * var(--ui-scale)); } #grenBtn { right: calc(82px * var(--ui-scale)); bottom: calc(22px * var(--ui-scale)); }
+    #skillBtn { bottom: calc(148px * var(--ui-scale)); } #cannonBtn { right: calc(82px * var(--ui-scale)); bottom: calc(96px * var(--ui-scale)); width: calc(52px * var(--ui-scale)); height: calc(52px * var(--ui-scale)); }
   }
 </style>
 </head>
@@ -103,7 +119,7 @@
 <div class="fbtn" id="pauseBtn">⏸<br>一時停止</div>
 <div class="fbtn" id="mortarBtn">🎯<br>迫撃砲</div>
 <!-- 🎯 訓練のときだけ出す「おわる」。⚠ 訓練には勝ち負けが無いので、終わる道が要る -->
-<div class="fbtn" id="trainEndBtn" style="left:14px; top:30%; background:rgba(120,80,160,.75); width:74px; height:74px; font-size:12px">🎯<br>おわる</div>
+<div class="fbtn" id="trainEndBtn" style="left:14px; top:30%; background:rgba(120,80,160,.75); font-size:12px">🎯<br>おわる</div>
 <div class="fbtn" id="crouchBtn">🧎<br>しゃがむ</div>
 
 <div class="overlay" id="titleScreen">
@@ -142,6 +158,11 @@
   <p style="margin-bottom:.2em">兵科（へいか）を えらぼう</p>
   <div id="rowCls" style="display:flex; flex-wrap:wrap; justify-content:center; max-width:640px"></div>
   <p id="clsDesc" style="font-size:.85rem; opacity:.9; min-height:2.4em"></p>
+  <!-- 🔍 ボタンの大きさ（パパ 9/10）。⚠ 「キッズモード」にはしない＝年齢ではなく **好み**。
+       出撃の直前に置く＝いちばん最後に目に入る所（設定を探しに行かせない） -->
+  <p style="margin:.8em 0 .2em">画面のボタンの 大きさ</p>
+  <div id="rowScale" style="display:flex; justify-content:center; gap:6px; flex-wrap:wrap"></div>
+  <p id="scaleDesc" style="font-size:.8rem; opacity:.8; margin:.2em 12px .4em; min-height:1.4em"></p>
   <button class="btn" id="btnGo">🪖 しゅつげき！</button>
   <p style="margin-top:1em; font-size:.85rem; opacity:.75">
     かんそうを書くときの あいことば：<b id="titleWord" style="font-size:1.1rem"></b></p>
@@ -897,6 +918,48 @@ bindBtn('grenBtn', () => grenPressed = true, () => grenPressed = false);
 bindBtn('knifeBtn', () => knifePressed = true, () => knifePressed = false);
 bindBtn('reviveBtn', () => revivePressed = true, () => revivePressed = false);
 bindBtn('mortarBtn', () => mortarPressed = true, () => mortarPressed = false);
+// ============ 🔍 ボタンの大きさ（パパ 9/10）============
+// ⚠ 大きさを持つのは CSS の --ui-scale ただ1つ。ここを変えると 押すものが ぜんぶ変わる。
+// ⚠⚠ **既定値は保存に食われる**（v6のレーダーで踏んだ）。起動のたびに保存する作りにすると、
+//    あとから既定を変えても その機械には一生とどかない。→ **押した時だけ保存する**。
+// ⚠ いちばん小さい 0.85 でも 一番小さいボタン（56px）が 47.6px＝Appleの目安44pxを下回らない。
+//    これは probe_rikusen_scale.js で毎回 実測して確かめる（計算だけで安心しない）
+// ⚠⚠ **上限は 1.15。実測で決めた。** 1.30 まで許すと、いちばん混む場面で
+//    ボタンどうしの かさなりが 4組→6〜8組 に増えた（390/375/360 の3幅で確認）。
+//    間隔も一緒に伸ばしても、いまの置きかた（左の列が % 指定・右のかたまりが せまい）では
+//    そこまで入らない。**「とても大きい」は 置きかたを作り直したあとで足す**
+//    （設計案 監督に送る/太平洋の鋼_UI設計案.md）。
+// 📌 大きくできる上限は、ボタンの大きさではなく **置きかた** が決めている。
+const UI_SCALES = [
+  { v: 0.85, name: 'ちいさめ', desc: '画面が ひろく見える。ボタンは 小さくなる' },
+  { v: 1.00, name: 'ふつう',   desc: 'いつもの大きさ' },
+  { v: 1.15, name: '大きめ',   desc: 'ボタンが 大きくなって 押しやすい' },
+];
+let uiScale = parseFloat(localStorage.getItem('rikusenUiScale2'));
+if (!UI_SCALES.some(x => x.v === uiScale)) uiScale = 1;      // 知らない値なら ふつうへ
+function setUiScale(v, save) {
+  uiScale = v;
+  document.documentElement.style.setProperty('--ui-scale', String(v));
+  const hit = UI_SCALES.find(x => x.v === v);
+  const d = $('scaleDesc'); if (d && hit) d.textContent = hit.desc;
+  for (const b2 of document.querySelectorAll('#rowScale button'))
+    b2.classList.toggle('on', parseFloat(b2.dataset.s) === v);
+  if (save) {
+    try { localStorage.setItem('rikusenUiScale2', String(v)); } catch (e) {}
+    logEvent('ui_scale', { v });     // ⚠ 監督が実際に変えたかは データでしか分からない
+  }
+}
+function paintScales() {
+  const row = $('rowScale'); if (!row) return;
+  row.innerHTML = UI_SCALES.map(x =>
+    '<button class="btn pick" data-s="' + x.v + '" style="padding:8px 14px; font-size:.95rem">'
+    + x.name + '</button>').join('');
+  for (const b2 of row.querySelectorAll('button'))
+    b2.onclick = () => setUiScale(parseFloat(b2.dataset.s), true);
+  setUiScale(uiScale, false);        // ⚠ 起動時は **保存しない**
+}
+paintScales();
+
 // ⏸ 一時停止（監督9/8「太平洋の鋼にも一時停止ボタンがほしい」）
 function togglePause() {
   if (!G.running) return;
@@ -977,7 +1040,7 @@ let lastT = performance.now(), fireCd = 0, grenCd = 0, skillCd = 0, knifeCd = 0;
 const DEVMODE = new URLSearchParams(location.search).get('dev') === '1';
 // ⚠ 版の印。監督がスマホで試して報告してくるので、**どの版を見ているか**が分からないと
 //    直したはずの物を「まだ直ってない」と言われる（古いキャッシュを見ているだけ、が起きる）
-const BUILD = 'riku-0910a';
+const BUILD = 'riku-0910b';
 { const e = document.getElementById('buildTag'); if (e) e.textContent = '版:' + BUILD; }
 const devPump = (() => {
   if (!DEVMODE) return null;
@@ -1584,6 +1647,7 @@ if (DEVMODE) {
     SKILLS, REN_MAX_LV, REN_BATTLE, REN_TRAIN, addRendo, saveRendo, paintRendo, startTraining, endTraining,
     rendoHpBonus, rendoDmgMul, learned, get rendo() { return rendo; },       // 📈 練度
     DEFEND_SEC, MODES, togglePause, BASE_ZONE, BASE_CAP_SEC,                 // ⚔🛡⏸🏕 9/8〜9/9
+    UI_SCALES, setUiScale, get uiScale() { return uiScale; },                // 🔍 ボタンの大きさ 9/10
     set rendo(v) { rendo = v; saveRendo(); } });
 }
 $('btnRetry').onclick = () => { $('endScreen').style.display = 'none'; $('titleScreen').style.display = 'flex'; paintRendo(); };
