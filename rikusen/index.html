@@ -58,29 +58,77 @@
      → right/bottom/top の **間隔も 同じ --ui-scale で伸ばす**＝かたまりごと 相似に大きくなる。
      ⚠ 「大きくできた」で終わらせず、大きくした状態で **かさなりを測り直す**こと */
   /* タッチそうさ（v6と同じ流儀） */
-  #stick { position: absolute; left: 0; bottom: 0; width: 45%; height: 55%; z-index: 12; }
+  /* ⚠ スティックを 55%→50% に。左に置く 🩹そせい／🎯迫撃砲 を **どの画面でも スティックの外**へ
+     出すため（前は「歩きながら押す指のところに 押すボタンが置いてあった」）。
+     390x844→y422〜／375x667→y333〜／360x640→y320〜 */
+  #stick { position: absolute; left: 0; bottom: 0; width: 45%; height: 50%; z-index: 12; }
   #stickBase { position: absolute; width: calc(110px * var(--ui-scale)); height: calc(110px * var(--ui-scale)); border: 2px solid rgba(255,255,255,0.5); border-radius: 50%; background: rgba(255,255,255,0.08); display: none; }
   #stickKnob { position: absolute; width: calc(50px * var(--ui-scale)); height: calc(50px * var(--ui-scale)); border-radius: 50%; background: rgba(255,255,255,0.45); display: none; }
-  .fbtn { position: absolute; width: calc(74px * var(--ui-scale)); height: calc(74px * var(--ui-scale)); border-radius: 50%; border: 3px solid #fff; color: #fff; font-weight: bold; font-size: 13px; display: none; align-items: center; justify-content: center; text-align: center; z-index: 12; text-shadow: 1px 1px 2px #000; user-select: none; -webkit-user-select: none; }
-  #fireBtn  { right: calc(14px * var(--ui-scale)); bottom: calc(96px * var(--ui-scale)); background: rgba(230,60,40,0.55); }
-  #grenBtn  { right: calc(100px * var(--ui-scale)); bottom: calc(34px * var(--ui-scale)); background: rgba(60,60,60,0.6); }
-  /* 🔪 さす（全兵科）と 🩹 そせい（近くにたおれた仲間がいる時だけ出す・監督9/5） */
-  #knifeBtn { right: calc(20px * var(--ui-scale)); bottom: calc(210px * var(--ui-scale)); background: rgba(120,40,40,0.6); }
-  #reviveBtn{ left: 14px; top: 62%; background: rgba(40,120,80,0.72); font-size: 12px; }
-  /* 🎯 迫撃砲。⚠ そばに来た時だけ出す＝ボタンが出ること自体が「ここで使えるよ」の合図 */
-  /* ⏸ 一時停止（監督9/8「太平洋の鋼にも一時停止ボタンがほしい」）。
-     ⚠ 下の段に置くと 撃つつもりで誤爆する（海戦で監督から報告があった）。右上へ逃がす */
-  #pauseBtn { right: calc(8px * var(--ui-scale)); top: calc(128px * var(--ui-scale)); width: calc(56px * var(--ui-scale)); height: calc(56px * var(--ui-scale));
-              font-size: 10px; background: rgba(0,150,200,.5); border-width: 2px; }
-  #mortarBtn{ left: 14px; top: 46%; background: rgba(150,90,30,0.75); font-size: 12px; }
+
+  /* 🔘 まるボタン。⚠⚠ `.fbtn` は **見た目だけ**を持つ。大きさと位置は 下のクラスが持つ。
+     前は 8つの id が てんでに right/bottom/left/top と width/height を書いていた＝
+     **そろえる場所が無かった**。それが「ボタンだらけで雑然」（パパ9/10）の正体で、
+     ボタンの数ではなく **ななめにバラけていること**が原因だった（計測：ボタン9コに対して
+     ちがう左はし7・ちがう上8＝1つもそろっていない）。
+     📌 v6のタイトル画面で 9/6 に同じことを1回やっている。あそこも 1つずつ手で
+     style="font-size:.9rem" と書いていたのを 3段のclassにしたら、**大きさの順番＝大事さの順番**になった */
+  .fbtn { position: absolute; border-radius: 50%; border: 3px solid #fff; color: #fff;
+          font-weight: bold; display: none; align-items: center; justify-content: center;
+          text-align: center; z-index: 12; text-shadow: 1px 1px 2px #000;
+          user-select: none; -webkit-user-select: none; }
+  /* ── 大きさ＝4段。⚠ いちばん小さい f-menu 48px でも Appleの目安44pxを下回らない
+        （--ui-scale 0.85 で 40.8px … ⚠ 下回る！ → f-menu だけ 52px にして 0.85で44.2px。
+          probe_rikusen_scale.js が毎回そこを見る） */
+  .fbtn.f-main { width: calc(82px * var(--ui-scale)); height: calc(82px * var(--ui-scale)); font-size: 14px; }
+  .fbtn.f-act  { width: calc(74px * var(--ui-scale)); height: calc(74px * var(--ui-scale)); font-size: 13px; }
+  .fbtn.f-ctx  { width: calc(74px * var(--ui-scale)); height: calc(74px * var(--ui-scale)); font-size: 12px; }
+  .fbtn.f-menu { width: calc(52px * var(--ui-scale)); height: calc(52px * var(--ui-scale)); font-size: 10px; border-width: 2px; }
+  /* ── 位置＝右に 2列×3段。⚠ 3列目は作らない（right:194 は x122 で スティック x0-176 に食いこむ） */
+  .fbtn.c1 { right: calc(14px * var(--ui-scale)); }    /* よく押すほう */
+  .fbtn.c2 { right: calc(104px * var(--ui-scale)); }
+  .fbtn.r1 { bottom: calc(20px * var(--ui-scale)); }
+  .fbtn.r2 { bottom: calc(110px * var(--ui-scale)); }
+  .fbtn.r3 { bottom: calc(200px * var(--ui-scale)); }
+  /* ── 左＝文脈（出る時だけ出る）／右上＝メニュー。
+        ⚠ メニューを 下の段に置くと 撃つつもりで誤爆する（海戦で監督から報告があった） */
+  /* ⚠⚠ 左の文脈ボタンは **たてに2つ** ならべていて、目で見たら
+     `#message`（top:26%・画面いっぱいの中央よせ）と かさなっていた。
+     ⚠ probe は `.fbtn` と `#stick` しか見ていないので **数字には出なかった**。
+     → ① よこに2つ ならべる（1段になる＝メッセージと ぶつかる帯がせまくなる）
+        ② たての位置を **px ではなく スティックの上**に貼る＝`bottom: calc(50% + 10px)`。
+           スティックは height:50% なので、**どの画面でも どの大きさでも 必ず外**に出る。
+     ⚠ 固定px と % を まぜると、小さい画面や 大きめの設定で かならず どこかで ぶつかる
+        （375x667 の message は 173px、360x640 は 166px と、画面が小さいほど 上に来る） */
+  .fbtn.ctxL  { left: calc(14px * var(--ui-scale)); bottom: calc(50% + 10px); top: auto; }
+  /* ⚠ right:8 ではなく **14**。右の列（c1）と 右はしをそろえるため。
+     8px のままだと たった6pxのズレで「ちがう右はし」が1つ増える＝そろいの数に効く */
+  .fbtn.menuR { right: calc(14px * var(--ui-scale)); }
+  /* ── 色と、たてに置く場所だけ id が持つ */
+  #fireBtn  { background: rgba(230,60,40,0.55); }
+  #grenBtn  { background: rgba(60,60,60,0.6); }
+  /* 🗡 監督9/8「3A＝ボタンの場所の話」＝**とくぎを ナイフの横に置く**。
+     ⚠ この2つは 必ず となり合わせ（同じ段の C1 と C2）。並べ替えるときも ここは崩さない */
+  #knifeBtn { background: rgba(120,40,40,0.6); }
+  #skillBtn { background: rgba(40,140,200,0.55); }
+  #cannonBtn{ background: rgba(160,80,200,0.55); }
+  #crouchBtn{ background: rgba(90,120,60,0.55); }
+  /* 🩹 そせい（監督9/5「蘇生近ずくと蘇生っていうボタンがほしい」）と 🎯 迫撃砲。
+     ⚠ 出る時だけ出る＝**ボタンが出ること自体が「ここで使えるよ」の合図**。
+     ⚠⚠ 前は この2つと しゃがむ が left:14/top:46% で **1pxもずれずに同じ場所**だった。
+        コメントには「高さをずらしてある」と書いてあったが CSSはずれていなかった＝
+        **コメントは実装の証拠にならない** */
+  #reviveBtn{ background: rgba(40,120,80,0.72); }
+  #mortarBtn{ background: rgba(150,90,30,0.75); left: calc(96px * var(--ui-scale)); }
+  /* ⏸ 一時停止（監督9/8）と 🎯 おわる（訓練だけ）。⚠ レーダーは top8・140px＝y8-148。
+     前の top:128 は レーダーと 20px 重なっていた */
+  #pauseBtn { background: rgba(0,150,200,.5); top: calc(160px * var(--ui-scale)); }
+  #trainEndBtn { background: rgba(120,80,160,.75); top: calc(220px * var(--ui-scale)); }
   #mortarBtn.on { animation: revPulse 1s ease-in-out infinite; }
   #reviveBtn.on { animation: revPulse 1s ease-in-out infinite; }
   @keyframes revPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.1); } }
-  /* 🗡 監督9/8「3A＝ボタンの場所の話」＝**とくぎを ナイフの横に置く**。
-     ⚠ 前は right:14/bottom:190 で、ナイフ(right:20/bottom:210)と ほぼ重なっていた */
-  #skillBtn { right: calc(100px * var(--ui-scale)); bottom: calc(210px * var(--ui-scale)); background: rgba(40,140,200,0.55); }
-  #cannonBtn{ right: calc(100px * var(--ui-scale)); bottom: calc(128px * var(--ui-scale)); background: rgba(160,80,200,0.55); width: calc(64px * var(--ui-scale)); height: calc(64px * var(--ui-scale)); }
-  #crouchBtn{ left: 14px; top: 46%; background: rgba(90,120,60,0.55); width: calc(58px * var(--ui-scale)); height: calc(58px * var(--ui-scale)); font-size: 11px; }
+  /* 💣 手榴弾が 0 のあいだ＝**消さずに うすく**。基地にもどれば また3本になるから
+     （消すと「もう二度と使えない」に見える。💥大砲だけは ほんとうに二度と使えないので消す） */
+  .fbtn.empty { opacity: .35; }
   /* ⚠ ここは style の最後。上に書くと、あとに出てくる #targetArrow の基本ルールに負ける
      （最初それで効かなかった）。せまい画面では矢印をレーダーの下へ逃がす */
   @media (max-width: 480px) {
@@ -88,9 +136,23 @@
   }
   @media (max-height: 520px) {
     #hud { font-size: 11px; } .bar { width: 110px; height: 10px; }
-    .fbtn { width: calc(58px * var(--ui-scale)); height: calc(58px * var(--ui-scale)); font-size: 11px; }
-    #fireBtn { bottom: calc(74px * var(--ui-scale)); } #grenBtn { right: calc(82px * var(--ui-scale)); bottom: calc(22px * var(--ui-scale)); }
-    #skillBtn { bottom: calc(148px * var(--ui-scale)); } #cannonBtn { right: calc(82px * var(--ui-scale)); bottom: calc(96px * var(--ui-scale)); width: calc(52px * var(--ui-scale)); height: calc(52px * var(--ui-scale)); }
+    .fbtn.f-main { width: calc(66px * var(--ui-scale)); height: calc(66px * var(--ui-scale)); font-size: 12px; }
+    .fbtn.f-act, .fbtn.f-ctx { width: calc(58px * var(--ui-scale)); height: calc(58px * var(--ui-scale)); font-size: 11px; }
+    .fbtn.r1 { bottom: calc(14px * var(--ui-scale)); }
+    .fbtn.r2 { bottom: calc(86px * var(--ui-scale)); }
+    .fbtn.r3 { bottom: calc(158px * var(--ui-scale)); }
+    .fbtn.c2 { right: calc(84px * var(--ui-scale)); }
+    /* ⚠ よこ画面でも 左の2つは スティックの上に貼りつく（.ctxL の bottom:calc(50%+10px)）。
+       ボタンが小さくなるぶん よこの間隔だけ つめる */
+    #mortarBtn { left: calc(78px * var(--ui-scale)); }
+    /* ⚠⚠ よこ画面は たてが390しかない。⏸を右の列の上（top:160）に置くと
+       3段目の 🧎しゃがむ（bottom:158＝上端174）と **重なる**（目で見て見つけた）。
+       → よこ画面では メニューを **レーダーの左どなり**（レーダーは right8・幅140＝x696〜）へ */
+    /* ⚠ ここは **id で** 書く。`.fbtn.menuR { top: ... }` では 上の `#pauseBtn { top: 160px }`
+       （id のほうが強い）に負けて **効かなかった**。目で見て気づいた（ボタンは右の列の
+       となりに並んでいて、撃つ指の近く＝監督が誤爆を報告した並び方に戻っていた） */
+    #pauseBtn    { right: calc(160px * var(--ui-scale)); top: calc(8px * var(--ui-scale)); }
+    #trainEndBtn { right: calc(222px * var(--ui-scale)); top: calc(8px * var(--ui-scale)); }
   }
 </style>
 </head>
@@ -110,17 +172,21 @@
 <div id="controlsHint" style="display:none"></div>
 
 <div id="stick"><div id="stickBase"></div><div id="stickKnob"></div></div>
-<div class="fbtn" id="fireBtn">🔫<br>うつ</div>
-<div class="fbtn" id="grenBtn">💣<br>手榴弾</div>
-<div class="fbtn" id="skillBtn">⭐<br>とくぎ</div>
-<div class="fbtn" id="cannonBtn">💥<br>大砲</div>
-<div class="fbtn" id="knifeBtn">🔪<br>さす</div>
-<div class="fbtn" id="reviveBtn">🩹<br>そせい</div>
-<div class="fbtn" id="pauseBtn">⏸<br>一時停止</div>
-<div class="fbtn" id="mortarBtn">🎯<br>迫撃砲</div>
-<!-- 🎯 訓練のときだけ出す「おわる」。⚠ 訓練には勝ち負けが無いので、終わる道が要る -->
-<div class="fbtn" id="trainEndBtn" style="left:14px; top:30%; background:rgba(120,80,160,.75); font-size:12px">🎯<br>おわる</div>
-<div class="fbtn" id="crouchBtn">🧎<br>しゃがむ</div>
+<!-- 🔘 右は 2列×3段。C1=よく押すほう／C2=その次。⚠ 🔪さす と ⭐とくぎ は
+     同じ段の となり合わせ（監督9/8「3A」）。ここを離すと 監督の注文を破ることになる -->
+<div class="fbtn f-main c1 r1" id="fireBtn">🔫<br>うつ</div>
+<div class="fbtn f-act  c2 r1" id="grenBtn">💣<br>手榴弾</div>
+<div class="fbtn f-act  c1 r2" id="knifeBtn">🔪<br>さす</div>
+<div class="fbtn f-act  c2 r2" id="skillBtn">⭐<br>とくぎ</div>
+<div class="fbtn f-act  c1 r3" id="crouchBtn">🧎<br>しゃがむ</div>
+<div class="fbtn f-act  c2 r3" id="cannonBtn">💥<br>大砲</div>
+<!-- 左＝そばに来た時だけ出るもの -->
+<div class="fbtn f-ctx ctxL" id="reviveBtn">🩹<br>そせい</div>
+<div class="fbtn f-ctx ctxL" id="mortarBtn">🎯<br>迫撃砲</div>
+<!-- 右上＝メニュー。🎯おわる は 訓練のときだけ（訓練には勝ち負けが無いので 終わる道が要る）。
+     ⚠ インラインの style= は 消した。CSSより強いので 残すと クラスが効かない -->
+<div class="fbtn f-menu menuR" id="pauseBtn">⏸<br>一時停止</div>
+<div class="fbtn f-menu menuR" id="trainEndBtn">🎯<br>おわる</div>
 
 <div class="overlay" id="titleScreen">
   <!-- 題名は監督が付けた（2026-09-05）。「太平洋の翼」＝海／「太平洋の鋼」＝陸 -->
@@ -816,6 +882,8 @@ function startGame() {
   // 📈 7BC：レベル6〜13のあいだ 体力が上がる（技はふえない）
   G.maxHp = G.cls.hp + rendoHpBonus(); G.hp = G.maxHp;
   G.gren = 3; G.cannon = 1; G.kills = 0; G.crouch = false; G.scope = false; G.hurtT = 99;
+  // ⚠ G.paused が もどっていなかった＝**一時停止したまま つぎの試合に入れた**（動かない画面になる）
+  G.paused = false; $('pauseBtn').innerHTML = '⏸<br>一時停止';
   camera.fov = 70; camera.updateProjectionMatrix();
   // AI兵。⚠ 監督 9/5「あと敵と味方数を増やしたい」→ 味方4→8・敵5→10
   const mkAI = (faction, n) => {
@@ -864,6 +932,16 @@ function setupControlsUI() {
   if (isTouch) {
     for (const id of ['fireBtn', 'grenBtn', 'cannonBtn', 'crouchBtn', 'knifeBtn', 'pauseBtn']) $(id).style.display = 'flex';
     $('skillBtn').style.display = G.cls.skill !== 'none' ? 'flex' : 'none';
+    // ⚠⚠ 9/11：いちど「🔪さす は サーベル隊では消す」を入れて、**戻した。**
+    //   消す根拠は実装の数字だった——ナイフ 3.0m/70/待ち0.8秒/1人 に対し
+    //   けん 4.4m/100/待ち0.45秒/なぎ払い＝**とどく範囲も強さも速さも当たる人数も けんが上**。
+    //   でも 監督の原文（9/7）は
+    //     「サーベル隊ていうのが作りたい／普通銃のところがけんになる **ナイフより強い**／
+    //      **特技をナイフの横のわくにして**」
+    //   ＝ **けんがナイフより強いことは 監督自身が言っている。**それを知ったうえで
+    //   「ナイフの横」に特技を置けと言っている＝**ナイフのボタンがある前提の注文**。
+    //   📌 **「性能で押す理由が無い」は、監督が名指しで頼んだボタンを消す理由にならない。**
+    //   ⚠ 消したとき probe_saber.js が NG 3件で止めてくれた。probe を直して緑にしなくてよかった
     // 🗡 サーベル隊は 銃が無い。ボタンの札も変える（「うつ」のままだと 何が起きるか読めない）
     $('fireBtn').innerHTML = G.cls.melee ? '🗡<br>きる' : '🔫<br>うつ';
     $('skillBtn').innerHTML = G.cls.skill === 'dash' ? '🗡<br>とつげき' : '⭐<br>とくぎ';
@@ -882,36 +960,50 @@ const isTouch = 'ontouchstart' in window;
 const stickZone = $('stick'), stickBase = $('stickBase'), stickKnob = $('stickKnob');
 let firePressed = false, grenPressed = false, skillPressed = false, cannonPressed = false;
 let knifePressed = false, revivePressed = false, mortarPressed = false;
+// ⚠ 55/25 は 丸の**半径**（110px/50px の半分）。--ui-scale で丸だけ大きくすると
+//   中心がずれて、さわった所と丸の位置が食いちがう。半径も 同じ倍率で持つ
+const stickR = () => 55 * uiScale, knobR = () => 25 * uiScale;
 stickZone.addEventListener('touchstart', e => {
   const t = e.changedTouches[0];
   stick.active = true; stick.id = t.identifier;
   stickBase.style.display = stickKnob.style.display = 'block';
-  stickBase.style.left = (t.clientX-55) + 'px'; stickBase.style.top = (t.clientY-55) + 'px';
-  stickKnob.style.left = (t.clientX-25) + 'px'; stickKnob.style.top = (t.clientY-25) + 'px';
+  stickBase.style.left = (t.clientX-stickR()) + 'px'; stickBase.style.top = (t.clientY-stickR()) + 'px';
+  stickKnob.style.left = (t.clientX-knobR()) + 'px'; stickKnob.style.top = (t.clientY-knobR()) + 'px';
   stick.cx = t.clientX; stick.cy = t.clientY;
 }, { passive: true });
 stickZone.addEventListener('touchmove', e => {
   for (const t of e.changedTouches) {
     if (t.identifier !== stick.id) continue;
     const dx = t.clientX - stick.cx, dy = t.clientY - stick.cy;
-    const len = Math.hypot(dx, dy), max = 55;
+    const len = Math.hypot(dx, dy), max = stickR();
     const k = len > max ? max/len : 1;
     stick.x = (dx*k)/max; stick.y = (dy*k)/max;
-    stickKnob.style.left = (stick.cx + dx*k - 25) + 'px';
-    stickKnob.style.top = (stick.cy + dy*k - 25) + 'px';
+    stickKnob.style.left = (stick.cx + dx*k - knobR()) + 'px';
+    stickKnob.style.top = (stick.cy + dy*k - knobR()) + 'px';
   }
 }, { passive: true });
-stickZone.addEventListener('touchend', e => {
+const stickRelease = e => {
   for (const t of e.changedTouches) {
     if (t.identifier !== stick.id) continue;
     stick.active = false; stick.x = stick.y = 0;
     stickBase.style.display = stickKnob.style.display = 'none';
   }
-}, { passive: true });
+};
+stickZone.addEventListener('touchend', stickRelease, { passive: true });
+// ⚠ touchcancel が無いと OSに指を取られたときに **走りっぱなし**になる
+stickZone.addEventListener('touchcancel', stickRelease, { passive: true });
 const bindBtn = (id, on, off) => {
   const el = $(id);
   el.addEventListener('touchstart', e => { e.preventDefault(); on(); }, { passive: false });
   el.addEventListener('touchend', e => { e.preventDefault(); if (off) off(); }, { passive: false });
+  // ⚠ touchcancel が どこにも無かった。OSに指を取られる（電話・通知・スワイプ）と
+  //   touchend が来ないので **押しっぱなしのまま**になる。撃ち続ける／走り続ける事故
+  el.addEventListener('touchcancel', e => { if (off) off(); }, { passive: true });
+};
+// 出し入れは ここだけ。⚠ 前と同じなら DOM を触らない（tick は毎フレーム走る）
+const setDisp = (id, on) => {
+  const el = $(id), want = on ? 'flex' : 'none';
+  if (el.style.display !== want) el.style.display = want;
 };
 bindBtn('fireBtn', () => firePressed = true, () => firePressed = false);
 bindBtn('grenBtn', () => grenPressed = true, () => grenPressed = false);
@@ -1040,7 +1132,7 @@ let lastT = performance.now(), fireCd = 0, grenCd = 0, skillCd = 0, knifeCd = 0;
 const DEVMODE = new URLSearchParams(location.search).get('dev') === '1';
 // ⚠ 版の印。監督がスマホで試して報告してくるので、**どの版を見ているか**が分からないと
 //    直したはずの物を「まだ直ってない」と言われる（古いキャッシュを見ているだけ、が起きる）
-const BUILD = 'riku-0910b';
+const BUILD = 'riku-0911a';
 { const e = document.getElementById('buildTag'); if (e) e.textContent = '版:' + BUILD; }
 const devPump = (() => {
   if (!DEVMODE) return null;
@@ -1195,6 +1287,8 @@ function tick() {
   }
 
   // ---- とくぎ（E）：兵科ごと ----
+  // ponytail: KeyE が とくぎ と そせい の両方を叩く（:1346 も KeyE を見ている）,
+  //           キーを分けるなら 監督に確認してから（ボタン側の仕様も変わる）
   if ((keys['KeyE'] || skillPressed) && skillCd <= 0) {
     if (G.cls.skill === 'heal') {
       skillCd = 5;
@@ -1260,11 +1354,18 @@ function tick() {
   // 🩹 監督 9/5「蘇生近ずくと蘇生っていうボタンがほしい」。
   // ⚠ 前は 近づくだけで 勝手に蘇生が進んでいた。近くに来たらボタンを出し、押している間だけ進む
   // 🎯 迫撃砲のボタン：そばにある時だけ。⚠ しゃがみボタンと同じ左側だが 高さをずらしてある
-  $('trainEndBtn').style.display = G.training ? 'flex' : 'none';
-  $('mortarBtn').style.display = G.nearMortar ? 'flex' : 'none';
+  // ⚠ tick は毎フレーム走る。display を毎回書くと 無駄に レイアウトを触る。
+  //   **前と同じなら書かない**を1か所に置いて、出し入れは全部ここを通す
+  setDisp('trainEndBtn', G.training);
+  setDisp('mortarBtn', G.nearMortar);
+  // 💥 大砲は 1人1回。0になったら **押しても何も起きないボタン**が残るので消す
+  //   （つぎの試合で startGame が G.cannon=1 に戻す）
+  if (isTouch) setDisp('cannonBtn', G.cannon > 0);
+  // 💣 手榴弾は 0でも 基地にもどれば 3本にもどる＝**消さずに うすく**する
+  if (isTouch) $('grenBtn').classList.toggle('empty', G.gren <= 0);
   if (G.nearMortar && G.mortarCd <= 0) $('mortarBtn').classList.add('on');
   else $('mortarBtn').classList.remove('on');
-  $('reviveBtn').style.display = revTarget ? 'flex' : 'none';
+  setDisp('reviveBtn', !!revTarget);
   if (revTarget) $('reviveBtn').classList.add('on'); else $('reviveBtn').classList.remove('on');
   if (revTarget && (revivePressed || keys['KeyE'])) {
     const need = G.cls.skill === 'heal' ? 1.5 : 3;   // 医療兵は2倍はやい
@@ -1517,9 +1618,10 @@ function tick() {
     const left = Math.max(0, Math.ceil(DEFEND_SEC - G.defendT));
     cdParts.push('🛡 のこり ' + Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0'));
   }
+  // ponytail: 待ち時間は grenCd だけ画面に出ている, fireCd/skillCd/knifeCd/G.mortarCd も
+  //           出すなら ここに足す（「とつげきの残り6秒」が見えないのは 別の課題）
   if (grenCd > 0) cdParts.push('⏳ つぎの手榴弾まで ' + Math.ceil(grenCd) + '秒');
   $('cdRow').textContent = cdParts.join('　');
-  $('cannonCt').textContent = G.cannon;
   const dx = FORT_FOE.x - P.x, dz = FORT_FOE.z - P.z;
   const rel = Math.atan2(dx, dz) - (player.yaw + Math.PI);
   $('arrowIcon').style.transform = `rotate(${-rel*180/Math.PI}deg)`;
@@ -1607,7 +1709,10 @@ function endCommon() {
   paintRendo();
   $('endScreen').style.display = 'flex';
   $('capBarWrap').style.display = 'none';
-  for (const id of ['fireBtn', 'grenBtn', 'skillBtn', 'cannonBtn', 'crouchBtn', 'mortarBtn', 'trainEndBtn', 'pauseBtn']) $(id).style.display = 'none';
+  // ⚠ 前は knifeBtn と reviveBtn が この並びから 抜けていた。いま見えないのは
+  //   おわりの画面(z-index 20)が かぶさっているからで、z-index をいじると出てくる
+  for (const id of ['fireBtn', 'grenBtn', 'skillBtn', 'cannonBtn', 'crouchBtn', 'mortarBtn',
+                    'trainEndBtn', 'pauseBtn', 'knifeBtn', 'reviveBtn']) $(id).style.display = 'none';
 }
 // ============ 📈 練度の画面と 訓練モード ============
 function paintRendo() {
