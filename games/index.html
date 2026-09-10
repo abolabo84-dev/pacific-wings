@@ -1,0 +1,168 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Yu's Games</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; min-height: 100%; background: #0e1116; color: #eceff1;
+               font-family: "Hiragino Maru Gothic ProN", "Yu Gothic", sans-serif;
+               -webkit-user-select: none; user-select: none; }
+  /* Switchのホーム画面みたいに：上に名前、まんなかに大きいタイル、下に小さいもの */
+  header { padding: 18px 14px 6px; text-align: center; }
+  h1 { margin: 0; font-size: clamp(26px, 7vw, 44px); letter-spacing: .06em;
+       background: linear-gradient(90deg,#ffd54f,#4fc3f7,#81c784);
+       -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .sub { color: #90a4ae; font-size: clamp(12px, 3.2vw, 15px); margin-top: 4px; }
+
+  /* ⚠ Switchは よこ1列。スマホのたてでは 見きれるので、
+     よこスクロールできる1列にする（Switchの感じは のこる） */
+  #shelf { display: flex; gap: 12px; overflow-x: auto; padding: 14px;
+           scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
+  #shelf::-webkit-scrollbar { height: 6px; }
+  #shelf::-webkit-scrollbar-thumb { background: #37474f; border-radius: 3px; }
+  .tile { flex: 0 0 auto; width: min(74vw, 260px); scroll-snap-align: center;
+          border-radius: 16px; border: 3px solid #2c3742; overflow: hidden;
+          background: #151b22; text-decoration: none; color: inherit; display: block;
+          transition: transform .12s, border-color .12s; }
+  .tile:hover, .tile:focus { transform: translateY(-4px); border-color: #ffd54f; outline: none; }
+  .art { height: min(74vw, 260px); position: relative; display: flex;
+         align-items: center; justify-content: center; font-size: clamp(56px, 18vw, 92px); }
+  .art .badge { position: absolute; left: 8px; top: 8px; font-size: 11px; font-weight: bold;
+                background: rgba(0,0,0,.55); border-radius: 6px; padding: 3px 7px; color: #fff; }
+  .info { padding: 9px 11px 12px; }
+  .info b { font-size: clamp(15px, 4vw, 19px); display: block; }
+  .info span { color: #90a4ae; font-size: clamp(11px, 3vw, 13px); line-height: 1.5; display: block; margin-top: 3px; }
+  .art.wings { background: radial-gradient(circle at 50% 35%, #4fa3d1, #16456b); }
+  .art.steel { background: radial-gradient(circle at 50% 60%, #6b8f3e, #2b3a1c); }
+  .art.trade { background: radial-gradient(circle at 50% 40%, #2e7d6a, #102b3a); }
+
+  h2 { font-size: 15px; color: #ffe082; margin: 14px 14px 4px; }
+  .mini { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 14px 26px; }
+  .mini a { text-decoration: none; color: #cfd8dc; background: #1b232b; border: 2px solid #2c3742;
+            border-radius: 11px; padding: 9px 13px; font-size: 13px; font-weight: bold; }
+  .mini a:hover { border-color: #80cbc4; color: #fff; }
+  footer { color: #546e7a; font-size: 11px; text-align: center; padding: 0 14px 24px; line-height: 1.7; }
+  /* 📱 ともだちに おしえる。⚠ 友だちが20〜30人いる（パパ9/10）。URLを口で言って
+     打たせるのは無理なので、**画面に大きくQRを出して読ませる**のがいちばん速い */
+  #shareBtn { display: block; margin: 6px auto 0; background: #00695c; color: #fff;
+              border: 2px solid #4db6ac; border-radius: 12px; padding: 11px 22px;
+              font-family: inherit; font-size: clamp(14px, 3.8vw, 17px); font-weight: bold; cursor: pointer; }
+  #shareBox { position: fixed; inset: 0; z-index: 50; background: rgba(6,10,14,.94);
+              display: none; flex-direction: column; align-items: center; justify-content: center;
+              padding: 18px 14px; text-align: center; }
+  #shareBox.on { display: flex; }
+  #shareBox h3 { margin: 0 0 6px; font-size: clamp(17px, 4.6vw, 22px); color: #ffe082; }
+  /* ⚠ QRは **大きく白地**で出す。小さいと 画面ごしに読めない。
+     image-rendering: pixelated ＝ 拡大しても マス目がぼやけない（読み取り率が下がらない） */
+  #qrImg { width: min(72vw, 300px); height: auto; background: #fff; padding: 10px;
+           border-radius: 12px; image-rendering: pixelated; }
+  #qrUrlBox { margin-top: 10px; font-size: clamp(11px, 3vw, 13px); color: #b0bec5;
+              word-break: break-all; max-width: 92vw; }
+  .shareRow { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 12px; }
+  .shareRow button { background: #37474f; color: #fff; border: 2px solid #78909c; border-radius: 10px;
+                     padding: 10px 16px; font-family: inherit; font-size: 14px; font-weight: bold; cursor: pointer; }
+  #copiedMsg { color: #80cbc4; font-weight: bold; margin-top: 8px; min-height: 1.2em; }
+</style>
+
+<header>
+  <h1>Yu's Games</h1>
+  <div class="sub">ゆうじん監督の ゲーム。あそびたいのを えらんでね</div>
+</header>
+
+<div id="shelf">
+  <a class="tile" href="../v6/">
+    <div class="art wings"><span class="badge">✈ 海と空</span>✈️</div>
+    <div class="info"><b>太平洋の翼</b><span>飛行機・船・潜水艦。島におりて 歩ける。なかまと いっしょにも あそべる</span></div>
+  </a>
+  <a class="tile" href="../rikusen/">
+    <div class="art steel"><span class="badge">🪖 陸</span>⛰️</div>
+    <div class="info"><b>太平洋の鋼</b><span>6つの兵科で 敵の首都をのっとる。練度をあげて 技をおぼえる</span></div>
+  </a>
+  <a class="tile" href="../koeki/">
+    <div class="art trade"><span class="badge">🧳 1887年</span>🗺️</div>
+    <div class="info"><b>交易物語</b><span>安く買って 高く売る。会社を作って 世界にひろげる</span></div>
+  </a>
+</div>
+
+<h2>📖 よみもの</h2>
+<div class="mini">
+  <a href="../koeki/1887.html">📖 交易物語 ほんとうの歴史</a>
+  <a href="../kantoku/">📋 監督への しつもん</a>
+</div>
+
+<h2>🔬 自由研究（2026年の夏）</h2>
+<div class="mini">
+  <a href="../index.html">🏆 研究版（そのまま保存）</a>
+  <a href="../v5/">🏆 v5（そのまま保存）</a>
+  <a href="../kenkyu.html">📊 研究のページ</a>
+  <a href="../kaihatsu.html">🛠 開発記</a>
+</div>
+
+<button id="shareBtn">📱 ともだちに おしえる（QR）</button>
+
+<div id="shareBox">
+  <h3>📱 これを 読んでもらってね</h3>
+  <div style="color:#90a4ae;font-size:13px;margin-bottom:8px">
+    カメラで うつすと ひらくよ</div>
+  <img id="qrImg" alt="QRコード" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAASgAAAEoAQAAAADDfFG0AAACG0lEQVR4nO1a0Y4DIQgU0v//ZS7MgHZ7e0mflM1Bm9auPJBx0AErNr4w/cZptFdaI5H2GkM4AtFkGH6bmNiaabzSXgup4RiJOFb+zN5mGq93vBwRA1yASMgrwMaZxuuKV5gno6MUR8DbSdD8ukPCbOZkkuzG62/7N/yy/CWAzHMyWGa1o9ftXsMRgtnNK2asavS63UvsYyhLUZyMSwvzy+YAZMODxS+z5td1/3JKgV+hHmzxy4fSenWZglgiOBNBL4owoGcQ+VY3O3S7l/huZcEwDFPTx0Tr1YvNXV3wCWLhYSBGIKuutp7BS0AwABUl0QduVaPXQ/k4po4gfJT5i2FVo9ftXjJF1wDLyCqCNVO0bPR6wkscl+zjUEO4FCOI+K4c/X69alEpAqRVBaFS4lTXQxdUKU9TnEpgCGKxdVh2tfVQvW1RYAfXsjeRjbDm10Xfz2b0NRHXdl92tXW712CZbbPAzsYXq25ONL9+9ScsoZsNikhOwFl1tfWQl6HWdkmBxmoUk15wU6DVjn57P3pEB5qgQX5xT8vaqGr0erS/OlbBPe/TeHFbNXo9eb9t/sl7bVRGCWbz6/5+W5iQ8SDbhkjPqqutJ++3x9Sq7O6grmTVXTV6PeolfAMtnpN5VD4h+q3nIy3ahCAVO2DRqa4avZ7xsiVTcThy7/LdTB4Q/f7+KuzSLczyMQhXNXrd7iX9f8ziK6SP9voB7nU22S7rNdkAAAAASUVORK5CYII=">
+  <div id="qrUrlBox">🔗 <span id="qrUrl">https://abolabo84-dev.github.io/pacific-wings/games/</span></div>
+  <div class="shareRow">
+    <button id="copyUrl">📋 リンクを コピー</button>
+    <button id="sysShare" style="display:none">📤 おくる</button>
+    <button id="closeShare">✖ とじる</button>
+  </div>
+  <div id="copiedMsg"></div>
+</div>
+
+<footer>
+  ゆうじん（監督）＝きめる人・パパ（助監督）＝記録する人・AI＝スタッフ<br>
+  <span id="buildTag"></span>
+</footer>
+
+<script>
+const BUILD = 'games-0910b';
+document.getElementById('buildTag').textContent = BUILD;
+// ⚠ 数えるだけの かるいログ（どのゲームが えらばれたか）。
+//   ゲーム本体のログとは 別あつかい（tag=portal）
+try {
+  const key = 'yuujinPortalLog';
+  const log = JSON.parse(localStorage.getItem(key) || '[]');
+  log.push({ t: new Date().toISOString(), type: 'open' });
+  for (const a of document.querySelectorAll('a[href]')) {
+    a.addEventListener('click', () => {
+      try {
+        const l2 = JSON.parse(localStorage.getItem(key) || '[]');
+        l2.push({ t: new Date().toISOString(), type: 'pick', to: a.getAttribute('href') });
+        localStorage.setItem(key, JSON.stringify(l2.slice(-500)));
+      } catch (e) {}
+    });
+  }
+  localStorage.setItem(key, JSON.stringify(log.slice(-500)));
+} catch (e) {}
+
+// ---- 📱 シェア ----
+const shareBox = document.getElementById('shareBox');
+const shareUrl = () => document.getElementById('qrUrl').textContent.trim();
+document.getElementById('shareBtn').onclick = () => shareBox.classList.add('on');
+document.getElementById('closeShare').onclick = () => shareBox.classList.remove('on');
+shareBox.addEventListener('click', e => { if (e.target === shareBox) shareBox.classList.remove('on'); });
+document.getElementById('copyUrl').onclick = async () => {
+  const msg = document.getElementById('copiedMsg');
+  try { await navigator.clipboard.writeText(shareUrl()); msg.textContent = 'コピーした！'; }
+  catch (e) {
+    // ⚠ clipboard が使えない端末もある。だまって失敗せず、選べる形にして知らせる
+    const t = document.createElement('textarea');
+    t.value = shareUrl(); document.body.appendChild(t); t.select();
+    try { document.execCommand('copy'); msg.textContent = 'コピーした！'; }
+    catch (e2) { msg.textContent = '⚠ コピーできなかった。上のリンクを 手で写してね'; }
+    t.remove();
+  }
+  setTimeout(() => msg.textContent = '', 2500);
+};
+// 📤 スマホの「共有」が使えるときだけ 出す（LINEなどに そのまま送れる）
+if (navigator.share) {
+  const sb = document.getElementById('sysShare');
+  sb.style.display = 'inline-block';
+  sb.onclick = () => navigator.share({ title: "Yu's Games", text: 'ゆうじんの ゲームだよ', url: shareUrl() })
+    .catch(() => {});
+}
+</script>
