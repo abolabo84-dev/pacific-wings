@@ -37,6 +37,14 @@
   .pick button { min-width: 108px; opacity: .6; }
   .pick button.on { opacity: 1; border-color: #ffe066; box-shadow: 0 0 10px #ffe066; }
   #go { background: #e65100; font-size: clamp(19px, 5vw, 28px); padding: 10px 30px; margin-top: 10px; }
+  /* ⚠ iPhoneで「🧳 出発！」の 絵文字と文字が たてに ズレる（パパ9/10・実機のスクショ）。
+     絵文字は Apple Color Emoji という **別のフォント**で描かれる。そのフォントは
+     背が高いので、同じ行に置くと 文字のほうが 上へ おし上げられる。
+     → 絵文字と文字を **べつの箱**にして、たての まんなかで そろえる（ベースラインを使わない）。
+     ⚠ ここだけ直しても また出る。絵文字つきの大きいボタンは ぜんぶ .ic を使う */
+  .ic { display: inline-flex; align-items: center; justify-content: center; gap: .3em; line-height: 1; }
+  .ic > .em { font-size: .85em; line-height: 1; }
+  .nw { display: inline-block; }   /* このかたまりの中では 行が 折れない */
   .tiny { font-size: .72rem; opacity: .5; margin-top: .8em; }
   /* ponytail: 320x568（iPhone SE 初代）は たてものが画面に入らない（実測 -203px）。
      ⚠ 使う人の端末（パパのiPhone X・お姉ちゃんのタブレット）はどれも 375以上なので そこまでは追わない。
@@ -57,19 +65,22 @@
   さいしょは <b>小さい工場と 小さい茶畑</b>だけ。<br>
   もうけた お金で 土地を買い、大きくして、<br>
   <b>いろんな国に じぶんの会社</b>を作ろう。<br>
-  <span class="sub">🚂 鉄道1日・🚢 船2日・🐫 ラクダのキャラバン3日で 世界をまわれる</span></p>
+  <!-- ⚠ パパのiPhoneで「世／界をまわれる」と 途中で 折れていた（実機スクショ 9/10）。
+       ひとかたまりを inline-block にすると **そのかたまりの中では 折れない** -->
+  <span class="sub"><span class="nw">🚂 鉄道1日</span>・<span class="nw">🚢 船2日</span>・<span class="nw">🐫 ラクダ3日</span>・<span class="nw">🔁 のりかえ2日</span><br>
+  <span class="nw">これで 世界をまわれる</span></span></p>
   <p style="margin-bottom:.1em">じぶんの国を えらぼう（そこから 出発）</p>
   <div class="pick" id="natRow"></div>
   <p style="margin:.6em 0 .1em">💾 ほぞんする ばしょ（6つ）</p>
   <!-- ⚠ 6つを たてに並べると 出発ボタンが 画面からはみ出した（360x640で実測 -28px）。
        よこに ならべて 折り返す＝あいてる枠は 小さくてよい -->
   <div id="slotRow" style="display:flex;flex-wrap:wrap;justify-content:center;gap:3px;max-width:min(94vw,560px)"></div>
-  <button id="go">🧳 出発！</button>
+  <button id="go" class="ic"><span class="em">🧳</span><span>出発！</span></button>
   <!-- 📖 教材への入口（パパ9/9「最初のメニュー画面から飛べるように」）。字のリンクでは
        小さくて見つからないので ボタンにする -->
   <p style="margin-top:.6em"><a href="1887.html" style="display:inline-block;padding:9px 20px;
      border:2px solid #80cbc4;border-radius:10px;color:#80cbc4;font-size:15px;font-weight:bold;
-     text-decoration:none">📖 交易物語 ほんとうの歴史</a></p>
+     text-decoration:none" class="ic"><span class="em">📖</span><span>交易物語 ほんとうの歴史</span></a></p>
   <p class="tiny">かんそうの あいことば：<b id="titleWord">-</b>　／　<span id="buildTag"></span></p>
 </div>
 
@@ -83,7 +94,7 @@
 </div>
 
 <script>
-const BUILD = 'koeki-0910b';   // ⚠ 版の印
+const BUILD = 'koeki-0910d';   // ⚠ 版の印
 document.getElementById('buildTag').textContent = BUILD;
 const Q = new URLSearchParams(location.search);
 
@@ -162,21 +173,29 @@ const GOODS = [
 // 世界地図の街。mult=その街の値段のくせ（1より小さい＝安い産地）。⚠ 地図の絵は簡単に、
 // 「どこで安く どこで高いか」の**構造**を本物にする（それが交易ゲームの核だから）
 const CITIES = [
-  { id:'london', name:'ロンドン',     nat:'gb', x:432, y:148, mult:{tea:1.6, silk:1.5, cot:1.1, iron:0.6, cof:1.4} },
-  { id:'amst',   name:'アムステルダム', nat:'nl', x:472, y:138, mult:{tea:1.4, silk:1.3, cot:1.0, iron:0.9, cof:1.3} },
-  { id:'paris',  name:'パリ',         nat:'fr', x:458, y:178, mult:{tea:1.3, silk:1.7, cot:1.0, iron:0.9, cof:1.4} },
-  { id:'berlin', name:'ベルリン',     nat:'de', x:508, y:150, mult:{tea:1.3, silk:1.2, cot:1.3, iron:0.7, cof:1.4} },
-  { id:'rome',   name:'ローマ',       nat:'it', x:505, y:212, mult:{tea:1.2, silk:1.1, cot:0.9, iron:1.1, cof:1.3} },
-  { id:'madrid', name:'マドリード',   nat:'es', x:420, y:215, mult:{tea:1.2, silk:1.2, cot:0.9, iron:1.2, cof:1.2} },
-  { id:'lisbon', name:'リスボン',     nat:'pt', x:396, y:222, mult:{tea:1.1, silk:1.2, cot:0.9, iron:1.2, cof:1.1} },
-  { id:'moscow', name:'モスクワ',     nat:'ru', x:592, y:118, mult:{tea:1.5, silk:1.3, cot:1.4, iron:0.8, cof:1.5} },   // 茶1.5＝ロシアは茶の大輸入国（キャフタ貿易）
-  { id:'cairo',  name:'カイロ',       nat:null, x:552, y:258, mult:{tea:1.0, silk:1.0, cot:0.6, iron:1.3, cof:1.2} },
-  { id:'bombay', name:'ボンベイ',     nat:'in', x:688, y:298, mult:{tea:0.8, silk:0.9, cot:0.5, iron:1.4, cof:1.3} },
-  { id:'sing',   name:'シンガポール', nat:null, x:762, y:344, mult:{tea:0.8, silk:0.8, cot:0.9, iron:1.4, cof:1.3} },
-  { id:'beijing',name:'北京',         nat:'cn', x:800, y:196, mult:{tea:0.5, silk:0.6, cot:1.1, iron:1.5, cof:1.5} },
-  { id:'tokyo',  name:'東京',         nat:'jp', x:878, y:206, mult:{tea:0.6, silk:0.5, cot:1.2, iron:1.5, cof:1.6} },
-  { id:'ny',     name:'ニューヨーク', nat:null, x:236, y:178, mult:{tea:1.5, silk:1.4, cot:0.8, iron:0.9, cof:0.9} },
-  { id:'rio',    name:'リオ',         nat:null, x:308, y:390, mult:{tea:1.3, silk:1.3, cot:0.7, iron:1.4, cof:0.4} },
+  { id:'london', name:'ロンドン',     nat:'gb', x:400, y:120, mult:{tea:1.6, silk:1.5, cot:1.1, iron:0.6, cof:1.4} },
+  { id:'amst',   name:'アムステルダム', nat:'nl', x:490, y:110, mult:{tea:1.4, silk:1.3, cot:1.0, iron:0.9, cof:1.3} },
+  { id:'paris',  name:'パリ',         nat:'fr', x:420, y:196, mult:{tea:1.3, silk:1.7, cot:1.0, iron:0.9, cof:1.4} },
+  { id:'berlin', name:'ベルリン',     nat:'de', x:566, y:142, mult:{tea:1.3, silk:1.2, cot:1.3, iron:0.7, cof:1.4} },
+  { id:'rome',   name:'ローマ',       nat:'it', x:520, y:228, mult:{tea:1.2, silk:1.1, cot:0.9, iron:1.1, cof:1.3} },
+  { id:'madrid', name:'マドリード',   nat:'es', x:375, y:238, mult:{tea:1.2, silk:1.2, cot:0.9, iron:1.2, cof:1.2} },
+  { id:'lisbon', name:'リスボン',     nat:'pt', x:355, y:268, mult:{tea:1.1, silk:1.2, cot:0.9, iron:1.2, cof:1.1} },
+  { id:'moscow', name:'モスクワ',     nat:'ru', x:700, y:84, mult:{tea:1.5, silk:1.3, cot:1.4, iron:0.8, cof:1.5} },   // 茶1.5＝ロシアは茶の大輸入国（キャフタ貿易）
+  { id:'cairo',  name:'カイロ',       nat:null, x:578, y:300, mult:{tea:1.0, silk:1.0, cot:0.6, iron:1.3, cof:1.2} },
+  { id:'bombay', name:'ボンベイ',     nat:'in', x:760, y:296, mult:{tea:0.8, silk:0.9, cot:0.5, iron:1.4, cof:1.3} },
+  { id:'sing',   name:'シンガポール', nat:null, x:842, y:372, mult:{tea:0.8, silk:0.8, cot:0.9, iron:1.4, cof:1.3} },
+  { id:'beijing',name:'北京',         nat:'cn', x:880, y:176, mult:{tea:0.5, silk:0.6, cot:1.1, iron:1.5, cof:1.5} },
+  { id:'tokyo',  name:'東京',         nat:'jp', x:946, y:232, mult:{tea:0.6, silk:0.5, cot:1.2, iron:1.5, cof:1.6} },
+  { id:'ny',     name:'ニューヨーク', nat:null, x:214, y:166, mult:{tea:1.5, silk:1.4, cot:0.8, iron:0.9, cof:0.9} },
+  { id:'rio',    name:'リオ',         nat:null, x:258, y:392, mult:{tea:1.3, silk:1.3, cot:0.7, iron:1.4, cof:0.4} },
+  // ↓ パパ9/10「線路を引ける場所をもっとふやそうか　史実に即してるといいね」で足した5つ。
+  //   ⚠ どれも「そこに ほんものの鉄道の話がある街」だけを えらんだ。
+  //   場所ほしさに 街を足すと、ゲームは広がっても **学べるものが減る**
+  { id:'ist',    name:'イスタンブール', nat:null, ld:'down', x:602, y:206, mult:{tea:1.1, silk:0.9, cot:1.0, iron:1.2, cof:1.0} },  // 東と西の のりかえ地点
+  { id:'samar',  name:'サマルカンド', nat:null, x:742, y:168, mult:{tea:1.0, silk:0.7, cot:0.6, iron:1.4, cof:1.6} },   // シルクロードのまんなか・綿の産地
+  { id:'calc',   name:'カルカッタ',   nat:null, ld:'down', x:838, y:282, mult:{tea:0.5, silk:0.9, cot:0.7, iron:1.3, cof:1.4} },   // 茶0.5＝アッサム/ダージリンの積み出し港
+  { id:'sf',     name:'サンフランシスコ', nat:null, ld:'down', x:116, y:158, mult:{tea:1.3, silk:1.2, cot:1.1, iron:1.0, cof:1.0} },
+  { id:'cape',   name:'ケープタウン', nat:null, x:560, y:424, mult:{tea:1.2, silk:1.3, cot:1.1, iron:1.2, cof:1.1} },
 ];
 // 道。kind: 'rail'（🚂・1日）／'sea'（🚢・2日）／'camel'（🐫・3日）。
 // 🐫はパパの発案（9/9「ほんとはラクダとか むしろおもしろくない？」）＝**史実をそのまま遊びにする**。
@@ -190,16 +209,44 @@ const ROADS = [
   ['rome','cairo','sea',2], ['moscow','beijing','camel',3],   // 🐫 ほんものの「茶の道」
   ['cairo','bombay','sea',2], ['bombay','sing','sea',2], ['sing','beijing','sea',2],
   ['beijing','tokyo','sea',2], ['london','ny','sea',2], ['ny','rio','sea',2], ['lisbon','rio','sea',2],
+  // ↓ 1887年に **もう完成していた** 鉄道（だから 引くのではなく 最初からある）
+  ['ny','sf','rail',1],          // 大陸横断鉄道 1869年5月10日 完成（ユタ州プロモントリー）
+  ['bombay','calc','rail',1],    // 1870年3月7日 ボンベイ⇔カルカッタが 鉄道でつながった
+  // ↓ 1887年に まだ つながっていなかったところ＝**引ける場所**（下の RAIL_PROJECTS）
+  ['paris','ist','mix',2],       // オリエント急行1883。でも川と海で のりかえがあった（直通は1889）
+  ['moscow','samar','camel',3],  // カスピ海横断鉄道が 工事中（1880着工・サマルカンド到達1888）
+  ['cairo','cape','camel',3],    // アフリカ縦断。鉄道は ついに 全通しなかった
+  // ↓ 新しい街の 船とキャラバンの道
+  ['ist','cairo','sea',2], ['calc','sing','sea',2], ['sf','tokyo','sea',2],
+  ['cape','lisbon','sea',2], ['cape','rio','sea',2], ['cape','bombay','sea',2],
+  ['samar','beijing','camel',3], ['samar','bombay','camel',3],   // 🐫 ほんもののシルクロード
 ];
-const ROAD_ICON = { rail:'🚂', sea:'🚢', camel:'🐫' };
+// 🚂＝1日 / 🚢＝2日 / 🐫＝3日 / 🚂🚢＝2日（**のりかえ**がある道）
+const ROAD_ICON = { rail:'🚂', sea:'🚢', camel:'🐫', mix:'🚂🚢' };
 // 🚂 監督9/9 22:28「線路もお金がかかるけど引けたら」＝**線路は 買うもの**（核「お金で買える」）。
 //   パパ「シベリア鉄道作る側にもなる的な？」→ 監督「そう 会社で売ったり買ったりできるけど
 //   交通も整備したりできる」。
 //   史実：シベリア鉄道は1891年着工・全線1916年（25年がかり）。ゲームでは1887年に
 //   **じぶんが作る側**になれる＝歴史より4年はやい。それがこのゲームの遊び。
-// ponytail: いまはシベリア鉄道1本だけ。監督が「ほかの道も」と言ったら足す
+// パパ9/10「線路を引ける場所をもっとふやそうか　史実に即してるといいね」→ 5本にした。
+// ⚠ どれも **ほんとうにあった話**。年号は 検索して 目で見て たしかめた（記憶では書かない）。
+//   real = 「ほんものだと いつ できたか」。ゲームの中では 1887年に じぶんで 先に作れる。
+//   ⚠ ケープ〜カイロだけ real が null ＝ **ほんものは 最後まで つながらなかった**。
+//     つまり ここを引けたら、ゆうじんは 歴史がやれなかったことを やったことになる。
 const RAIL_PROJECTS = [
-  { a:'moscow', b:'beijing', name:'シベリア鉄道', cost:500, fee:40 },
+  { a:'moscow', b:'beijing', name:'シベリア鉄道',      cost:500, fee:40, real:1916,
+    note:'1891年に工事がはじまって、ぜんぶつながったのは1916年。25年かかった' },
+  { a:'london', b:'paris',   name:'英仏海峡トンネル',  cost:400, fee:25, real:1994,
+    note:'1880年にほんとうに掘りはじめて、3.5kmまで掘れた。でも1883年に「せめこまれる」と' +
+         'イギリスの軍がこわがって 中止になった。できたのは111年あとの1994年' },
+  { a:'moscow', b:'samar',   name:'カスピ海横断鉄道',  cost:350, fee:20, real:1888,
+    note:'1880年に工事がはじまって、1888年5月にサマルカンドまでとどいた。' +
+         'このゲームの1887年は、あと1年というところ' },
+  { a:'paris',  b:'ist',     name:'オリエント急行の直通', cost:300, fee:20, real:1889,
+    note:'1883年から走っていたけど、川と海は 船にのりかえだった。' +
+         'ぜんぶ線路でつながったのは1889年6月1日' },
+  { a:'cairo',  b:'cape',    name:'ケープ〜カイロ鉄道', cost:700, fee:50, real:null,
+    note:'アフリカを たてにつらぬく計画。ほかの国が じゃまをして **いまも つながっていない**' },
 ];
 
 // ⚠ 道は 同じ2つの街のあいだに **何本あってもいい**。
@@ -264,8 +311,12 @@ function drawMap() {
   const X = c => ox + c.x * s, Y = c => oy + c.y * s;
   // 大陸のかんじ（ざっくりの形。⚠ 正確な地図より「どの街とどの街がつながるか」が本体）
   ctx.fillStyle = '#1f4a33';
-  const blobs = [[240,220,90,120],[300,400,70,90],[470,180,110,80],[540,270,70,60],
-                 [640,180,180,90],[720,300,90,80],[850,210,60,50]];
+  // ⚠ 街を足したら **その足もとに 陸があるか** も見る（海の上に街が浮くと 地図がうそになる）
+  const blobs = [[175,215,135,130],[262,390,70,90],                 // 北アメリカ／南アメリカ
+                 [460,190,155,115],                                 // ヨーロッパ（街をひろげたので 大きく）
+                 [572,300,70,70], [560,398,44,86],                  // 北アフリカ／アフリカの南
+                 [730,165,185,105],[800,300,105,85],                // ユーラシア／インド
+                 [916,205,66,54]];                                  // 日本
   for (const [bx, by, rx, ry] of blobs) {
     ctx.beginPath(); ctx.ellipse(ox + bx*s, oy + by*s, rx*s, ry*s, 0, 0, Math.PI*2); ctx.fill();
   }
@@ -273,18 +324,23 @@ function drawMap() {
   for (const [a, b, kind] of ROADS) {
     const A = cityById(a), B = cityById(b);
     ctx.strokeStyle = kind === 'rail' ? 'rgba(255,224,130,.6)'
-                    : kind === 'camel' ? 'rgba(255,171,64,.75)' : 'rgba(129,212,250,.45)';
+                    : kind === 'camel' ? 'rgba(255,171,64,.75)'
+                    : kind === 'mix' ? 'rgba(206,147,216,.7)' : 'rgba(129,212,250,.45)';
     ctx.lineWidth = kind === 'camel' ? 3 : 2;
-    ctx.setLineDash(kind === 'sea' ? [6, 5] : kind === 'camel' ? [2, 6] : []);
+    ctx.setLineDash(kind === 'sea' ? [6, 5] : kind === 'camel' ? [2, 6]
+                  : kind === 'mix' ? [10, 4] : []);
     ctx.beginPath(); ctx.moveTo(X(A), Y(A)); ctx.lineTo(X(B), Y(B)); ctx.stroke();
-    if (kind === 'camel') {
+    // 🐫と🔁は 見ただけで分かるように しるしを置く（線の色だけだと 区別がつかない）
+    const mark = kind === 'camel' ? '🐫' : kind === 'mix' ? '🔁' : null;
+    if (mark) {
       ctx.setLineDash([]);
       ctx.font = Math.max(12, 15*s) + 'px sans-serif'; ctx.textAlign = 'center';
-      ctx.fillText('🐫', (X(A)+X(B))/2, (Y(A)+Y(B))/2 - 4);
+      ctx.fillText(mark, (X(A)+X(B))/2, (Y(A)+Y(B))/2 - 4);
     }
   }
   ctx.setLineDash([]);
-  // 街
+  // 街の点（名前は このあと まとめて置く）
+  const labels = [];
   for (const c of CITIES) {
     const own = G.own[c.id];
     const here = G.at === c.id;
@@ -296,11 +352,71 @@ function drawMap() {
     }
     ctx.fillStyle = here ? '#ffe066' : canGo ? '#fff' : '#90a4ae';
     ctx.beginPath(); ctx.arc(X(c), Y(c), here ? 8 : 6, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.font = 'bold ' + Math.max(10, 13*s) + 'px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(c.name, X(c), Y(c) - 12);
+    ctx.fillStyle = '#fff';
     if (own && own.factory) ctx.fillText('🏭', X(c) + 16, Y(c) + 5);
+    // ⚠⚠ 街が15→20にふえて、名前が となりの街と かさなって 読めなくなった。
+    //   地図は 画面の1/3の幅で、字は10pxが下げ止まり＝**20コの名前は そもそも 入らない**。
+    //   → ① いま いる街・行ける街・じぶんの会社がある街 だけ 名前を出す
+    //     （行けない街は 点のまま。行き先をきめるのに 要る名前だけ 出る）
+    //   ⚠ これは 監督が たのんだ変更ではない。読めないのを直すため。いやなら もどす
+    if (here || canGo || (own && own.land))
+      labels.push({ c, here, prio: here ? 0 : (own && own.land) ? 1 : 2 });
   }
+  // ② それでも 近い街どうしは ぶつかる（ロンドンとアムステルダムなど）。
+  //    **置いた場所をおぼえておいて、ぶつかったら 下・上・もっと下…と ずらす**。
+  //    ⚠ どこにも置けなかったら **出さない**。重ねて 両方読めなくするより ましだから
+  ctx.font = 'bold ' + Math.max(10, 13*s) + 'px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.lineJoin = 'round';
+  const fh = Math.max(10, 13*s), placed = [];
+  drawMap._labels = window.drawMapLabels = []; drawMap._overlap = 0;   // ⚠ どの名前を どこに置いたかを 残す（目で見るのでなく 測るため）
+  // ⚠ 街の点と🏭のしるしも「ふさがっている場所」に入れる。
+  //   入れないと、となりの街の名前が **点や🏭の上に かぶって**「ロン｜ドン」みたいに欠ける
+  for (const c of CITIES) {
+    const o = G.own[c.id];
+    placed.push({ x1: X(c) - 9, x2: X(c) + (o && o.factory ? 30 : 9), y1: Y(c) - 9, y2: Y(c) + 9 });
+  }
+  labels.sort((a, b) => a.prio - b.prio);      // 大事な名前から 先に よい場所をとる
+  // 名前を置いてみる場所。上→下→右→左→もっと上… の順に ためす。
+  // ⚠ 上下だけだと 足りなかった（アムステルダムとローマが 消えた）。**横にも のがす**
+  const SPOTS = [[0,-12,'center'], [0,20,'center'], [12,4,'left'], [-12,4,'right'],
+                 [0,-26,'center'], [0,34,'center'], [13,-11,'left'], [-13,-11,'right'],
+                 [13,19,'left'], [-13,19,'right'],
+                 // ⚠ ここまでで足りず 4つの街で 重なった（実測）。もっと遠くにも のがす
+                 [0,-40,'center'], [0,48,'center'], [26,-25,'left'], [-26,-25,'right'],
+                 [26,33,'left'], [-26,33,'right'], [0,-54,'center'], [0,62,'center'],
+                 [40,-8,'left'], [-40,-8,'right'], [0,-68,'center'], [0,76,'center'],
+                 [40,-40,'left'], [-40,-40,'right'], [40,26,'left'], [-40,26,'right']];
+  for (const L of labels) {
+    const cx = X(L.c), cy = Y(L.c), tw = ctx.measureText(L.c.name).width;
+    // ld:'down' の街は 下から ためす（となりと ぶつかりにくい向きが 分かっている街）
+    const spots = L.c.ld === 'down' ? [SPOTS[1], SPOTS[0], ...SPOTS.slice(2)] : SPOTS;
+    let put = null;
+    for (const [dx, dy, al] of spots) {
+      const x = cx + dx;
+      const x1 = al === 'center' ? x - tw/2 : al === 'left' ? x : x - tw;
+      const r = { x1: x1 - 2, x2: x1 + tw + 2, y1: cy + dy - fh, y2: cy + dy + 3 };
+      // ⚠ 画面から はみ出す場所は えらばない。遠くへ のがすと 外に出る
+      //   （サンフランシスコの名前が 左のふちで 切れていた・実測）
+      if (r.x1 < 1 || r.x2 > w - 1 || r.y1 < 1 || r.y2 > h - 1) continue;
+      if (!placed.some(q => r.x1 < q.x2 && r.x2 > q.x1 && r.y1 < q.y2 && r.y2 > q.y1)) {
+        placed.push(r); put = [x, cy + dy, al]; break;
+      }
+    }
+    // ⚠ どこにも置けなくても **出す**（上に重ねる）。行ける街の名前が消えるほうが こまる
+    if (!put) {
+      // どこにも置けない＝重ねてでも出す。⚠ ただし 画面の中に おさめる
+      put = [Math.min(w - tw/2 - 2, Math.max(tw/2 + 2, cx)), Math.max(fh + 2, cy - 12), 'center'];
+      drawMap._overlap = (drawMap._overlap || 0) + 1;
+    }
+    drawMap._labels.push({ name: L.c.name, x: put[0], y: put[1], al: put[2], w: tw });
+    ctx.textAlign = put[2];
+    ctx.strokeStyle = 'rgba(0,0,0,.85)'; ctx.lineWidth = 3;
+    ctx.strokeText(L.c.name, put[0], put[1]);  // 黒いふちどり＝海の上でも 陸の上でも 読める
+    ctx.fillStyle = L.here ? '#ffe066' : '#fff';
+    ctx.fillText(L.c.name, put[0], put[1]);
+  }
+  ctx.textAlign = 'center';
   // タップ判定用に保存
   drawMap._geo = { s, ox, oy };
 }
@@ -414,12 +530,17 @@ function render() {
   for (const rp of RAIL_PROJECTS) {
     if (c.id !== rp.a && c.id !== rp.b) continue;
     if (roadsBetween(rp.a, rp.b).some(r => r[2] === 'rail')) continue;   // もう引いてあれば出さない
+    // ⚠ 前は「🐫3日タダ の となりに」と 決めうちで書いていた。線路が5本になって
+    //   となりが 🚢や🔁 のこともある＝**いま実際にある道**から 文を作る
+    const now = roadsBetween(rp.a, rp.b)[0];
+    const nowTxt = now ? ROAD_ICON[now[2]] + now[3] + '日' + (roadFee(now) ? '(石炭' + roadFee(now) + ')' : 'タダ') : '道なし';
     h += '<div class="row"><button class="build" data-rail="' + rp.a + ':' + rp.b + '"' +
-      (G.money < rp.cost ? ' disabled' : '') + '>🚂 ' + rp.name + 'を引く（' + rp.cost + '）' +
-      '🐫3日タダ の となりに 🚂1日(石炭' + rp.fee + ')が できる</button></div>';
+      (G.money < rp.cost ? ' disabled' : '') + '>🚂 ' + rp.name + 'を引く（' + rp.cost + '）<br>' +
+      'いまは ' + nowTxt + '／引くと 🚂1日(石炭' + rp.fee + ') も えらべる</button></div>' +
+      '<div class="sub" style="margin:-2px 0 6px">📖 ' + rp.note + '</div>';
   }
 
-  h += '<div class="sub" style="margin-top:6px">🗺 地図の 白い街を おすと すすむ。' +
+  h += '<div class="sub" style="margin-top:6px">🗺 地図の <b>名前が出ている街</b>に 行ける（おすと すすむ）。' +
        '🚂鉄道=1日・🚢船=2日・🐫キャラバン=3日。道が2本あるときは えらべる</div>';
   $('panel').innerHTML = h;
   for (const b of $('panel').querySelectorAll('[data-buy]')) b.onclick = () => trade(b.dataset.buy, +1);
@@ -485,6 +606,14 @@ function act(kind) {
 
 // 🚂 線路を引く。⚠ ROADS の中身を書きかえる＝地図も日数も そのまま新しくなる
 //   （別の場所に「引いた印」を持つと、地図と日数が古いまま残る事故になる）
+// ⚠⚠ ROADS は ゲーム中に **1本しかない** 共有の入れもの。引いた線路を そこへ足すので、
+//   1ばんのセーブで シベリア鉄道を引いたあと 2ばんのセーブを読むと、
+//   **2ばんでも 線路が つながったまま**になっていた（お金を はらっていないのに）。
+//   読む前・新しく始める前に ここで いったん外す。呼ぶ場所ごとに書くと 足した経路が すりぬける
+function clearBuiltRails() {
+  for (let k = ROADS.length - 1; k >= 0; k--)
+    if (ROADS[k][2] === 'rail' && ROADS[k][4]) ROADS.splice(k, 1);   // r[4]=通行料 があるのが「引いた線路」
+}
 function buildRail(key) {
   const [ra, rb] = key.split(':');
   const rp = RAIL_PROJECTS.find(x => x.a === ra && x.b === rb);
@@ -494,11 +623,13 @@ function buildRail(key) {
   //   パパ9/9「選択肢として共存できる形をさぐりたい」→ **2本目の道として足す**。
   //   🐫3日タダ ／ 🚂1日だけど石炭代。どっちで行くかを えらべるようになる
   ROADS.push([rp.a, rp.b, 'rail', 1, rp.fee]);
-  // ⚠ 引くと 🐫の道が 地図から消える。それは「史実が消えた」のではなく
-  //   **ゆうじんが歴史を作った**ということ。そう言わないと ただ道が変わっただけに見える
-  showMessage('🚂 ' + rp.name + ' かんせい！ ほんものより4年はやい！ ' +
-    '🐫3日タダ と 🚂1日(石炭' + rp.fee + ') どっちでも行ける', 4.4);
-  logEvent('rail', { name: rp.name, cost: rp.cost, day: G.day });
+  // ⚠ もとの道は のこる。だから「歴史が消えた」のではなく
+  //   **ゆうじんが 歴史より先に 作った**ということ。そう言わないと ただ道が増えただけに見える
+  //   ⚠ real が null＝ほんものは できなかった。そこは 言い方を変える（うそを言わない）
+  const brag = rp.real === null ? 'ほんものは いまだに つながっていない！ 世界で さいしょだ！'
+             : 'ほんものは ' + rp.real + '年。' + (rp.real - 1887) + '年 先まわりした！';
+  showMessage('🚂 ' + rp.name + ' かんせい！ ' + brag, 4.8);
+  logEvent('rail', { name: rp.name, cost: rp.cost, day: G.day, real: rp.real });
   render();
 }
 
@@ -537,6 +668,7 @@ function loadGame(i) {
   G.nation = nat; G.at = d.at; G.day = d.day; G.money = d.money;
   GOODS.forEach(g => G.cargo[g.id] = (d.cargo && d.cargo[g.id]) || 0);
   G.own = d.own || {};
+  clearBuiltRails();
   // 引いた線路を もどす。⚠ 二重に足さないよう、同じ区間に rail が無いときだけ
   for (const [ra, rb, days, fee] of (d.rails || []))
     if (!roadsBetween(ra, rb).some(r => r[2] === 'rail')) ROADS.push([ra, rb, 'rail', days, fee]);
@@ -607,6 +739,7 @@ $('go').onclick = () => {
   // ⚠ 新しく始めるときは 前のほぞんを消す。残すと つぎに開いたとき
   //   「つづきから」が 前の回のままになって、混ざる
   clearSave(curSlot);          // ⚠ えらんだ場所だけ消す（ほかの2つは のこす）
+  clearBuiltRails();           // ⚠ 前の回で引いた線路も 外す（つづきの地図で 新規が始まらないように）
   G.day = 0; G.money = START_MONEY; G.own = {}; G.choose = null;
   GOODS.forEach(g => G.cargo[g.id] = 0);
   G.nation = NATIONS[pickNat];
@@ -624,8 +757,8 @@ addEventListener('resize', () => { if (G.started) drawMap(); });
 
 // ?dev=1：外から数字を見る口（⚠ 目で「動いてる」と 数字が正しいは別）
 if (Q.get('dev') === '1') {
-  window.dbg = () => ({ G, CITIES, GOODS, NATIONS, ROADS, roadOf, price, linked, travel, trade, act,
-    RAIL_PROJECTS, buildRail, roadsBetween, roadFee, saveGame, loadGame, readSave, clearSave, paintSlots, SLOTS, slotKey, get curSlot() { return curSlot; }, set curSlot(v) { curSlot = v; },
+  window.drawMapOverlap = () => drawMap._overlap; window.dbg = () => ({ G, CITIES, dbgDraw: drawMap, GOODS, NATIONS, ROADS, roadOf, price, linked, travel, trade, act,
+    RAIL_PROJECTS, buildRail, clearBuiltRails, roadsBetween, roadFee, saveGame, loadGame, readSave, clearSave, paintSlots, SLOTS, slotKey, get curSlot() { return curSlot; }, set curSlot(v) { curSlot = v; },
     specialty, companyNations, cargoCount, cityById,
     LAND_COST, FARM_COST, FACTORY_COST, MARKET_COST, MARKET_MUL, SIZE_NAME, CARGO_MAX, START_MONEY, BUILD, render });
 }
