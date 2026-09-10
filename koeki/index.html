@@ -60,11 +60,10 @@
   <span class="sub">🚂 鉄道1日・🚢 船2日・🐫 ラクダのキャラバン3日で 世界をまわれる</span></p>
   <p style="margin-bottom:.1em">じぶんの国を えらぼう（そこから 出発）</p>
   <div class="pick" id="natRow"></div>
-  <div id="contBox" style="display:none;margin:.4em 0">
-    <button id="cont" style="background:#2e7d32;font-size:clamp(17px,4.5vw,24px);padding:10px 26px">
-      💾 つづきから</button>
-    <div id="contInfo" class="sub" style="margin-top:.2em"></div>
-  </div>
+  <p style="margin:.6em 0 .1em">💾 ほぞんする ばしょ（6つ）</p>
+  <!-- ⚠ 6つを たてに並べると 出発ボタンが 画面からはみ出した（360x640で実測 -28px）。
+       よこに ならべて 折り返す＝あいてる枠は 小さくてよい -->
+  <div id="slotRow" style="display:flex;flex-wrap:wrap;justify-content:center;gap:3px;max-width:min(94vw,560px)"></div>
   <button id="go">🧳 出発！</button>
   <!-- 📖 教材への入口（パパ9/9「最初のメニュー画面から飛べるように」）。字のリンクでは
        小さくて見つからないので ボタンにする -->
@@ -84,7 +83,7 @@
 </div>
 
 <script>
-const BUILD = 'koeki-0910a';   // ⚠ 版の印
+const BUILD = 'koeki-0910b';   // ⚠ 版の印
 document.getElementById('buildTag').textContent = BUILD;
 const Q = new URLSearchParams(location.search);
 
@@ -508,12 +507,17 @@ function buildRail(key) {
 //   なにか動くたびに 自動でほぞんする（「セーブを押しわすれた」が起きない形）。
 // ⚠ 引いた線路も ほぞんする。ROADS を書きかえているので、そこを覚えておかないと
 //   つづきから始めたときに **500はらった線路が消える**
-const SAVE_KEY = 'koekiSave1';
+// ⚠ ほぞんは **6つ**（パパ9/10「セーブスロットは何個かつくろ」→「6個にしよ」）。
+//   国は11こある。6つあれば 国ごとに ちがう商売を ためし比べられる
+//   （産地が国でちがうゲームなので、ここが効く）
+const SLOTS = 6;
+const slotKey = i => 'koekiSave1_' + i;
+let curSlot = 0;                      // いま遊んでいる ほぞんの場所
 function saveGame() {
   if (!G.started) return;
   try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify({
-      v: 1, build: BUILD,
+    localStorage.setItem(slotKey(curSlot), JSON.stringify({
+      v: 1, build: BUILD, slot: curSlot,
       nation: G.nation.id, at: G.at, day: G.day, money: G.money,
       cargo: G.cargo, own: G.own,
       rails: ROADS.filter(r => r[2] === 'rail' && r[4]).map(r => [r[0], r[1], r[3], r[4]]),
@@ -521,12 +525,12 @@ function saveGame() {
     }));
   } catch (e) { console.warn('⚠ ほぞんできなかった（容量オーバーかも）', e); }
 }
-function readSave() {
-  try { const d = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); return (d && d.v === 1) ? d : null; }
+function readSave(i) {
+  try { const d = JSON.parse(localStorage.getItem(slotKey(i)) || 'null'); return (d && d.v === 1) ? d : null; }
   catch (e) { return null; }
 }
-function loadGame() {
-  const d = readSave();
+function loadGame(i) {
+  const d = readSave(i);
   if (!d) return false;
   const nat = NATIONS.find(n => n.id === d.nation);
   if (!nat) return false;
@@ -536,14 +540,15 @@ function loadGame() {
   // 引いた線路を もどす。⚠ 二重に足さないよう、同じ区間に rail が無いときだけ
   for (const [ra, rb, days, fee] of (d.rails || []))
     if (!roadsBetween(ra, rb).some(r => r[2] === 'rail')) ROADS.push([ra, rb, 'rail', days, fee]);
+  curSlot = i;
   G.started = true; G.choose = null;
   $('overlay').style.display = 'none';
-  showMessage('💾 つづきから！ ' + dateStr() + '・💰' + G.money, 3);
-  logEvent('load', { day: G.day, money: G.money, at: G.at });
+  showMessage('💾 ' + (i + 1) + 'ばんの つづきから！ ' + dateStr() + '・💰' + G.money, 3);
+  logEvent('load', { slot: i, day: G.day, money: G.money, at: G.at });
   render();
   return true;
 }
-function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} }
+function clearSave(i) { try { localStorage.removeItem(slotKey(i)); } catch (e) {} }
 
 // ============ タイトル ============
 let pickNat = 0;
@@ -557,21 +562,51 @@ NATIONS.forEach((n, i) => {
     for (const x of natRow.children) x.className = ''; b.className = 'on'; };
   natRow.appendChild(b);
 });
-// 💾 ほぞんがあれば「つづきから」を出す。⚠ 出さないと ほぞんされていても 気づけない
-{
-  const sv = readSave();
-  if (sv) {
-    const nat = NATIONS.find(n => n.id === sv.nation);
-    $('contBox').style.display = 'block';
-    const d0 = new Date(1887, 0, 1); d0.setDate(d0.getDate() + sv.day);
-    $('contInfo').textContent = (nat ? nat.name : '?') + '／1887年' + (d0.getMonth()+1) + '月' + d0.getDate() + '日／💰' + sv.money;
-    $('cont').onclick = () => { if (!loadGame()) showMessage('⚠ つづきを読めなかった', 2); };
+// 💾 3つの ほぞん場所を ぜんぶ出す。
+// ⚠ 「空いてる」も出す。出さないと **どこに ほぞんされるのか** が分からない
+function paintSlots() {
+  const row = $('slotRow'); row.innerHTML = '';
+  for (let i = 0; i < SLOTS; i++) {
+    const sv = readSave(i);
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;gap:4px;align-items:center;justify-content:center;flex-wrap:wrap';
+    const b2 = document.createElement('button');
+    // ⚠ つかっている枠は 中身を見せたいので広く、あいてる枠は 小さくてよい（場所をとらない）
+    b2.style.cssText = 'text-align:left;font-size:12px;padding:5px 8px;min-height:34px;' +
+      (sv ? 'min-width:180px;background:#2e7d32' : 'min-width:78px;opacity:.5');
+    if (sv) {
+      const nat = NATIONS.find(n => n.id === sv.nation);
+      const d0 = new Date(1887, 0, 1); d0.setDate(d0.getDate() + sv.day);
+      b2.innerHTML = '💾 ' + (i + 1) + '　' + (nat ? nat.name : '?') +
+        '<br><span style="font-size:.8em;opacity:.85">1887年' + (d0.getMonth()+1) + '月' + d0.getDate() +
+        '日／💰' + sv.money + '</span>';
+      b2.onclick = () => { if (!loadGame(i)) showMessage('⚠ つづきを読めなかった', 2); };
+    } else {
+      b2.innerHTML = '💾 ' + (i + 1) + ' <span style="font-size:.85em;opacity:.8">あいてる</span>';
+      b2.onclick = () => { curSlot = i; paintSlots(); };
+    }
+    if (i === curSlot) b2.style.borderColor = '#ffe066';
+    wrap.appendChild(b2);
+    if (sv) {
+      const del = document.createElement('button');
+      del.textContent = '🗑';
+      del.style.cssText = 'background:#5d4037;min-height:40px';
+      // ⚠ 一発では消さない。もう一度おしたら消える（まちがって消すと 取りかえせない）
+      del.onclick = () => {
+        if (del.dataset.armed) { clearSave(i); paintSlots(); showMessage('🗑 ' + (i+1) + 'ばんを 消した', 1.6); }
+        else { del.dataset.armed = '1'; del.textContent = '🗑 ほんとに消す？';
+               setTimeout(() => { del.dataset.armed = ''; del.textContent = '🗑'; }, 4000); }
+      };
+      wrap.appendChild(del);
+    }
+    row.appendChild(wrap);
   }
 }
+paintSlots();
 $('go').onclick = () => {
   // ⚠ 新しく始めるときは 前のほぞんを消す。残すと つぎに開いたとき
   //   「つづきから」が 前の回のままになって、混ざる
-  clearSave();
+  clearSave(curSlot);          // ⚠ えらんだ場所だけ消す（ほかの2つは のこす）
   G.day = 0; G.money = START_MONEY; G.own = {}; G.choose = null;
   GOODS.forEach(g => G.cargo[g.id] = 0);
   G.nation = NATIONS[pickNat];
@@ -590,7 +625,7 @@ addEventListener('resize', () => { if (G.started) drawMap(); });
 // ?dev=1：外から数字を見る口（⚠ 目で「動いてる」と 数字が正しいは別）
 if (Q.get('dev') === '1') {
   window.dbg = () => ({ G, CITIES, GOODS, NATIONS, ROADS, roadOf, price, linked, travel, trade, act,
-    RAIL_PROJECTS, buildRail, roadsBetween, roadFee, saveGame, loadGame, readSave, clearSave, SAVE_KEY,
+    RAIL_PROJECTS, buildRail, roadsBetween, roadFee, saveGame, loadGame, readSave, clearSave, paintSlots, SLOTS, slotKey, get curSlot() { return curSlot; }, set curSlot(v) { curSlot = v; },
     specialty, companyNations, cargoCount, cityById,
     LAND_COST, FARM_COST, FACTORY_COST, MARKET_COST, MARKET_MUL, SIZE_NAME, CARGO_MAX, START_MONEY, BUILD, render });
 }
