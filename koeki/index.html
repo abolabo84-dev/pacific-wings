@@ -65,6 +65,7 @@
   さいしょは <b>小さい工場と 小さい茶畑</b>だけ。<br>
   もうけた お金で 土地を買い、大きくして、<br>
   <b>いろんな国に じぶんの会社</b>を作ろう。<br>
+  <b>🚉 駅</b>は 線路が来ている街に建てると <b>毎日お金が入る</b>。<br>
   <!-- ⚠ パパのiPhoneで「世／界をまわれる」と 途中で 折れていた（実機スクショ 9/10）。
        ひとかたまりを inline-block にすると **そのかたまりの中では 折れない** -->
   <span class="sub"><span class="nw">🚂 鉄道1日</span>・<span class="nw">🚢 船2日</span>・<span class="nw">🐫 ラクダ3日</span>・<span class="nw">🔁 のりかえ2日</span><br>
@@ -87,7 +88,7 @@
 <div id="wrap">
   <div id="mapBox">
     <canvas id="map"></canvas>
-    <div id="hud"><span id="hudDate"></span><span id="hudMoney"></span><span id="hudCo"></span></div>
+    <div id="hud"><span id="hudDate"></span><span id="hudMoney"></span><span id="hudCo"></span><span id="hudInc"></span></div>
     <div id="msg"></div>
   </div>
   <div id="panel"></div>
@@ -96,7 +97,7 @@
 <!-- ⏳ よみこみ画面（3本共通・パパ9/10）。module より先に走らせて 開いた瞬間から出す -->
 <script src="../common/loading.js" data-title="交易物語" data-sub="🗺 地図を ひろげ中…"></script>
 <script>
-const BUILD = 'koeki-0910e';   // ⚠ 版の印
+const BUILD = 'koeki-0911a';   // ⚠ 版の印
 document.getElementById('buildTag').textContent = BUILD;
 const Q = new URLSearchParams(location.search);
 
@@ -269,6 +270,25 @@ const FARM_COST    = [0, 90, 200, 420];    // 🌱 畑：茶をつくる（監�
 const FACTORY_COST = [0, 120, 260, 540];   // 🏭 工場：その街の名産をつくる
 const MARKET_COST  = [0, 100, 220, 460];   // 🏪 市場：売値が上がる
 const MARKET_MUL   = [1, 1.3, 1.5, 1.8];
+// 🚉 駅（監督9/10 20:25「駅を作ると1日に500ドルもらえる」）。
+// ⚠ ここまでの たてものは ぜんぶ「**物**ができる」だけ＝売りに行かないと お金にならない。
+//   駅は **行かなくても お金が入る**。監督が足したのは、それまで無かった種類のもの。
+//   （パパ「モノポリーみたくなってきたね」→ 監督「OK」）
+// ⚠ 500という数は 監督の数。**いちばん大きい駅**の数として そのまま入れた。
+//   いまの経済（さいしょ💰100・土地80）に いきなり1日500を出すと 1個で全部ひっくり返るので、
+//   小さい駅から3段階にした。核（=持っているだけで毎日入る）は 1段目から効く。
+//   ⚠ 買値と実入りは **遊んで測ってから** 詰める（ここは まだ仮の数）
+// ⚠ 9/11 実測して 直した数。前は [600,1300,2600]＝**大きくするほど もとが早く取れる**形で、
+//   それだと「まっすぐ最大まで上げる」以外に えらびようが無くなる。畑90/200/420（1コあたり90→100→140）
+//   と同じで、**大きいほど 割高**にした。3段目4000は 交易をだいぶ やらないと 届かない大金
+const STATION_COST   = [0, 600, 1600, 4000];
+const STATION_INCOME = [0, 100,  250,  500];   // 1日あたり
+// 🚂 駅は **線路が来ている街にしか** 建てられない。
+//   ⚠ これで「線路を引く」と「駅を建てられる街が増える」がつながる。
+//   1887年に線路がある街は11コ。シベリア鉄道などを引くと ロンドン・北京・サマルカンド…と増える
+const hasRail = cid => ROADS.some(r => (r[2] === 'rail' || r[2] === 'mix') && (r[0] === cid || r[1] === cid));
+// その日ぶんの 駅の実入り（持っている駅ぜんぶ）
+const stationIncome = () => Object.values(G.own).reduce((a, o) => a + STATION_INCOME[o.station || 0], 0);
 const CARGO_MAX = 10, START_MONEY = 100;
 const cityById = id => CITIES.find(c => c.id === id);
 const linked = (a, b) => ROADS.some(r => (r[0] === a && r[1] === b) || (r[0] === b && r[1] === a));
@@ -356,6 +376,8 @@ function drawMap() {
     ctx.beginPath(); ctx.arc(X(c), Y(c), here ? 8 : 6, 0, Math.PI*2); ctx.fill();
     ctx.fillStyle = '#fff';
     if (own && own.factory) ctx.fillText('🏭', X(c) + 16, Y(c) + 5);
+    // 🚉 駅も 地図で見えるように。⚠ 工場と かさならないよう **反対がわ**に置く
+    if (own && own.station) ctx.fillText('🚉', X(c) - 16, Y(c) + 5);
     // ⚠⚠ 街が15→20にふえて、名前が となりの街と かさなって 読めなくなった。
     //   地図は 画面の1/3の幅で、字は10pxが下げ止まり＝**20コの名前は そもそも 入らない**。
     //   → ① いま いる街・行ける街・じぶんの会社がある街 だけ 名前を出す
@@ -457,9 +479,14 @@ function travel(c, road) {
       o.stock[sp2.id] = Math.min(30, (o.stock[sp2.id] || 0) + o.factory * days);
     }
   }
-  logEvent('travel', { to: c.id, day: G.day, days, kind: road ? road[2] : '?', fee, money: G.money });
+  // 🚉 駅の実入り。⚠ 畑や工場と同じで **3日の道なら3日ぶん**。
+  //   ここに置くのは、日がすすむ場所が travel しか無いから（あとで「1日待つ」を足すなら そこにも要る）
+  const inc = stationIncome() * days;
+  if (inc) G.money += inc;
+  logEvent('travel', { to: c.id, day: G.day, days, kind: road ? road[2] : '?', fee, station: inc, money: G.money });
   const icon = road ? ROAD_ICON[road[2]] : '🧳';
-  showMessage(icon + ' ' + days + '日かけて ' + c.name + 'に ついた' + (fee ? '（石炭 -' + fee + '）' : ''), 1.6);
+  showMessage(icon + ' ' + days + '日かけて ' + c.name + 'に ついた' +
+    (fee ? '（石炭 -' + fee + '）' : '') + (inc ? '（🚉 +' + inc + '）' : ''), 1.6);
   render();
 }
 function dateStr() {
@@ -477,6 +504,9 @@ function render() {
   $('hudDate').textContent = '📅 ' + dateStr();
   $('hudMoney').textContent = '💰 ' + G.money;
   $('hudCo').textContent = '🏢 ' + companyNations().size + 'か国';
+  // 🚉 駅を1つも持っていないうちは 出さない（からっぽの「+0」は 意味がないうえ 場所を食う）
+  const inc0 = stationIncome();
+  $('hudInc').textContent = inc0 ? '🚉 1日+' + inc0 : '';
   const c = cityById(G.at);
   const own = G.own[c.id] || {};
   const sp = specialty(c);
@@ -499,6 +529,10 @@ function render() {
     bh += one('farm', '🌱', '茶畑', FARM_COST, lv => '1日に🍵' + lv);
     bh += one('factory', '🏭', '工場', FACTORY_COST, lv => '1日に' + sp.icon + lv);
     bh += one('market', '🏪', '市場', MARKET_COST, lv => '売値' + MARKET_MUL[lv] + '倍');
+    // 🚉 線路が来ている街だけ。⚠ 来ていない街では **なぜ出ないのか**を書く。
+    //   ボタンが黙って消えると「バグ」に見える（v6のタイトル画面で同じことを学んだ）
+    if (hasRail(c.id)) bh += one('station', '🚉', '駅', STATION_COST, lv => '1日に💰' + STATION_INCOME[lv]);
+    else bh += '<span>🚉 駅は 線路が来ている街だけ</span>';
     const st = own.stock || {};
     const total = Object.values(st).reduce((a2, b2) => a2 + b2, 0);
     if (total > 0) bh += '<button class="build" data-act="collect">📦 回収（' +
@@ -574,9 +608,9 @@ function trade(gid, dir) {
 function act(kind) {
   const c = cityById(G.at);
   const own = G.own[c.id] = G.own[c.id] || { land: false, farm: 0, factory: 0, market: 0, stock: {} };
-  const COSTS = { farm: FARM_COST, factory: FACTORY_COST, market: MARKET_COST };
-  const ICONS = { farm: '🌱', factory: '🏭', market: '🏪' };
-  const NAMES = { farm: '茶畑', factory: '工場', market: '市場' };
+  const COSTS = { farm: FARM_COST, factory: FACTORY_COST, market: MARKET_COST, station: STATION_COST };
+  const ICONS = { farm: '🌱', factory: '🏭', market: '🏪', station: '🚉' };
+  const NAMES = { farm: '茶畑', factory: '工場', market: '市場', station: '駅' };
   if (kind === 'land' && !own.land && G.money >= LAND_COST) {
     G.money -= LAND_COST; own.land = true;
     const n = companyNations().size;
@@ -584,6 +618,8 @@ function act(kind) {
     logEvent('land', { at: c.id, nations: n });
     if (n === 5) { showMessage('🎉 5か国に 会社ができた！ りっぱな商人だ！', 3.5); logEvent('five_nations', {}); }
   } else if (COSTS[kind] && own.land) {
+    // ⚠ 見た目で隠すだけにしない。線路の無い街で 駅が建つ道を ここで閉じる
+    if (kind === 'station' && !hasRail(c.id)) { showMessage('⚠ ' + c.name + 'には まだ 線路が来ていない', 1.8); return; }
     const lv = own[kind] || 0;
     if (lv >= 3 || G.money < COSTS[kind][lv+1]) return;
     G.money -= COSTS[kind][lv+1]; own[kind] = lv + 1;
@@ -630,7 +666,11 @@ function buildRail(key) {
   //   ⚠ real が null＝ほんものは できなかった。そこは 言い方を変える（うそを言わない）
   const brag = rp.real === null ? 'ほんものは いまだに つながっていない！ 世界で さいしょだ！'
              : 'ほんものは ' + rp.real + '年。' + (rp.real - 1887) + '年 先まわりした！';
-  showMessage('🚂 ' + rp.name + ' かんせい！ ' + brag, 4.8);
+  // 🚉 引いたことで 駅を建てられるようになった街を 名前で言う。
+  //   ⚠ これを言わないと「線路→駅」がつながっていることに 気づけない
+  const opened = [ra, rb].filter(id => !(G.own[id] && G.own[id].station)).map(id => cityById(id).name);
+  showMessage('🚂 ' + rp.name + ' かんせい！ ' + brag +
+    (opened.length ? '（🚉 ' + opened.join('と') + 'に 駅を建てられる）' : ''), 4.8);
   logEvent('rail', { name: rp.name, cost: rp.cost, day: G.day, real: rp.real });
   render();
 }
@@ -762,7 +802,8 @@ if (Q.get('dev') === '1') {
   window.drawMapOverlap = () => drawMap._overlap; window.dbg = () => ({ G, CITIES, dbgDraw: drawMap, GOODS, NATIONS, ROADS, roadOf, price, linked, travel, trade, act,
     RAIL_PROJECTS, buildRail, clearBuiltRails, roadsBetween, roadFee, saveGame, loadGame, readSave, clearSave, paintSlots, SLOTS, slotKey, get curSlot() { return curSlot; }, set curSlot(v) { curSlot = v; },
     specialty, companyNations, cargoCount, cityById,
-    LAND_COST, FARM_COST, FACTORY_COST, MARKET_COST, MARKET_MUL, SIZE_NAME, CARGO_MAX, START_MONEY, BUILD, render });
+    LAND_COST, FARM_COST, FACTORY_COST, MARKET_COST, MARKET_MUL, SIZE_NAME, CARGO_MAX, START_MONEY, BUILD, render,
+    STATION_COST, STATION_INCOME, hasRail, stationIncome });
 }
 // ⏳ 落とすものが無いゲーム＝共通の「よみこみ中」を 一呼吸（0.8秒）だけ出して閉じる（3本の入り口をそろえる・パパ9/10）
 if (window.YuLoad) YuLoad.done();
