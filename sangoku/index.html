@@ -1,0 +1,1839 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>三国志合戦 〜城をおとせ！〜 第1号</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: "Meiryo", sans-serif; touch-action: none; }
+  #game { position: absolute; inset: 0; }
+  .overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; background: rgba(20,30,10,0.9); color: #fff; z-index: 20; overflow-y: auto; padding: 10px 0; }
+  .overlay > :first-child { margin-top: auto; }
+  .overlay > :last-child { margin-bottom: auto; }
+  .overlay h1 { font-size: clamp(22px, 5vw, 42px); margin: 10px; text-shadow: 2px 2px 4px #000; }
+  .overlay h2 { font-size: clamp(16px, 4vw, 26px); margin: 8px; }
+  .overlay p { font-size: clamp(15px, 3.4vw, 21px); margin: 6px 16px; text-align: center; line-height: 1.7; }
+  .btn { font-size: clamp(16px, 4vw, 26px); padding: 12px 30px; margin: 10px; border: 3px solid #fff; border-radius: 12px; cursor: pointer; color: #fff; font-weight: bold; text-shadow: 1px 1px 2px #000; background: #4e5d3a; }
+  .btn:active { transform: scale(0.95); }
+  /* 国と兵科のえらぶボタン（えらんでいるものが光る） */
+  .pick { font-size: clamp(13px, 3vw, 17px); padding: 7px 12px; margin: 4px; opacity: .55; border-width: 2px; }
+  .pick.on { opacity: 1; border-color: #ffe066; box-shadow: 0 0 12px #ffe066; }
+  #btnGo { background: #7a3b1e; font-size: clamp(20px, 5vw, 30px); }
+  #hud { position: absolute; top: 8px; left: 8px; color: #fff; font-size: 14px; text-shadow: 1px 1px 2px #000; z-index: 10; }
+  .bar { width: 150px; height: 13px; background: rgba(0,0,0,0.5); border: 1px solid #fff; border-radius: 4px; overflow: hidden; margin: 2px 0 6px; }
+  .bar > div { height: 100%; transition: width 0.2s; }
+  #hpFill { background: linear-gradient(90deg, #e53935, #ff7043); width: 100%; }
+  /* ⚠ v6で監督が8/21に報告したのと同じ形（せまい画面でHUDとレーダーが重なる）。
+     同じ轍を踏まないよう、最初から幅で判定して よけておく */
+  #minimap { position: absolute; top: 8px; right: 8px; width: 140px; height: 140px;
+             border: 2px solid rgba(255,255,255,0.7); border-radius: 8px; background: rgba(40,60,25,0.75); z-index: 10; }
+  /* HUDはレーダーの左に収まる幅までにする（はみ出したら折り返す） */
+  #hud { max-width: calc(100vw - 170px); }
+  @media (max-width: 480px) {
+    #minimap { width: 104px; height: 104px; }
+    #hud { font-size: 12px; max-width: calc(100vw - 124px); }
+    .bar { width: 110px; height: 11px; }
+  }
+  #targetArrow { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); color: #fff; font-size: 17px; font-weight: bold; text-shadow: 1px 1px 3px #000; z-index: 10; }
+  #message { position: absolute; top: 26%; width: 100%; text-align: center; color: #ffe066; font-size: clamp(16px, 4.5vw, 30px); font-weight: bold; text-shadow: 2px 2px 4px #000; z-index: 15; opacity: 0; transition: opacity 0.3s; pointer-events: none; padding: 0 10px; }
+  #capBarWrap { position: absolute; top: 38%; left: 50%; transform: translateX(-50%); width: min(70vw, 340px); display: none; z-index: 15; text-align: center; color: #fff; font-weight: bold; text-shadow: 1px 1px 2px #000; }
+  #capBar { width: 100%; height: 16px; background: rgba(0,0,0,0.55); border: 2px solid #fff; border-radius: 8px; overflow: hidden; }
+  #capFill { height: 100%; background: #ffe066; width: 0%; }
+  #controlsHint { position: absolute; bottom: 6px; width: 100%; text-align: center; color: rgba(255,255,255,0.85); font-size: 12px; text-shadow: 1px 1px 2px #000; z-index: 10; }
+  /* 🔍 ボタンの大きさ（パパ 9/10「オプションでボタンの大きさを調整できるようにできる？
+     大人と同じ大きさでも良いって子もいるとしごろだ」）。
+     ⚠ 年齢で分けない。**好みで変えられる**ようにする。理由：
+       ① 年齢は当てにならない（2歳差でも振る舞いが変わる／NN/G）
+       ② 10歳は「キッズモード」を自分では選ばない
+       ③ Xbox Accessibility Guideline 107 が「タッチ対象の大きさ・間隔・位置を
+          プレイヤーが変えられるようにせよ」＝タッチのゲームでは これが業界の答え
+       ④ Switchにボタンの大きさ調整が無いのは 不要だからではなく **ボタンが物理だから**。
+          Switch2のテキストサイズ設定も「HOMEメニューと設定にしか効かない」と明記されている
+     ⚠ 大きさを持つのは **この変数1つだけ**。ボタンごとに手で書くと、また そろわなくなる
+     ⚠ いちばん小さくしても どのボタンも 44px（Appleの目安）を下回らないこと（probeで見る） */
+  :root { --ui-scale: 1; }
+  /* ⚠⚠ **大きさだけ伸ばすと ボタンどうしが ぶつかる。** 実測：1.0 で かさなり4組 →
+     1.3 で **10組** に増えた（間隔が固定pxのままだったから）。
+     → right/bottom/top の **間隔も 同じ --ui-scale で伸ばす**＝かたまりごと 相似に大きくなる。
+     ⚠ 「大きくできた」で終わらせず、大きくした状態で **かさなりを測り直す**こと */
+  /* タッチそうさ（v6と同じ流儀） */
+  /* ⚠ スティックを 55%→50% に。左に置く 🩹そせい／🎯投石車 を **どの画面でも スティックの外**へ
+     出すため（前は「歩きながら押す指のところに 押すボタンが置いてあった」）。
+     390x844→y422〜／375x667→y333〜／360x640→y320〜 */
+  #stick { position: absolute; left: 0; bottom: 0; width: 45%; height: 50%; z-index: 12; }
+  #stickBase { position: absolute; width: calc(110px * var(--ui-scale)); height: calc(110px * var(--ui-scale)); border: 2px solid rgba(255,255,255,0.5); border-radius: 50%; background: rgba(255,255,255,0.08); display: none; }
+  #stickKnob { position: absolute; width: calc(50px * var(--ui-scale)); height: calc(50px * var(--ui-scale)); border-radius: 50%; background: rgba(255,255,255,0.45); display: none; }
+
+  /* 🔘 まるボタン。⚠⚠ `.fbtn` は **見た目だけ**を持つ。大きさと位置は 下のクラスが持つ。
+     前は 8つの id が てんでに right/bottom/left/top と width/height を書いていた＝
+     **そろえる場所が無かった**。それが「ボタンだらけで雑然」（パパ9/10）の正体で、
+     ボタンの数ではなく **ななめにバラけていること**が原因だった（計測：ボタン9コに対して
+     ちがう左はし7・ちがう上8＝1つもそろっていない）。
+     📌 v6のタイトル画面で 9/6 に同じことを1回やっている。あそこも 1つずつ手で
+     style="font-size:.9rem" と書いていたのを 3段のclassにしたら、**大きさの順番＝大事さの順番**になった */
+  .fbtn { position: absolute; border-radius: 50%; border: 3px solid #fff; color: #fff;
+          font-weight: bold; display: none; align-items: center; justify-content: center;
+          text-align: center; z-index: 12; text-shadow: 1px 1px 2px #000;
+          user-select: none; -webkit-user-select: none; }
+  /* ── 大きさ＝4段。⚠ いちばん小さい f-menu 48px でも Appleの目安44pxを下回らない
+        （--ui-scale 0.85 で 40.8px … ⚠ 下回る！ → f-menu だけ 52px にして 0.85で44.2px。
+          probe_rikusen_scale.js が毎回そこを見る） */
+  .fbtn.f-main { width: calc(82px * var(--ui-scale)); height: calc(82px * var(--ui-scale)); font-size: 14px; }
+  .fbtn.f-act  { width: calc(74px * var(--ui-scale)); height: calc(74px * var(--ui-scale)); font-size: 13px; }
+  .fbtn.f-ctx  { width: calc(74px * var(--ui-scale)); height: calc(74px * var(--ui-scale)); font-size: 12px; }
+  .fbtn.f-menu { width: calc(52px * var(--ui-scale)); height: calc(52px * var(--ui-scale)); font-size: 10px; border-width: 2px; }
+  /* ── 位置＝右に 2列×3段。⚠ 3列目は作らない（right:194 は x122 で スティック x0-176 に食いこむ） */
+  .fbtn.c1 { right: calc(14px * var(--ui-scale)); }    /* よく押すほう */
+  .fbtn.c2 { right: calc(104px * var(--ui-scale)); }
+  .fbtn.r1 { bottom: calc(20px * var(--ui-scale)); }
+  .fbtn.r2 { bottom: calc(110px * var(--ui-scale)); }
+  .fbtn.r3 { bottom: calc(200px * var(--ui-scale)); }
+  /* ── 左＝文脈（出る時だけ出る）／右上＝メニュー。
+        ⚠ メニューを 下の段に置くと 撃つつもりで誤爆する（海戦で監督から報告があった） */
+  /* ⚠⚠ 左の文脈ボタンは **たてに2つ** ならべていて、目で見たら
+     `#message`（top:26%・画面いっぱいの中央よせ）と かさなっていた。
+     ⚠ probe は `.fbtn` と `#stick` しか見ていないので **数字には出なかった**。
+     → ① よこに2つ ならべる（1段になる＝メッセージと ぶつかる帯がせまくなる）
+        ② たての位置を **px ではなく スティックの上**に貼る＝`bottom: calc(50% + 10px)`。
+           スティックは height:50% なので、**どの画面でも どの大きさでも 必ず外**に出る。
+     ⚠ 固定px と % を まぜると、小さい画面や 大きめの設定で かならず どこかで ぶつかる
+        （375x667 の message は 173px、360x640 は 166px と、画面が小さいほど 上に来る） */
+  .fbtn.ctxL  { left: calc(14px * var(--ui-scale)); bottom: calc(50% + 10px); top: auto; }
+  /* ⚠ right:8 ではなく **14**。右の列（c1）と 右はしをそろえるため。
+     8px のままだと たった6pxのズレで「ちがう右はし」が1つ増える＝そろいの数に効く */
+  .fbtn.menuR { right: calc(14px * var(--ui-scale)); }
+  /* ── 色と、たてに置く場所だけ id が持つ */
+  #fireBtn  { background: rgba(230,60,40,0.55); }
+  #grenBtn  { background: rgba(60,60,60,0.6); }
+  /* 🗡 監督9/8「3A＝ボタンの場所の話」＝**とくぎを ナイフの横に置く**。
+     ⚠ この2つは 必ず となり合わせ（同じ段の C1 と C2）。並べ替えるときも ここは崩さない */
+  #knifeBtn { background: rgba(120,40,40,0.6); }
+  #skillBtn { background: rgba(40,140,200,0.55); }
+  #cannonBtn{ background: rgba(160,80,200,0.55); }
+  #crouchBtn{ background: rgba(90,120,60,0.55); }
+  /* 🩹 そせい（監督9/5「蘇生近ずくと蘇生っていうボタンがほしい」）と 🎯 投石車。
+     ⚠ 出る時だけ出る＝**ボタンが出ること自体が「ここで使えるよ」の合図**。
+     ⚠⚠ 前は この2つと しゃがむ が left:14/top:46% で **1pxもずれずに同じ場所**だった。
+        コメントには「高さをずらしてある」と書いてあったが CSSはずれていなかった＝
+        **コメントは実装の証拠にならない** */
+  #reviveBtn{ background: rgba(40,120,80,0.72); }
+  #mortarBtn{ background: rgba(150,90,30,0.75); left: calc(96px * var(--ui-scale)); }
+  /* ⏸ 一時停止（監督9/8）と 🎯 おわる（訓練だけ）。⚠ レーダーは top8・140px＝y8-148。
+     前の top:128 は レーダーと 20px 重なっていた */
+  #pauseBtn { background: rgba(0,150,200,.5); top: calc(160px * var(--ui-scale)); }
+  #trainEndBtn { background: rgba(120,80,160,.75); top: calc(220px * var(--ui-scale)); }
+  #mortarBtn.on { animation: revPulse 1s ease-in-out infinite; }
+  #reviveBtn.on { animation: revPulse 1s ease-in-out infinite; }
+  @keyframes revPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+  /* 💣 手榴弾が 0 のあいだ＝**消さずに うすく**。基地にもどれば また3本になるから
+     （消すと「もう二度と使えない」に見える。💥大砲だけは ほんとうに二度と使えないので消す） */
+  .fbtn.empty { opacity: .35; }
+  /* ⚠ ここは style の最後。上に書くと、あとに出てくる #targetArrow の基本ルールに負ける
+     （最初それで効かなかった）。せまい画面では矢印をレーダーの下へ逃がす */
+  @media (max-width: 480px) {
+    #targetArrow { font-size: 14px; top: 120px; }
+  }
+  @media (max-height: 520px) {
+    #hud { font-size: 11px; } .bar { width: 110px; height: 10px; }
+    .fbtn.f-main { width: calc(66px * var(--ui-scale)); height: calc(66px * var(--ui-scale)); font-size: 12px; }
+    .fbtn.f-act, .fbtn.f-ctx { width: calc(58px * var(--ui-scale)); height: calc(58px * var(--ui-scale)); font-size: 11px; }
+    .fbtn.r1 { bottom: calc(14px * var(--ui-scale)); }
+    .fbtn.r2 { bottom: calc(86px * var(--ui-scale)); }
+    .fbtn.r3 { bottom: calc(158px * var(--ui-scale)); }
+    .fbtn.c2 { right: calc(84px * var(--ui-scale)); }
+    /* ⚠ よこ画面でも 左の2つは スティックの上に貼りつく（.ctxL の bottom:calc(50%+10px)）。
+       ボタンが小さくなるぶん よこの間隔だけ つめる */
+    #mortarBtn { left: calc(78px * var(--ui-scale)); }
+    /* ⚠⚠ よこ画面は たてが390しかない。⏸を右の列の上（top:160）に置くと
+       3段目の 🧎しゃがむ（bottom:158＝上端174）と **重なる**（目で見て見つけた）。
+       → よこ画面では メニューを **レーダーの左どなり**（レーダーは right8・幅140＝x696〜）へ */
+    /* ⚠ ここは **id で** 書く。`.fbtn.menuR { top: ... }` では 上の `#pauseBtn { top: 160px }`
+       （id のほうが強い）に負けて **効かなかった**。目で見て気づいた（ボタンは右の列の
+       となりに並んでいて、撃つ指の近く＝監督が誤爆を報告した並び方に戻っていた） */
+    #pauseBtn    { right: calc(160px * var(--ui-scale)); top: calc(8px * var(--ui-scale)); }
+    #trainEndBtn { right: calc(222px * var(--ui-scale)); top: calc(8px * var(--ui-scale)); }
+  }
+</style>
+</head>
+<body>
+<div id="game"></div>
+
+<div id="hud" style="display:none">
+  <div><span id="clsName">兵</span>　<span id="killCt">たおした 0</span></div>
+  <div class="bar"><div id="hpFill"></div></div>
+  <!-- ponytail: 💣手榴弾と💥大砲の数は 三国志では出さない（三国志に 手で投げる爆弾も 大砲も無い）,
+       監督が「投げるものがほしい」と言ったら 火矢などを足して ここに戻す -->
+  <div id="ammoRow"><span id="grenCt" hidden>3</span><span id="cannonCt" hidden>1</span><span id="cdRow"></span></div>
+  <div id="stateRow" style="font-size:12px; opacity:.9"></div>
+</div>
+<canvas id="minimap" width="140" height="140" style="display:none"></canvas>
+<div id="targetArrow" style="display:none">🚩 敵の城 <span id="arrowIcon">▲</span> <span id="arrowDist"></span></div>
+<div id="message"></div>
+<div id="capBarWrap"><div id="capLabel">🚩 のっとり中…</div><div id="capBar"><div id="capFill"></div></div></div>
+<div id="controlsHint" style="display:none"></div>
+
+<div id="stick"><div id="stickBase"></div><div id="stickKnob"></div></div>
+<!-- 🔘 右は 2列×3段。C1=よく押すほう／C2=その次。⚠ 🔪さす と ⭐とくぎ は
+     同じ段の となり合わせ（監督9/8「3A」）。ここを離すと 監督の注文を破ることになる -->
+<div class="fbtn f-main c1 r1" id="fireBtn">🏹<br>射る</div>
+<div class="fbtn f-act  c2 r1" id="grenBtn">💣<br>手榴弾</div>
+<div class="fbtn f-act  c1 r2" id="knifeBtn">🗡<br>短刀</div>
+<div class="fbtn f-act  c2 r2" id="skillBtn">⭐<br>とくぎ</div>
+<div class="fbtn f-act  c1 r3" id="crouchBtn">🧎<br>しゃがむ</div>
+<div class="fbtn f-act  c2 r3" id="cannonBtn">💥<br>大砲</div>
+<!-- 左＝そばに来た時だけ出るもの -->
+<div class="fbtn f-ctx ctxL" id="reviveBtn">🩹<br>そせい</div>
+<div class="fbtn f-ctx ctxL" id="mortarBtn">🪨<br>投石車</div>
+<!-- 右上＝メニュー。🎯おわる は 訓練のときだけ（訓練には勝ち負けが無いので 終わる道が要る）。
+     ⚠ インラインの style= は 消した。CSSより強いので 残すと クラスが効かない -->
+<div class="fbtn f-menu menuR" id="pauseBtn">⏸<br>一時停止</div>
+<div class="fbtn f-menu menuR" id="trainEndBtn">🎯<br>おわる</div>
+
+<div class="overlay" id="titleScreen">
+  <!-- 題名は監督が付けた（2026-09-10「三国志合戦」）。4本目。
+       「太平洋の翼」＝海／「太平洋の鋼」＝陸／「交易物語」＝商い／これ＝三国志 -->
+  <h1>⚔ 三国志合戦 🏯</h1>
+  <p style="margin:-.4em 0 .6em; font-size:.85rem; opacity:.75">第1号　<span id="buildTag"></span></p>
+  <p>敵の<b>城</b>の旗の下に立って、おとしたら勝ち！<br>
+  じぶんの城を おとされたら負け…<br>
+  たおれた なかまには 近づくと <b>手あてで 蘇生（そせい）</b>できる（30秒いない！）<br>
+  🪨 <b>投石車</b>は 戦場に すえてある。そこまで行くと 何回でも 撃てる<br>
+  <span style="font-size:.82rem; opacity:.8">📚 投石車の ほんとうの名前は「發石車」。
+  「霹靂車」は 袁紹の兵が つけた あだ名（どちらも 正史『三国志』に 出てくる）</span><br>
+  ❤ HPは 矢がささっても 待ってると じわじわ回復する</p>
+  <!-- 📈 練度（監督9/8「5C＝訓練はタイトル画面のメニュー」） -->
+  <div id="rendoBox" style="margin:1em auto 0; max-width:min(92vw,560px); text-align:left;
+       background:rgba(0,0,0,.3); border:2px solid #7a8b5a; border-radius:12px; padding:10px 14px">
+    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap">
+      <b style="font-size:1.1rem">📈 練度 レベル <span id="renLv">1</span></b>
+      <span style="font-size:.8rem; opacity:.8">（上は 15）</span>
+      <button class="btn" id="btnTrain" style="margin-left:auto; padding:8px 16px; font-size:1rem">🎯 訓練する</button>
+    </div>
+    <div style="height:14px; background:rgba(0,0,0,.5); border:1px solid #fff; border-radius:5px; margin:6px 0; overflow:hidden">
+      <div id="renFill" style="height:100%; width:0%; background:#8bc34a"></div>
+    </div>
+    <div style="font-size:.78rem; opacity:.85">本番で <b>3分の2</b>・訓練で <b>3分の1</b> たまる。ぜんぶで レベルが1つ上がる</div>
+    <div id="renSkills" style="font-size:.82rem; margin-top:6px; line-height:1.6"></div>
+  </div>
+  <!-- ⚔🛡 攻める／守る（監督9/8「あれホームページに攻める 守るをつけて
+       攻めるな敵の首都がある／守るなら自分の首都がある」）。
+       ⚠ 監督は「首都」と呼んだ。画面のことばも 監督のことばに合わせる -->
+  <p style="margin-bottom:.2em">どっちで あそぶ？</p>
+  <div id="rowMode" style="display:flex; justify-content:center; gap:8px; flex-wrap:wrap"></div>
+  <p id="modeDesc" style="font-size:.85rem; opacity:.9; min-height:2.2em; margin:.2em 12px .6em"></p>
+  <p style="margin-bottom:.2em">じぶんの国</p>
+  <div id="rowMe" style="display:flex; flex-wrap:wrap; justify-content:center; max-width:640px"></div>
+  <p style="margin-bottom:.2em">敵の国</p>
+  <div id="rowFoe" style="display:flex; flex-wrap:wrap; justify-content:center; max-width:640px"></div>
+  <p style="margin-bottom:.2em">兵科（へいか）を えらぼう</p>
+  <div id="rowCls" style="display:flex; flex-wrap:wrap; justify-content:center; max-width:640px"></div>
+  <p id="clsDesc" style="font-size:.85rem; opacity:.9; min-height:2.4em"></p>
+  <!-- 🔍 ボタンの大きさ（パパ 9/10）。⚠ 「キッズモード」にはしない＝年齢ではなく **好み**。
+       出撃の直前に置く＝いちばん最後に目に入る所（設定を探しに行かせない） -->
+  <p style="margin:.8em 0 .2em">画面のボタンの 大きさ</p>
+  <div id="rowScale" style="display:flex; justify-content:center; gap:6px; flex-wrap:wrap"></div>
+  <p id="scaleDesc" style="font-size:.8rem; opacity:.8; margin:.2em 12px .4em; min-height:1.4em"></p>
+  <button class="btn" id="btnGo">🪖 しゅつげき！</button>
+  <p style="margin-top:1em; font-size:.85rem; opacity:.75">
+    かんそうを書くときの あいことば：<b id="titleWord" style="font-size:1.1rem"></b></p>
+</div>
+
+<div class="overlay" id="endScreen" style="display:none">
+  <h1 id="endTitle"></h1>
+  <p id="endText"></p>
+  <button class="btn" id="btnRetry">もういちど！</button>
+</div>
+
+<!-- ⏳ よみこみ画面（3本共通・パパ9/10）。module より先に走らせて 開いた瞬間から出す -->
+<script src="../common/loading.js" data-title="三国志合戦" data-sub="⚔ 部品を よみこみ中…"></script>
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+// ============ ゲームログ（v6と同じ・常時ON。テストプレイは全部データ） ============
+const LOG_TAG = new URLSearchParams(location.search).get('tag') || 'sangoku';
+const STARTED = new Date().toISOString();
+const LOG_KEY = 'yuujinGameLog_' + STARTED.replace(/[:.]/g, '-') + '_' + LOG_TAG;
+const gameLog = [];
+function logEvent(type, data) { gameLog.push({ t: Math.round(performance.now()), type, data }); }
+function saveLog() {
+  try {
+    localStorage.setItem(LOG_KEY, JSON.stringify(
+      { ver: location.pathname, tag: LOG_TAG, started: STARTED, events: gameLog.slice(-3000) }));
+  } catch (e) { console.warn('⚠ ログを保存できなかった', e); }
+}
+window.saveLog = saveLog; window.gameLog = gameLog;
+setInterval(saveLog, 10000);
+addEventListener('beforeunload', saveLog);
+
+// ============ ログの自動アップロード（v6と同じしくみ・tagで海戦と分かれる） ============
+const CLOUD_URL = 'https://script.google.com/macros/s/AKfycbyMDP1lVKD7YRe3A0Z37qr9W6fMOcIyPiy-c_d2kZs1ywQCeeBrwLz7sm6-5tKqYomX/exec';
+const CLOUD_KEY = 'yuujin2026';
+if (!localStorage.getItem('yuujinDevice')) {
+  localStorage.setItem('yuujinDevice', 'pc-' + Math.random().toString(36).slice(2, 7));
+}
+const DEVICE = localStorage.getItem('yuujinDevice');
+const UA = navigator.userAgent;
+const TOUCH = (navigator.maxTouchPoints || 0) > 0 || 'ontouchstart' in window;
+const PLATFORM =
+  /iPhone|Windows Phone|Android.+Mobile/i.test(UA) ? 'phone' :
+  /iPad|Tablet/i.test(UA) || /Android/i.test(UA) ? 'tablet' :
+  /Macintosh/i.test(UA) && TOUCH ? 'tablet' :
+  TOUCH && Math.min(screen.width, screen.height) <= 820 ? 'phone' : 'pc';
+if (!localStorage.getItem('yuujinWord')) {
+  const B = ['ねこ', 'いぬ', 'くじら', 'さめ', 'かめ', 'たか', 'わし', 'ぺんぎん', 'らっこ', 'きつね'];
+  localStorage.setItem('yuujinWord', B[Math.floor(Math.random()*B.length)] + (100 + Math.floor(Math.random()*900)));
+}
+const WORD = localStorage.getItem('yuujinWord');
+document.getElementById('titleWord').textContent = WORD;
+let sentCount = 0, sending = false;
+function cloudBody(events) {
+  return JSON.stringify({ key: CLOUD_KEY, runId: LOG_KEY, device: DEVICE, ver: location.pathname,
+    tag: LOG_TAG, build: 'rikusen1', events });
+}
+async function sendLog() {
+  if (sending || sentCount >= gameLog.length) return;
+  sending = true;
+  const upto = gameLog.length;
+  try {
+    const res = await fetch(CLOUD_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' },
+      body: cloudBody(gameLog.slice(sentCount, upto)) });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    sentCount = upto;
+  } catch (e) { console.warn('⚠ ログを送れなかった。次の60秒でまた試す', e); }
+  finally { sending = false; }
+}
+setInterval(sendLog, 60000);
+addEventListener('beforeunload', () => {
+  if (sentCount < gameLog.length) {
+    try { navigator.sendBeacon(CLOUD_URL, cloudBody(gameLog.slice(sentCount))); } catch (e) {}
+  }
+});
+
+// ============ 国（監督9/11「三つのくにでいい」＝魏・呉・蜀）============
+// ⚠ 色は それぞれの国の旗の色…ではない（三国時代に 国旗は無い）。
+//   見分けがつく3色を こちらで決めた。監督が「ちがう」と言ったら変える
+const NATIONS = [
+  { id: 'gi', name: '魏', yomi: 'ぎ',   flag: '🔵', color: 0x2979ff },
+  { id: 'go', name: '呉', yomi: 'ご',   flag: '🔴', color: 0xe53935 },
+  { id: 'shu', name: '蜀', yomi: 'しょく', flag: '🟢', color: 0x43a047 },
+];
+
+// ============ 兵科（監督の設計 8/25：共通＋差分。この書き方は監督のSMSの構造そのまま） ============
+// 共通：なにかしらの銃・手榴弾・大砲1回・蘇生できる・HPじわじわ回復・しゃがみと走り
+// ⚠ はしごとクラフト表は最小形では未実装（下のponytail）
+const AI_RANGE = 110;   // AI兵が撃ちはじめる距離（弾は126mとどく）
+// 服のわりあて（監督 9/5「ふくもつくってほしい」）。3種類を5兵科に配る
+const OUTFIT = { rifle: 'coat', medic: 'pack', eng: 'pack', scout: 'camo', saber: 'coat' };
+// 🗡 サーベル隊（監督 9/7「サーベル隊ていうのが作りたい／普通銃のところがけんになる
+//    ナイフより強い／特技をナイフの横のわくにして」＋ 9/8「1A（6つ目の兵科）」「2A（1回でたおせる）」
+//    「3A（ボタンの場所の話）」）。
+// ⚠ 銃が **無い**。だから撃つボタンが けんを振るに変わる。とどく所まで行かないと何もできない
+const SABER_DMG = 100, SABER_REACH = 4.4, SABER_ARC = 0.5;   // 監督2A：1回でたおせる（体力は100〜115）
+// ⚠ 監督は **兵科を指定していない**（指定したのは 兵器のリストと「陸上戦と同じ」だけ）。
+//   だから ここは 陸上戦の5つを 三国志の戦い方に置きかえた **こちらの案**。
+//   ⚠ 鉄砲は無い時代なので「銃」は ぜんぶ 弓と弩にした。
+//   🚩 6つ目（陸上戦の機関兵＝おしっぱなしで連射）は **入れていない**。
+//      連射できる弩（連弩）は 諸葛亮の話として有名だが、**まだ確かめていない**。
+//      確かめてから／監督に聞いてから 足す
+const CLASSES = [
+  { id: 'rifle',  name: '弓兵', icon: '🏹', speed: 7, hp: 100, dmg: 22, cd: 0.55, spread: 0.015,
+    desc: 'とくべつな道具は無い。そのぶん 弓が一番強い', skill: 'none' },
+  { id: 'medic',  name: '軍医', icon: '🩹', speed: 7, hp: 100, dmg: 10, cd: 0.4,  spread: 0.05,
+    desc: '⭐で 手あて＝近くのなかまと自分を回復。蘇生も2倍はやい', skill: 'heal' },
+  { id: 'eng',    name: '工兵', icon: '🧱', speed: 6.5, hp: 110, dmg: 12, cd: 0.45, spread: 0.04,
+    desc: '⭐で 土のうを置ける＝矢をふせぐ壁になる（10個まで）', skill: 'bag' },
+  { id: 'scout',  name: '斥候', icon: '🔭', speed: 9, hp: 85,  dmg: 16, cd: 0.5,  spread: 0.008,
+    desc: '足がはやい。⭐で 遠くが大きく見える（せっこう＝ようすを見にいく兵）', skill: 'scope' },
+  // ⚔ 陸上戦のサーベル隊と同じ形。監督9/8「2A＝1回でたおせる」はここも同じにした
+  { id: 'saber',  name: '剣兵', icon: '⚔', speed: 8,  hp: 100, dmg: 0,  cd: 0.45, spread: 0,
+    desc: '弓のかわりに けん。1回で たおせる。足がはやい。近づかないと 何もできない',
+    skill: 'dash', melee: SABER_DMG },
+];
+// ============ ⚔🛡 攻める／守る（監督9/8）============
+// 「攻めるな敵の首都がある／守るなら自分の首都がある」＝ 目あてが入れかわる。
+// ⚠ 「守る」には いままで **終わり方が無かった**（こちらが取りに行かないと 何も起きない）。
+//   だから 守るは **時間で決まる**ようにした：DEFEND_SEC まで もちこたえたら かち。
+//   ⚠ この長さは私が決めた数字。監督が遊んで「長い／みじかい」と言ったら変える
+const DEFEND_SEC = 150;
+const MODES = [
+  // 監督9/11「攻める側と守る側がいる」＝三国志でも おなじ2つ。ことばだけ「城」にした
+  { id: 'attack', name: '⚔ 攻める', desc: '敵の城の旗の下に 3秒立ったら かち！ じぶんの城を おとされたら まけ' },
+  { id: 'defend', name: '🛡 守る',   desc: 'じぶんの城を まもりきったら かち！ ' + Math.round(DEFEND_SEC/60) + '分ちょっと もちこたえろ。おとされたら まけ' },
+];
+let pickMode = 0;
+function paintModes() {
+  const box = $('rowMode'); box.innerHTML = '';
+  MODES.forEach((m, i) => {
+    const b = document.createElement('button');
+    b.className = 'btn pick' + (i === pickMode ? ' on' : '');   // ⚠ 既存のボタンと同じ作り（btn が要る）
+    b.textContent = m.name;
+    b.onclick = () => { pickMode = i; logEvent('pick_mode', { id: m.id }); paintModes(); };
+    box.appendChild(b);
+  });
+  $('modeDesc').textContent = MODES[pickMode].desc;
+}
+
+// ponytail: はしご・クラフト表UI・服3種・投石車は未実装, 監督が最小形で遊んで「次はどれ」と決めたら足す
+
+// ============ 3D基本 ============
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x9cc4e4);
+scene.fog = new THREE.FogExp2(0x9cc4e4, 0.004);
+const camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.3, 2000);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+document.getElementById('game').appendChild(renderer.domElement);
+addEventListener('resize', () => {
+  camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+const sun = new THREE.DirectionalLight(0xffffff, 2.0);
+sun.position.set(80, 140, 60);
+scene.add(sun, new THREE.AmbientLight(0xbcd4a0, 1.1));
+
+// ============ 地形（監督8/25「ちけいは、たまに塹壕や坂がある木もある地面」） ============
+// 高さは1つの関数 h(x,z) で決める。⚠ メッシュと歩行で別の計算をすると、足が地面にめり込む
+// ⚠ 監督 9/5「敵の拠点が近すぎた」。前は360mしか離れておらず、走って20秒で横断できた。
+//    520m に広げる（歩ける範囲は ±300 なので ±260 まで置ける）
+const FORT_ALLY = { x: -260, z: 0 };
+const FORT_FOE  = { x:  260, z: 0 };
+function hillH(x, z) { return 2.2*Math.sin(x*0.015)*Math.cos(z*0.02) + 1.2*Math.sin(x*0.05+z*0.03); }
+// 🏕 基地12個（監督9/8「基地を１２こつくって間に塹壕がほしい」）。
+// ⚠ 監督は「要塞」（＝のっとったら勝ち）と「基地」を **別のことば**で言っている。
+//   だから 要塞2つはそのままにして、そのあいだに 基地を12個おく。
+//   こう読めば 勝ち負けのルールを こわさない（読みちがえていても 被害が小さいほうを取った）
+// ならびは 6れつ × 2だん。塹壕（z=±55）が ちょうど 2だんの **あいだ**を通る
+const BASE_XS = [-190, -114, -38, 38, 114, 190];
+const BASE_ZS = [-100, 100];
+// ⚠ 監督9/9「あの基地は、以前までの占領目標物のやつで」＝ **取り合うもの**。
+//   owner: 'none'（だれのものでもない）→ 'ally' / 'foe'
+//   ⚠ 「占領目標物」ということばは こちらの記録に無い。文も途中で切れている。
+//     だから **勝ち負けには直結させない**（首都＝要塞のまま）。
+//     取ると「その基地の投石車が使える」「手榴弾がほきゅうできる」＝取る意味だけ作る。
+//     まちがった読みでも 被害が小さいほうを選んだ
+const BASES = [];
+for (const bz of BASE_ZS) for (const bx of BASE_XS) BASES.push({ x: bx, z: bz, owner: 'none', capT: 0 });
+const BASE_ZONE = 11, BASE_CAP_SEC = 3;
+const TRENCH_ZS = [-55, 55];
+const TRENCH_HALF = 210;   // ⚠ 150のままだと はしの基地(±190)より内側で切れて「間」にならない
+
+function trenchH(x, z) {
+  // 塹壕（ざんごう）2本。z=±55 のあたりを東西に走る溝
+  let d = 0;
+  for (const tz of TRENCH_ZS) {
+    if (Math.abs(x) < TRENCH_HALF) {
+      const g = Math.exp(-((z-tz)*(z-tz)) / (2*5.5*5.5));
+      d -= 2.6 * g;
+    }
+  }
+  return d;
+}
+function fortH(x, z) {
+  // 城は台地の上（坂で登る）
+  // ⚠ 台地の**平らなところ**を 陸上戦より広げた。城壁の角は 中心から 22×√2 ＝ **31m** にあり、
+  //   前の数（24mまで平ら）だと **角の壁が 坂の途中に立って 浮く／埋まる**。
+  //   → 34m まで平ら（58-34=24m の坂で 4.5m 上がる＝ゆるい坂のまま）
+  let up = 0;
+  for (const f of [FORT_ALLY, FORT_FOE]) {
+    const r = Math.hypot(x-f.x, z-f.z);
+    if (r < 58) up = Math.max(up, 4.5 * Math.min(1, (58-r)/24));
+  }
+  return up;
+}
+const H = (x, z) => hillH(x, z) + trenchH(x, z) + fortH(x, z);
+
+const groundGeo = new THREE.PlaneGeometry(620, 620, 130, 130);
+groundGeo.rotateX(-Math.PI/2);
+{
+  const pos = groundGeo.attributes.position;
+  for (let i = 0; i < pos.count; i++) pos.setY(i, H(pos.getX(i), pos.getZ(i)));
+  groundGeo.computeVertexNormals();
+}
+scene.add(new THREE.Mesh(groundGeo, new THREE.MeshLambertMaterial({ color: 0x6b8f3e })));
+
+// 木（幹＋葉）。要塞と塹壕をさけて置く
+const rng = (() => { let s = 12345; return () => (s = (s*16807) % 2147483647) / 2147483647; })();  // 毎回おなじ配置（ログの再現に効く）
+for (let i = 0; i < 46; i++) {
+  const x = (rng()-0.5)*520, z = (rng()-0.5)*520;
+  if (Math.hypot(x-FORT_ALLY.x, z) < 62 || Math.hypot(x-FORT_FOE.x, z) < 62) continue;   // ⚠ 城まわりは 木を置かない
+  if (Math.abs(Math.abs(z)-55) < 10 && Math.abs(x) < 150) continue;
+  const g = new THREE.Group();
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 4, 6), new THREE.MeshLambertMaterial({ color: 0x6d4c2f }));
+  trunk.position.y = 2;
+  const leaf = new THREE.Mesh(new THREE.ConeGeometry(2.6, 5.5, 7), new THREE.MeshLambertMaterial({ color: 0x2e6b2e }));
+  leaf.position.y = 6;
+  g.add(trunk, leaf);
+  g.position.set(x, H(x, z), z);
+  scene.add(g);
+}
+// 建物（監督8/30「建物がある」）。箱の家。中には入れない（最小形）
+const houses = [];        // 通れないもの（建物・岩・要塞の壁）
+const rocks = [];         // 監督 9/5「あと障害物もほしい」。かくれる場所をふやす
+// 岩とコンクリの塊。⚠ 要塞の中と、要塞のあいだの道すじに 散らす＝進みながら隠れられる
+function scatterRocks() {
+  for (let i = 0; i < 34; i++) {
+    const x = (Math.random()-0.5)*520, z = (Math.random()-0.5)*420;
+    if (Math.hypot(x-(-260), z) < 36 || Math.hypot(x-260, z) < 36) continue;   // ⚠ 城の中と城壁はあける（壁の角は31m）
+    const w = 3 + Math.random()*5, h = 1.6 + Math.random()*2.6, d = 3 + Math.random()*5;
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d),
+      new THREE.MeshLambertMaterial({ color: Math.random() < 0.5 ? 0x7d7a6e : 0x8b8377 }));
+    m.position.set(x, H(x, z) + h/2 - 0.2, z);
+    m.rotation.y = Math.random()*Math.PI;
+    scene.add(m);
+    houses.push({ x, z, r: Math.max(w, d)*0.55 });
+    rocks.push({ x, z });
+  }
+}
+// 🪜 はしごと足場（監督 9/5「さすをつけたい はしご」）。
+// ⚠ 見た目のメッシュと、立てる高さは 必ずこの2つの表から作る（v6の島で学んだ）
+const PLATFORMS = [];     // 上に立てる四角（要塞の壁のてっぺん）
+const LADDERS = [];       // のぼり坂。t=0が上（壁がわ）／t=1が下（地面がわ）
+// そこに立ったときの足の高さ。地面か、足場か、はしごの坂か
+// 建物にめり込まないか。⚠ 前は移動のところに 直に書いてあったが、とつげき（サーベル隊）でも
+//   同じ判定が要る。**共有の関数を1つ**にする（呼び出しごとに書くと 片方だけ壁抜けする）
+function hitsHouse(x, z, y) {
+  for (const hs of houses) {
+    // ⚠ もう壁の上にのぼっている人は通す。ここが無いと、はしごを登った先で かべに阻まれて詰む
+    if (hs.top !== undefined && y > hs.top - 1.6) continue;
+    // 🏯 城壁は **四角**で見る。⚠⚠ 丸で近似すると、となりとの すきまを ふさぐために
+    //   半径を 長いほう（4.9m）に合わせることになり、**厚み方向にも 同じだけ太る**。
+    //   実測：厚さ2.4mの壁が 手前3.5mで止める壁になっていて、
+    //   はしごの上のはしに たどりつく前に 止められていた（はしごが1mも登れなかった原因）
+    if (hs.hx !== undefined) {
+      if (Math.abs(x - hs.x) < hs.hx + 0.8 && Math.abs(z - hs.z) < hs.hz + 0.8) return true;
+      continue;
+    }
+    if (Math.hypot(x - hs.x, z - hs.z) < hs.r + 0.8) return true;
+  }
+  return false;
+}
+
+function standH(x, z) {
+  let h = H(x, z);
+  for (const p of PLATFORMS)
+    if (Math.abs(x - p.x) <= p.hx && Math.abs(z - p.z) <= p.hz) h = Math.max(h, p.y);
+  for (const L of LADDERS) {
+    const ax = L.x1 - L.x0, az = L.z1 - L.z0;
+    const len2 = ax*ax + az*az;
+    const t = ((x - L.x0)*ax + (z - L.z0)*az) / len2;
+    if (t < 0 || t > 1) continue;
+    if (Math.hypot(x - (L.x0 + ax*t), z - (L.z0 + az*t)) > L.hw) continue;
+    h = Math.max(h, L.yTop + (L.yBot - L.yTop) * t);
+  }
+  return h;
+}
+for (const [hx, hz] of [[-60, -20], [-40, 90], [30, -95], [70, 40], [-120, 60], [120, -50]]) {
+  const g = new THREE.Group();
+  const w = 10 + rng()*6, d2 = 8 + rng()*5, ht = 6;
+  const body = new THREE.Mesh(new THREE.BoxGeometry(w, ht, d2), new THREE.MeshLambertMaterial({ color: 0x9b8465 }));
+  body.position.y = ht/2;
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(Math.max(w, d2)*0.72, 3.4, 4), new THREE.MeshLambertMaterial({ color: 0x7a3b2a }));
+  roof.position.y = ht + 1.7; roof.rotation.y = Math.PI/4;
+  g.add(body, roof);
+  g.position.set(hx, H(hx, hz), hz);
+  scene.add(g);
+  houses.push({ x: hx, z: hz, r: Math.max(w, d2)*0.6 });   // 通れない（あたり判定）
+}
+
+// ============ 📈 練度（監督9/7の注文・9/8の回答 5C・6B・7BC）============
+// 監督の原文（9/7）そのまま：
+//   「練度ゲージというのをつくって訓練と本番で本番は、ゲージの３文の２貯まる
+//     訓練は、ゲージの３文の一貯まる。全部貯まるとレベルがひとつ上がる最上限が十五で
+//     件の技を覚える最初からあるのがつつきと回し切り２つ目がカウンターデベンス
+//     三つ目がデベンスに見せかけて攻撃と三段突き 四つ目が峰打ち五つ目が飛び降とし
+//     六っ目はない１４までない１４は攻撃落とし１５打ち上げ打ち落とし」
+// ⚠ しつもんの4番で監督は「わかんない」と答えたが、それは **私の要約が読めなかった**だけで、
+//   仕様は監督の原文に ぜんぶ書いてある。要約ではなく **原文どおりに**作る。
+// 9/8の回答：5C＝訓練はタイトル画面のメニュー／6B＝練度はじぶんで1本／
+//            7BC＝レベル6〜13は 体力が上がる＋技がつよくなる（両方）
+const REN_MAX_LV = 15;
+const REN_BATTLE = 2/3;    // 本番でたまる（監督「ゲージの３文の２」）
+const REN_TRAIN  = 1/3;    // 訓練でたまる（監督「ゲージの３文の一」）
+// 覚える技。⚠ 名前は監督のことばのまま。lv は「○つ目」＝そのレベルで覚える
+const SKILLS = [
+  { lv: 1,  name: 'つつき',                    eff: '前の1人を つく' },
+  { lv: 1,  name: '回し切り',                  eff: 'まわり ぜんぶを 切る' },
+  { lv: 2,  name: 'カウンターデフェンス',      eff: 'うたれた直後は ダメージが半分' },
+  { lv: 3,  name: 'デフェンスに見せかけて攻撃', eff: 'まもったあとの一撃が つよい' },
+  { lv: 3,  name: '三段突き',                  eff: 'とどく きょりが のびる' },
+  { lv: 4,  name: '峰打ち',                    eff: '**気絶**させる（生け捕りにできる）' },
+  { lv: 5,  name: '飛び降とし',                eff: 'とつげきが 遠くまで とぶ' },
+  { lv: 14, name: '攻撃落とし',                eff: 'まわりを まとめて 切る' },
+  { lv: 15, name: '打ち上げ打ち落とし',        eff: '打ち上げると **気絶**する' },
+];
+// ⚠ 監督「六っ目はない１４までない」＝レベル6〜13で覚える技は無い。
+//   でも 7BC で「体力が上がる」「技がつよくなる」と答えたので、そのぶんを数にする
+const REN_KEY = 'rikusenRendo';
+let rendo = { lv: 1, gauge: 0 };
+try { const r = JSON.parse(localStorage.getItem(REN_KEY) || 'null'); if (r && r.lv) rendo = r; } catch (e) {}
+function saveRendo() {
+  try { localStorage.setItem(REN_KEY, JSON.stringify(rendo)); }
+  catch (e) { console.warn('⚠ 練度を保存できなかった', e); }
+}
+// ゲージを ためる。⚠ 満タンをこえたぶんは 次のレベルへ持ちこす（1回で2レベル上がることもある）
+function addRendo(amount, why) {
+  if (rendo.lv >= REN_MAX_LV) { rendo.gauge = 0; saveRendo(); return { up: 0 }; }
+  rendo.gauge += amount;
+  let up = 0;
+  while (rendo.gauge >= 1 - 1e-9 && rendo.lv < REN_MAX_LV) { rendo.gauge -= 1; rendo.lv++; up++; }
+  if (rendo.lv >= REN_MAX_LV) rendo.gauge = 0;
+  saveRendo();
+  logEvent('rendo', { add: amount, lv: rendo.lv, gauge: +rendo.gauge.toFixed(3), why });
+  return { up };
+}
+const learned = () => SKILLS.filter(s => s.lv <= rendo.lv);
+// 7BC：レベル6〜13のあいだ 体力と けんの強さが 上がる
+const rendoHpBonus  = () => Math.max(0, Math.min(rendo.lv, 13) - 5) * 3;   // 6〜13で +3ずつ（最大+24）
+const rendoDmgMul   = () => 1 + Math.max(0, Math.min(rendo.lv, 13) - 5) * 0.05;  // 同 +5%ずつ
+
+// ============ 🏕 陣地と 投石車（監督9/10の兵器リストの1つめ）============
+// ⚠⚠ 下の「 」は **陸上戦での監督の注文（9/8）**。一次資料なので 一字も変えない。
+//   三国志でも 同じ置き方（陣地に1つずつ＋塹壕に1つ）にした。
+// 「基地に一個ずつと塹壕に一個迫撃砲がほしい」＝ 基地12門 ＋ 塹壕2門 = 14門。
+// ⚠ 投石車が何をするものかは 監督が言っていない。いちばん素直な形にした：
+//   **そこまで行くと 何回でも使える、山なりに石を飛ばす兵器**
+//   ＝「持っている道具」ではなく「**場所**」が強さになる。陣地を取りに行く理由になる。
+// 🚩 監督の兵器リストは あと5つある（霹靂車・幔・井闌・雲てい・とう車）。
+//   ⚠ **どれも まだ 一次資料で確かめていない**ので、確かめてから足す。
+//   監督が読んだ本＝「三国志と三国志人物大事典」（9/11）から始めるのが いちばん確か
+// ponytail: 敵AIは まだ投石車を使わない（プレイヤーだけ）。監督が遊んで「敵も撃って」と
+//   言ったら足す
+const MORTARS = [];              // {x, z, mesh}
+const MORTAR_RANGE = 13;         // これだけ近づくと使える
+const MORTAR_CD = 2.2, MORTAR_DMG = 85, MORTAR_BLAST = 11;
+function makeMortar(mx, mz) {
+  const g = new THREE.Group();
+  const y = H(mx, mz);
+  // 台
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.4, 0.5, 8),
+    new THREE.MeshLambertMaterial({ color: 0x455a64 }));
+  base.position.y = 0.25;
+  // 砲身（ななめ上を向く＝曲射だと 見て分かる）
+  const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.30, 2.6, 8),
+    new THREE.MeshLambertMaterial({ color: 0x263238 }));
+  tube.position.set(0, 1.5, -0.35); tube.rotation.x = -0.55;
+  g.add(base, tube);
+  g.position.set(mx, y, mz);
+  scene.add(g);
+  const m = { x: mx, z: mz, mesh: g };
+  MORTARS.push(m);
+  return m;
+}
+function makeBase(bx, bz) {
+  const g = new THREE.Group();
+  const y = H(bx, bz);
+  // 土のうを コの字に積む＝「陣地」に見える最小の形
+  for (let i = -2; i <= 2; i++) {
+    const s = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.1, 1.2),
+      new THREE.MeshLambertMaterial({ color: 0x9e9d24 }));
+    s.position.set(i * 2.4, 0.55, -4.2);
+    g.add(s);
+  }
+  for (const sx of [-6, 6]) for (let i = 0; i < 3; i++) {
+    const s = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.1, 2.4),
+      new THREE.MeshLambertMaterial({ color: 0x9e9d24 }));
+    s.position.set(sx, 0.55, -2.4 + i * 2.4);
+    g.add(s);
+  }
+  // 目じるしの柱と旗。
+  // ⚠ 監督がクリップを見て「きちかな塹壕かな」と **見分けがつかなかった**（9/8 22:03）。
+  //   土のうだけでは伝わらない。**旗**を立てる＝遠くからでも「基地だ」と分かる形にする
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 8, 6),
+    new THREE.MeshLambertMaterial({ color: 0x5d4037 }));
+  pole.position.set(0, 4, 0);
+  const flag = new THREE.Mesh(new THREE.BoxGeometry(3.6, 2.2, 0.2),
+    new THREE.MeshLambertMaterial({ color: 0xeceff1 }));
+  flag.position.set(1.9, 6.8, 0);
+  g.add(pole, flag);
+  g.position.set(bx, y, bz);
+  scene.add(g);
+  const b = BASES.find(v => v.x === bx && v.z === bz);
+  if (b) { b.flag = flag; b.mortar = makeMortar(bx, bz - 1.4); }   // 監督「基地に一個ずつ」
+  else makeMortar(bx, bz - 1.4);
+}
+for (const b of BASES) makeBase(b.x, b.z);
+for (const tz of TRENCH_ZS) makeMortar(0, tz);   // 監督「塹壕に一個」
+
+// ============ 🏯 城と旗と柵（監督9/11「攻める側と守る側がいる」＝**城が要る**）============
+// ⚠ 陸上戦の「要塞」は 四すみに ブロックが4つ置いてあるだけで、あいだは すり抜けられた。
+//   三国志は **城を攻める**のが中身なので、壁を **つなげて** 四角く囲み、**門を2つ**あける。
+//   ＝「入口をさがす／門をふさぐ」「壁の上から射る」が そのまま 遊びになる。
+// ⚠ 壁の上には のぼれる（内がわに はしご2本）。陸上戦で作った はしごの部品を そのまま使う
+const CASTLE_HALF = 22;                              // 中心から 壁まで
+// ⚠ 1辺のブロック数は **奇数**にする。偶数だと まんなかのブロックが無く、
+//   「まんなかを1つ抜いて門にする」が できない（8個で作ったら 門が z=3.2 にずれて、
+//    まっすぐ歩いてきた人が 壁にぶつかった。probe が見つけた）
+const WALL_N = 9;
+const CASTLE_WALL_SEG = (CASTLE_HALF * 2) / WALL_N;
+// ⚠ 壁の厚みは 3.6m。2.4m だと **上を歩いたら すぐ外に落ちる**（実測：登りきった0.2秒後に落ちた）。
+//   城壁の上は「守る側が 矢を射る場所」＝そこに **立っていられる**ことに意味がある
+const WALL_T = 3.6, WALL_H = 5, WALL_SEG = CASTLE_WALL_SEG;
+const fortresses = [];
+function makeFortress(f, side, color) {
+  const g = new THREE.Group();
+  const y = H(f.x, f.z);
+  const wallMat = new THREE.MeshLambertMaterial({ color: 0x9a9086 });
+  const n = WALL_N;                                     // 1辺のブロック数（奇数）
+  const gateIdx = (n - 1) / 2;                          // ど まんなか＝門
+  // 四辺。東西（x = ±HALF）の まんなかだけ **門**にして あける
+  for (const ax of ['x', 'z']) for (const sgn of [-1, 1]) {
+    for (let i = 0; i < n; i++) {
+      if (ax === 'x' && i === gateIdx) continue;        // ← ここが門
+      const t = -CASTLE_HALF + WALL_SEG * (i + 0.5);
+      const dx = ax === 'x' ? sgn * CASTLE_HALF : t;
+      const dz = ax === 'x' ? t : sgn * CASTLE_HALF;
+      const w = ax === 'x' ? WALL_T : WALL_SEG;
+      const d = ax === 'x' ? WALL_SEG : WALL_T;
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, WALL_H, d), wallMat);
+      m.position.set(dx, WALL_H / 2, dz);
+      g.add(m);
+      // ⚠ 当たり判定は **四角**（hx/hz）。丸だと 厚み方向にも太って はしごが使えなくなる
+      houses.push({ x: f.x + dx, z: f.z + dz, hx: w / 2, hz: d / 2, top: y + WALL_H });
+      PLATFORMS.push({ x: f.x + dx, z: f.z + dz, hx: w / 2 + 0.3, hz: d / 2 + 0.3, y: y + WALL_H });
+      // 🏯 狭間（さま）のでこぼこ。⚠ **見た目だけ**（当たり判定は足さない＝重くしない）。
+      //   これが有ると無いとで「壁」が「城」に見えるかが変わる
+      if (i % 2 === 0) {
+        const cre = new THREE.Mesh(new THREE.BoxGeometry(w + 0.5, 1.1, d + 0.5), wallMat);
+        cre.position.set(dx, WALL_H + 0.55, dz);
+        g.add(cre);
+      }
+    }
+  }
+  // 🚪 門のところに 門柱（見て「ここが入口だ」と分かる目じるし）
+  for (const sgn of [-1, 1]) {
+    const t = -CASTLE_HALF + WALL_SEG * (gateIdx + 0.5);
+    for (const off of [-WALL_SEG * 0.5, WALL_SEG * 0.5]) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(WALL_T + 0.6, WALL_H + 1.6, 1.2),
+        new THREE.MeshLambertMaterial({ color: 0x6d4c2f }));
+      post.position.set(sgn * CASTLE_HALF, (WALL_H + 1.6) / 2, t + off);
+      g.add(post);
+    }
+  }
+  // 🪜 はしごは **内がわ**に2本（南北の壁）。外から掛けられると 門の意味が消える
+  //    ⚠ 雲ていは「外から壁に掛けるはしご」。それを入れるのは 兵器を確かめてから
+  for (const sgn of [-1, 1]) {
+    const zz = sgn * CASTLE_HALF, x0 = f.x, x1 = f.x;
+    // ⚠⚠ はしごの上のはし（t=0）は **壁の上の足場（PLATFORM）と 重なる**ところまで伸ばす。
+    //   足場は 壁の中心 ± (厚み/2 + 0.3)。はしごが そこまで届いていないと、
+    //   のぼりきった所に **1.7mの穴**があいて 地面まで落ちる（実測して見つけた）。
+    //   ⚠ 壁の当たり判定の中に入るが、そこに来た時点で 高さが 5m あるので すり抜けられる
+    //     （hitsHouse の「もう壁の上にいる人は通す」）
+    const z0 = f.z + zz - sgn * (WALL_T / 2 + 0.1), z1 = z0 - sgn * 6.0;
+    LADDERS.push({ x0, z0, x1, z1, hw: 1.5, yTop: y + WALL_H, yBot: y });
+    const lad = new THREE.Group();
+    const rail = new THREE.MeshLambertMaterial({ color: 0x8d6a3f });
+    for (const rx of [-1.2, 1.2]) {
+      const r = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.22, 7.6), rail);
+      r.position.set(rx, WALL_H / 2, (z0 + z1) / 2 - f.z);
+      r.rotation.x = sgn * Math.atan2(WALL_H, 5.4);
+      lad.add(r);
+    }
+    for (let k = 0; k <= 6; k++) {
+      const t2 = k / 6;
+      const step = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.16, 0.24), rail);
+      step.position.set(0, WALL_H - WALL_H * t2 + 0.12,
+        (z0 - f.z) + ((z1 - f.z) - (z0 - f.z)) * t2);
+      lad.add(step);
+    }
+    g.add(lad);
+  }
+  // 🚩 旗（ここを おさえたら 勝ち）
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 14, 6), new THREE.MeshLambertMaterial({ color: 0xdddddd }));
+  pole.position.y = 7;
+  const flag = new THREE.Mesh(new THREE.PlaneGeometry(5, 3), new THREE.MeshLambertMaterial({ color, side: THREE.DoubleSide }));
+  flag.position.set(2.5, 11.5, 0);
+  g.add(pole, flag);
+  g.position.set(f.x, y, f.z);
+  scene.add(g);
+  // 柵（監督8/29「常備柵は、当たるとダーメジを受ける」＝陸上戦の注文。一次資料なので そのまま）。
+  // ⚠ 城壁の **外がわ**に置く。すきまが 通り道になる
+  const fences = [];
+  const R = CASTLE_HALF + 12;
+  for (let i = 0; i < 18; i++) {
+    const a = (i / 18) * Math.PI * 2;
+    if (i % 9 === 4) continue;   // 入口（2か所あく）
+    const fx = f.x + Math.cos(a) * R, fz = f.z + Math.sin(a) * R;
+    const fence = new THREE.Mesh(new THREE.BoxGeometry(7, 1.6, 0.5),
+      new THREE.MeshLambertMaterial({ color: 0x5a4632 }));
+    fence.position.set(fx, H(fx, fz) + 0.8, fz);
+    fence.rotation.y = -a + Math.PI / 2;
+    scene.add(fence);
+    fences.push({ x: fx, z: fz });
+  }
+  const F = { ...f, side, color, flag, capT: 0, fences, zone: 9 };
+  fortresses.push(F);
+  return F;
+}
+
+// ============ 兵士のモデル（カプセル＋頭。国の色） ============
+// 服（監督 9/5）。⚠ 兵科ごとに かたちを変える＝画面で「だれが何の兵か」が見て分かる。
+//    3種類：コート（長い上着）／背のう（リュック）／ヘルメットに草（偵察）
+function addOutfit(g, kind, c, top) {
+  const cloth = new THREE.MeshLambertMaterial({ color: c.clone().multiplyScalar(0.82) });
+  if (kind === 'coat') {                       // 長い上着
+    const coat = new THREE.Mesh(new THREE.CylinderGeometry(0.58, 0.66, 1.05, 8), cloth);
+    coat.position.y = 0.62; g.add(coat);
+  } else if (kind === 'pack') {                // 背のう
+    const pack = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.62, 0.34), cloth);
+    pack.position.set(0, 1.15, 0.5); g.add(pack);
+    const roll = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.62, 6), cloth);
+    roll.rotation.z = Math.PI/2; roll.position.set(0, 1.5, 0.5); g.add(roll);
+  } else if (kind === 'camo') {                // ヘルメットに草
+    for (let i = 0; i < 5; i++) {
+      const leaf = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.36, 0.07),
+        new THREE.MeshLambertMaterial({ color: 0x4f6b32 }));
+      const a = (i/5)*Math.PI*2;
+      leaf.position.set(Math.cos(a)*0.3, top + 0.6, Math.sin(a)*0.3);
+      leaf.rotation.z = Math.cos(a)*0.5; leaf.rotation.x = Math.sin(a)*0.5;
+      g.add(leaf);
+    }
+  }
+}
+function makeSoldier(color, dark, isMe, outfit, isSaber) {
+  const g = new THREE.Group();
+  const c = new THREE.Color(color);
+  if (dark) c.multiplyScalar(0.55);   // 敵は同じ国の色でも 暗くする＝見分けがつく
+  // ⚠ カプセルの高さは 中心 + 胴の半分 + 丸い先。ここを間違えると頭が体にうまる（最初そうなった）
+  // ⚠ 下端 = CY - LEN/2 - R。ここを0にしないと体が地面から浮く（1.15だと0.15浮いていた）
+  const R = 0.5, LEN = 1.0, CY = R + LEN/2;         // = 1.0 → 下端ちょうど0
+  const top = CY + LEN/2 + R;                       // = 2.0
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(R, LEN, 3, 8), new THREE.MeshLambertMaterial({ color: c }));
+  body.position.y = CY;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.34, 10, 10), new THREE.MeshLambertMaterial({ color: 0xe8c39e }));
+  head.position.y = top + 0.30;                     // 首のぶん 上へ出す
+  const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.40, 10, 7, 0, Math.PI*2, 0, Math.PI/2), new THREE.MeshLambertMaterial({ color: c }));
+  helmet.position.y = top + 0.40;
+  // 🗡 サーベル隊は 銃のところが けん（監督9/7「普通銃のところがけんになる」）。
+  // ⚠ 見た目で兵科が分からないと、誰が何なのか画面で読めなくなる。銃と けん は形を変える
+  const gun = isSaber
+    ? new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.20, 1.9),
+        new THREE.MeshLambertMaterial({ color: 0xd8dee3 }))
+    : new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 1.5),
+        new THREE.MeshLambertMaterial({ color: 0x2b2b2b }));
+  gun.position.set(0.42, 1.35, isSaber ? -0.95 : -0.65);
+  if (isSaber) gun.rotation.x = -0.22;
+  g.add(body, head, helmet, gun);
+  g.userData.weapon = gun;
+  if (outfit) addOutfit(g, outfit, c, top);   // 服（監督 9/5）
+  // 足もとの影。⚠ パパ 9/5「身体との重なり方がおかしい。このゲーム影が出てる人いないから、
+  //   いわゆる影の出方で、色だけこの色にすればいい」——これが正解だった。
+  //   経過：頭上の白い輪→「死んだみたい」／足もとの輪を前面に描画→「ズレ感」。
+  //   原因は depthTest を切って**体を貫通して手前に描いていた**こと＋
+  //   ほかの兵に影が無いので、自分のしるしだけが浮いた異物に見えていたこと。
+  // → **全員に影を出す**。自分のだけ色を変える。奥行きはふつうに扱う（体に隠れる）
+  const shadow = new THREE.Mesh(new THREE.CircleGeometry(0.8, 20),
+    new THREE.MeshBasicMaterial({ color: isMe ? 0xffe066 : 0x101008,
+      transparent: true, opacity: isMe ? 0.5 : 0.28, depthWrite: false }));
+  shadow.rotation.x = -Math.PI/2;
+  shadow.position.y = 0.03;      // 地面とけんかしない ぎりぎりの高さ
+  g.add(shadow);
+  g.userData.shadow = shadow;
+  return g;
+}
+
+// ============ HPバー（v6と同じ作り） ============
+function attachHpBar(u, height) {
+  const cv = document.createElement('canvas'); cv.width = 64; cv.height = 10;
+  const tex = new THREE.CanvasTexture(cv);
+  // ⚠ depthTest を切ると、兵が丘や建物のうしろにいてもバーだけ宙に浮いて見える
+  //    （パパ 9/5「レイヤーの上下が間違ったときみたく」と同じ症状）。ふつうに奥行きを見る
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: true, depthWrite: false }));
+  sp.scale.set(1.1, 0.19, 1);  // ⚠ 大きいと画面が札だらけになる（3.2→1.9→1.1と詰めた）
+  sp.position.y = height;
+  u.group.add(sp);
+  u.hpCv = cv; u.hpTex = tex; u.hpSprite = sp;
+  updateHpBar(u);
+}
+function updateHpBar(u) {
+  const c = u.hpCv.getContext('2d');
+  c.clearRect(0, 0, 64, 10);
+  c.fillStyle = 'rgba(0,0,0,0.6)'; c.fillRect(0, 0, 64, 10);
+  const pct = Math.max(0, u.hp / u.maxHp);
+  c.fillStyle = pct > 0.5 ? '#66bb6a' : pct > 0.25 ? '#ffee58' : '#ef5350';
+  c.fillRect(1, 1, 62*pct, 8);
+  c.strokeStyle = u.faction === 'foe' ? '#ff5252' : '#69f0ae';
+  c.strokeRect(0.5, 0.5, 63, 9);
+  u.hpTex.needsUpdate = true;
+}
+
+// ============ ゲーム状態 ============
+const G = { running: false, kills: 0, myNation: NATIONS[0], foeNation: NATIONS[1], cls: CLASSES[0],
+            gren: 3, cannon: 1, hurtT: 99, crouch: false, scope: false, downT: 0, msgT: 0 };
+let player = { group: null, yaw: 0 };
+let soldiers = [];      // AI兵（味方も敵も）
+const projs = [];
+const sandbags = [];
+const explosions = [];
+const $ = id => document.getElementById(id);
+function showMessage(t, sec = 2.5) { $('message').textContent = t; $('message').style.opacity = 1; G.msgT = sec; }
+
+// ============ 音（小さな効果音だけ。BGMスロットは音楽が来たら足す） ============
+// ponytail: BGMは未実装, パパの曲が「陸上戦のぶん」として来たら v6のplayBgm一式を移植する
+let audioCtx = null;
+function initAudio() { if (!audioCtx) { try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } }
+function sfx(freq, dur, type = 'square', vol = 0.06) {
+  if (!audioCtx) return;
+  const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+  o.type = type; o.frequency.value = freq;
+  g.gain.setValueAtTime(vol, audioCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+  o.connect(g); g.connect(audioCtx.destination);
+  o.start(); o.stop(audioCtx.currentTime + dur);
+}
+const playGun = () => sfx(1100, 0.06, 'square', 0.04);
+const playBoom = () => { sfx(70, 0.5, 'sine', 0.2); sfx(160, 0.25, 'sawtooth', 0.1); };
+
+// ============ タイトル画面（国×2と兵科） ============
+let pickMe = 0, pickFoe = 1, pickCls = 0;
+function buildPicks() {
+  const mk = (row, list, get, set, label) => {
+    const box = $(row); box.innerHTML = '';
+    list.forEach((n, i) => {
+      const b = document.createElement('button');
+      b.className = 'btn pick' + (get() === i ? ' on' : '');
+      b.textContent = label(n);
+      b.onclick = () => { set(i); buildPicks(); };
+      box.appendChild(b);
+    });
+  };
+  mk('rowMe',  NATIONS, () => pickMe,  i => { pickMe = i;  if (pickFoe === i) pickFoe = (i+1) % NATIONS.length; }, n => n.flag + ' ' + n.name);
+  mk('rowFoe', NATIONS, () => pickFoe, i => { if (i !== pickMe) pickFoe = i; }, n => n.flag + ' ' + n.name);
+  paintModes();
+  mk('rowCls', CLASSES, () => pickCls, i => { pickCls = i; }, c => c.icon + ' ' + c.name);
+  $('clsDesc').textContent = CLASSES[pickCls].desc;
+}
+buildPicks();
+
+// ============ しゅつげき ============
+function startGame() {
+  initAudio();
+  G.myNation = NATIONS[pickMe]; G.foeNation = NATIONS[pickFoe]; G.cls = CLASSES[pickCls];
+  // ⚔🛡 攻める／守る（監督9/8）。⚠ 訓練は どちらでもない（練習なので）
+  G.mode = G.training ? 'attack' : MODES[pickMode].id;
+  G.defendT = 0;
+  logEvent('start', { nation: G.myNation.id, foe: G.foeNation.id, cls: G.cls.id,
+    platform: PLATFORM, touch: TOUCH, word: WORD });
+  // そうじ
+  for (const s of soldiers) scene.remove(s.group);
+  soldiers = [];
+  for (const p of projs) scene.remove(p.mesh);
+  projs.length = 0;
+  for (const b of sandbags) scene.remove(b.mesh);
+  sandbags.length = 0;
+  for (const f of fortresses) { /* 旗と柵は残す（作りなおさない） */ }
+  if (fortresses.length === 0) {
+    makeFortress(FORT_ALLY, 'ally', G.myNation.color);
+    makeFortress(FORT_FOE,  'foe',  G.foeNation.color);
+    // 監督 9/5「あと障害物もほしい」。⚠ ここは1回しか通らない（要塞と同じ）＝積み上がらない
+    scatterRocks();
+  } else {
+    fortresses[0].color = G.myNation.color; fortresses[0].flag.material.color.set(G.myNation.color); fortresses[0].side = 'ally'; fortresses[0].capT = 0;
+    fortresses[1].color = G.foeNation.color; fortresses[1].flag.material.color.set(G.foeNation.color); fortresses[1].side = 'foe'; fortresses[1].capT = 0;
+  }
+  // 自分
+  if (player.group) scene.remove(player.group);
+  player.group = makeSoldier(G.myNation.color, false, true, OUTFIT[G.cls.id], G.cls.id === 'saber');
+  scene.add(player.group);
+  // 前を向く向き fwd は (-sin(yaw), 0, -cos(yaw))。敵要塞は +x にあるので yaw = -π/2。
+  // ⚠ +π/2 にすると fwd が -x になり、「まえ」を押すと敵から遠ざかる（最初これで間違えた）
+  player.yaw = -Math.PI/2;
+  respawn();
+  // 📈 7BC：レベル6〜13のあいだ 体力が上がる（技はふえない）
+  G.maxHp = G.cls.hp + rendoHpBonus(); G.hp = G.maxHp;
+  G.gren = 3; G.cannon = 1; G.kills = 0; G.crouch = false; G.scope = false; G.hurtT = 99;
+  // ⚠ G.paused が もどっていなかった＝**一時停止したまま つぎの試合に入れた**（動かない画面になる）
+  G.paused = false; $('pauseBtn').innerHTML = '⏸<br>一時停止';
+  camera.fov = 70; camera.updateProjectionMatrix();
+  // AI兵。⚠ 監督 9/5「あと敵と味方数を増やしたい」→ 味方4→8・敵5→10
+  const mkAI = (faction, n) => {
+    for (let i = 0; i < n; i++) {
+      const home = faction === 'ally' ? FORT_ALLY : FORT_FOE;
+      // 🗡 4人に1人は サーベル隊にする＝画面に けんを持った兵が混じる（見て分かる）
+      const aiSaber = (i % 4) === 3;
+      const g = makeSoldier(faction === 'ally' ? G.myNation.color : G.foeNation.color, faction === 'foe',
+        false, ['coat', 'pack', 'camo'][i % 3], aiSaber);
+      const x = home.x + (Math.random()-0.5)*24, z = home.z + (Math.random()-0.5)*24;
+      g.position.set(x, H(x, z), z);
+      scene.add(g);
+      const s = { group: g, faction, hp: 90, maxHp: 90, state: 'fight', downT: 0, revT: 0, saber: aiSaber,
+        // 🏕 3人は要塞のっとり係／つぎの3人は **基地をねらう係**（監督9/9）／のこりは戦う係
+        cd: 1 + Math.random()*2, mission: i < 3 ? 'capture' : i < 6 ? 'base' : 'fight', yaw: 0,
+        // 🚶 横にちらす＝一列に固まって突っこまない／押しと止まりの周期
+        lane: (Math.random()-0.5)*90, pushT: Math.random()*2, pushing: Math.random() < 0.5 };
+      attachHpBar(s, 3.1);
+      soldiers.push(s);
+    }
+  };
+  mkAI('ally', 8); mkAI('foe', 10);
+  G.running = true;
+  $('titleScreen').style.display = 'none';
+  $('endScreen').style.display = 'none';
+  $('hud').style.display = 'block';
+  $('minimap').style.display = 'block';
+  $('targetArrow').style.display = 'block';
+  $('controlsHint').style.display = 'block';
+  $('clsName').textContent = G.cls.icon + ' ' + G.cls.name + '（' + G.myNation.name + '）';
+  setupControlsUI();
+  showMessage('🚩 敵の城の 旗の下に立て！', 4);
+}
+function respawn() {
+  const x = FORT_ALLY.x + 6, z = 6;
+  player.group.position.set(x, H(x, z), z);
+  G.hp = G.maxHp || 100;
+}
+function setupControlsUI() {
+  let hint = '↑↓←→ あるく ／ Shift はしる ／ X しゃがむ ／ スペース 矢を射る';
+  if (G.cls.melee) hint = hint.replace('スペース 矢を射る', 'スペース けんを ふる');
+  if (G.cls.skill !== 'none') hint += G.cls.skill === 'dash' ? ' ／ E とつげき' : ' ／ E とくぎ';
+  hint += ' ／ R 投石車（基地・塹壕のそば）';
+  if (isTouch) hint = '左スティックであるく（大きくたおすと はしる）';
+  $('controlsHint').textContent = hint;
+  if (isTouch) {
+    // ⚠ 三国志では 💣手榴弾と💥大砲を **出さない**（仕組みは残してある。投石車が同じ爆発を使う）
+    for (const id of ['fireBtn', 'crouchBtn', 'knifeBtn', 'pauseBtn']) $(id).style.display = 'flex';
+    $('skillBtn').style.display = G.cls.skill !== 'none' ? 'flex' : 'none';
+    // ⚠⚠ 9/11：いちど「🔪さす は サーベル隊では消す」を入れて、**戻した。**
+    //   消す根拠は実装の数字だった——ナイフ 3.0m/70/待ち0.8秒/1人 に対し
+    //   けん 4.4m/100/待ち0.45秒/なぎ払い＝**とどく範囲も強さも速さも当たる人数も けんが上**。
+    //   でも 監督の原文（9/7）は
+    //     「サーベル隊ていうのが作りたい／普通銃のところがけんになる **ナイフより強い**／
+    //      **特技をナイフの横のわくにして**」
+    //   ＝ **けんがナイフより強いことは 監督自身が言っている。**それを知ったうえで
+    //   「ナイフの横」に特技を置けと言っている＝**ナイフのボタンがある前提の注文**。
+    //   📌 **「性能で押す理由が無い」は、監督が名指しで頼んだボタンを消す理由にならない。**
+    //   ⚠ 消したとき probe_saber.js が NG 3件で止めてくれた。probe を直して緑にしなくてよかった
+    // 🗡 サーベル隊は 銃が無い。ボタンの札も変える（「うつ」のままだと 何が起きるか読めない）
+    $('fireBtn').innerHTML = G.cls.melee ? '⚔<br>きる' : '🏹<br>射る';
+    $('skillBtn').innerHTML = G.cls.skill === 'dash' ? '🗡<br>とつげき' : '⭐<br>とくぎ';
+  }
+}
+
+// ============ 入力（v6と同じ流儀） ============
+const keys = {};
+addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'Space') e.preventDefault();
+  if (e.code === 'KeyT') endTraining();   // 🎯 訓練をおわる（訓練には勝ち負けが無いので 終わる道が要る）
+  if (e.code === 'KeyP') togglePause();   // ⏸ 一時停止（監督9/8）
+});
+addEventListener('keyup', e => { keys[e.code] = false; });
+const stick = { active: false, x: 0, y: 0, id: null };
+const isTouch = 'ontouchstart' in window;
+const stickZone = $('stick'), stickBase = $('stickBase'), stickKnob = $('stickKnob');
+let firePressed = false, grenPressed = false, skillPressed = false, cannonPressed = false;
+let knifePressed = false, revivePressed = false, mortarPressed = false;
+// ⚠ 55/25 は 丸の**半径**（110px/50px の半分）。--ui-scale で丸だけ大きくすると
+//   中心がずれて、さわった所と丸の位置が食いちがう。半径も 同じ倍率で持つ
+const stickR = () => 55 * uiScale, knobR = () => 25 * uiScale;
+stickZone.addEventListener('touchstart', e => {
+  const t = e.changedTouches[0];
+  stick.active = true; stick.id = t.identifier;
+  stickBase.style.display = stickKnob.style.display = 'block';
+  stickBase.style.left = (t.clientX-stickR()) + 'px'; stickBase.style.top = (t.clientY-stickR()) + 'px';
+  stickKnob.style.left = (t.clientX-knobR()) + 'px'; stickKnob.style.top = (t.clientY-knobR()) + 'px';
+  stick.cx = t.clientX; stick.cy = t.clientY;
+}, { passive: true });
+stickZone.addEventListener('touchmove', e => {
+  for (const t of e.changedTouches) {
+    if (t.identifier !== stick.id) continue;
+    const dx = t.clientX - stick.cx, dy = t.clientY - stick.cy;
+    const len = Math.hypot(dx, dy), max = stickR();
+    const k = len > max ? max/len : 1;
+    stick.x = (dx*k)/max; stick.y = (dy*k)/max;
+    stickKnob.style.left = (stick.cx + dx*k - knobR()) + 'px';
+    stickKnob.style.top = (stick.cy + dy*k - knobR()) + 'px';
+  }
+}, { passive: true });
+const stickRelease = e => {
+  for (const t of e.changedTouches) {
+    if (t.identifier !== stick.id) continue;
+    stick.active = false; stick.x = stick.y = 0;
+    stickBase.style.display = stickKnob.style.display = 'none';
+  }
+};
+stickZone.addEventListener('touchend', stickRelease, { passive: true });
+// ⚠ touchcancel が無いと OSに指を取られたときに **走りっぱなし**になる
+stickZone.addEventListener('touchcancel', stickRelease, { passive: true });
+const bindBtn = (id, on, off) => {
+  const el = $(id);
+  el.addEventListener('touchstart', e => { e.preventDefault(); on(); }, { passive: false });
+  el.addEventListener('touchend', e => { e.preventDefault(); if (off) off(); }, { passive: false });
+  // ⚠ touchcancel が どこにも無かった。OSに指を取られる（電話・通知・スワイプ）と
+  //   touchend が来ないので **押しっぱなしのまま**になる。撃ち続ける／走り続ける事故
+  el.addEventListener('touchcancel', e => { if (off) off(); }, { passive: true });
+};
+// 出し入れは ここだけ。⚠ 前と同じなら DOM を触らない（tick は毎フレーム走る）
+const setDisp = (id, on) => {
+  const el = $(id), want = on ? 'flex' : 'none';
+  if (el.style.display !== want) el.style.display = want;
+};
+bindBtn('fireBtn', () => firePressed = true, () => firePressed = false);
+bindBtn('grenBtn', () => grenPressed = true, () => grenPressed = false);
+bindBtn('knifeBtn', () => knifePressed = true, () => knifePressed = false);
+bindBtn('reviveBtn', () => revivePressed = true, () => revivePressed = false);
+bindBtn('mortarBtn', () => mortarPressed = true, () => mortarPressed = false);
+// ============ 🔍 ボタンの大きさ（パパ 9/10）============
+// ⚠ 大きさを持つのは CSS の --ui-scale ただ1つ。ここを変えると 押すものが ぜんぶ変わる。
+// ⚠⚠ **既定値は保存に食われる**（v6のレーダーで踏んだ）。起動のたびに保存する作りにすると、
+//    あとから既定を変えても その機械には一生とどかない。→ **押した時だけ保存する**。
+// ⚠ いちばん小さい 0.85 でも 一番小さいボタン（56px）が 47.6px＝Appleの目安44pxを下回らない。
+//    これは probe_rikusen_scale.js で毎回 実測して確かめる（計算だけで安心しない）
+// ⚠⚠ **上限は 1.15。実測で決めた。** 1.30 まで許すと、いちばん混む場面で
+//    ボタンどうしの かさなりが 4組→6〜8組 に増えた（390/375/360 の3幅で確認）。
+//    間隔も一緒に伸ばしても、いまの置きかた（左の列が % 指定・右のかたまりが せまい）では
+//    そこまで入らない。**「とても大きい」は 置きかたを作り直したあとで足す**
+//    （設計案 監督に送る/太平洋の鋼_UI設計案.md）。
+// 📌 大きくできる上限は、ボタンの大きさではなく **置きかた** が決めている。
+const UI_SCALES = [
+  { v: 0.85, name: 'ちいさめ', desc: '画面が ひろく見える。ボタンは 小さくなる' },
+  { v: 1.00, name: 'ふつう',   desc: 'いつもの大きさ' },
+  { v: 1.15, name: '大きめ',   desc: 'ボタンが 大きくなって 押しやすい' },
+];
+let uiScale = parseFloat(localStorage.getItem('sangokuUiScale2'));
+if (!UI_SCALES.some(x => x.v === uiScale)) uiScale = 1;      // 知らない値なら ふつうへ
+function setUiScale(v, save) {
+  uiScale = v;
+  document.documentElement.style.setProperty('--ui-scale', String(v));
+  const hit = UI_SCALES.find(x => x.v === v);
+  const d = $('scaleDesc'); if (d && hit) d.textContent = hit.desc;
+  for (const b2 of document.querySelectorAll('#rowScale button'))
+    b2.classList.toggle('on', parseFloat(b2.dataset.s) === v);
+  if (save) {
+    try { localStorage.setItem('sangokuUiScale2', String(v)); } catch (e) {}
+    logEvent('ui_scale', { v });     // ⚠ 監督が実際に変えたかは データでしか分からない
+  }
+}
+function paintScales() {
+  const row = $('rowScale'); if (!row) return;
+  row.innerHTML = UI_SCALES.map(x =>
+    '<button class="btn pick" data-s="' + x.v + '" style="padding:8px 14px; font-size:.95rem">'
+    + x.name + '</button>').join('');
+  for (const b2 of row.querySelectorAll('button'))
+    b2.onclick = () => setUiScale(parseFloat(b2.dataset.s), true);
+  setUiScale(uiScale, false);        // ⚠ 起動時は **保存しない**
+}
+paintScales();
+
+// ⏸ 一時停止（監督9/8「太平洋の鋼にも一時停止ボタンがほしい」）
+function togglePause() {
+  if (!G.running) return;
+  G.paused = !G.paused;
+  $('pauseBtn').innerHTML = G.paused ? '▶<br>つづける' : '⏸<br>一時停止';
+  showMessage(G.paused ? '⏸ 一時停止中（もういちど おすと つづく）' : '▶ さいかい！', G.paused ? 99 : 1);
+  logEvent('pause', { on: G.paused });
+}
+$('pauseBtn').addEventListener('touchstart', e => { e.preventDefault(); togglePause(); }, { passive: false });
+$('pauseBtn').addEventListener('click', () => togglePause());
+$('trainEndBtn').addEventListener('touchstart', e => { e.preventDefault(); endTraining(); }, { passive: false });
+$('trainEndBtn').addEventListener('click', () => endTraining());
+bindBtn('skillBtn', () => skillPressed = true, () => skillPressed = false);
+bindBtn('cannonBtn', () => cannonPressed = true, () => cannonPressed = false);
+bindBtn('crouchBtn', () => { G.crouch = !G.crouch; $('crouchBtn').style.opacity = G.crouch ? 1 : 0.7; logEvent('crouch', { on: G.crouch }); });
+addEventListener('pointerdown', initAudio, { once: true });
+addEventListener('keydown', initAudio, { once: true });
+
+// ============ 弾・爆発 ============
+function shoot(opt) {   // {pos, vel, owner('me'|'ally'|'foe'), dmg, gravity, blast, life}
+  const m = new THREE.Mesh(new THREE.SphereGeometry(opt.size || 0.14, 5, 5),
+    new THREE.MeshBasicMaterial({ color: opt.color || 0xffee58 }));
+  m.position.copy(opt.pos);
+  scene.add(m);
+  projs.push({ mesh: m, vel: opt.vel.clone(), owner: opt.owner, dmg: opt.dmg,
+    gravity: opt.gravity || 0, blast: opt.blast || 0, life: opt.life || 1.8 });
+}
+function explode(pos, big) {
+  const m = new THREE.Mesh(new THREE.SphereGeometry(big ? 5 : 1.4, 8, 8),
+    new THREE.MeshBasicMaterial({ color: 0xff6f00, transparent: true, opacity: 0.9 }));
+  m.position.copy(pos); scene.add(m);
+  explosions.push({ mesh: m, life: big ? 0.9 : 0.4 });
+  playBoom();
+}
+function blastDamage(pos, r, dmg, owner) {
+  // 爆発の範囲ダメージ（手榴弾・大砲）。自分にも当たる！（近すぎ注意）
+  for (const s of soldiers) {
+    if (s.state !== 'fight') continue;
+    if (s.group.position.distanceTo(pos) < r) hitSoldier(s, dmg, owner);
+  }
+  if (owner !== 'me' && player.group && G.running) {
+    if (player.group.position.distanceTo(pos) < r) hitPlayer(dmg);
+  } else if (owner === 'me' && player.group.position.distanceTo(pos) < r*0.6) {
+    hitPlayer(dmg*0.5);   // 自爆はちょっとだけ手かげん
+  }
+}
+function hitSoldier(s, dmg, owner) {
+  s.hp -= dmg; updateHpBar(s);
+  if (s.hp <= 0 && s.state === 'fight') {
+    s.state = 'down'; s.downT = 30;   // 監督ルール：倒れて30秒いないなら蘇生できる
+    s.group.rotation.z = Math.PI/2 * (s.faction === 'foe' ? 1 : -1);
+    logEvent('down', { faction: s.faction, by: owner });
+    if (s.faction === 'foe') {
+      if (owner === 'me') { G.kills++; $('killCt').textContent = 'たおした ' + G.kills; showMessage('🎯 敵をたおした！', 1.5); }
+    } else showMessage('⚠ なかまが たおれた！ 近づくと 蘇生できる（30秒いない）', 3);
+  }
+}
+function hitPlayer(dmg) {
+  if (!G.running) return;
+  G.hp -= dmg; G.hurtT = 0;
+  if (G.hp <= 0) {
+    explode(player.group.position.clone(), false);
+    logEvent('player_down', {});
+    showMessage('⚔ たおれた！ じぶんの城から さいしゅつげき…', 3);
+    respawn();
+  }
+}
+
+// ============ メインループ ============
+const fwd = new THREE.Vector3();
+const tmpV = new THREE.Vector3();
+let lastT = performance.now(), fireCd = 0, grenCd = 0, skillCd = 0, knifeCd = 0;
+
+// ?dev=1 のときだけ、画面が裏でも ループを止めない（2画面テスト・自動テスト用）。
+// ⚠ ふつうの遊びでは止めたまま（裏で電池を食わない）。
+// ⚠ setTimeout は裏では毎秒1回に絞られるので、絞られない MessageChannel を使う。
+//    これを知らずに測ると「動かない！」と実装を疑うことになる（海戦で何度も踏んだ）
+const DEVMODE = new URLSearchParams(location.search).get('dev') === '1';
+// ⚠ 版の印。監督がスマホで試して報告してくるので、**どの版を見ているか**が分からないと
+//    直したはずの物を「まだ直ってない」と言われる（古いキャッシュを見ているだけ、が起きる）
+const BUILD = 'sango-0912a';
+{ const e = document.getElementById('buildTag'); if (e) e.textContent = '版:' + BUILD; }
+const devPump = (() => {
+  if (!DEVMODE) return null;
+  const mc = new MessageChannel();
+  let pending = null;
+  mc.port1.onmessage = () => { const f = pending; pending = null; if (f) f(performance.now()); };
+  return fn => { pending = fn; mc.port2.postMessage(0); };
+})();
+function nextFrame(fn) {
+  if (devPump && document.hidden) devPump(fn);
+  else requestAnimationFrame(fn);
+}
+
+function tick() {
+  nextFrame(tick);
+  const now = performance.now();
+  const dt = Math.min((now - lastT)/1000, 0.05);
+  lastT = now;
+  // ⏸ 一時停止（監督9/8）。⚠ 描画は続ける＝画面が真っ黒にならない。中の時間だけ止める
+  if (!G.running || G.paused) { renderer.render(scene, camera); return; }
+  const P = player.group.position;
+
+  // ---- 移動（せんしゃ式：左右でむきをかえ、前後であるく。海戦とおなじ操作の芯） ----
+  let sx = 0, sy = 0;
+  if (keys['ArrowLeft'] || keys['KeyA']) sx = -1;
+  if (keys['ArrowRight'] || keys['KeyD']) sx = 1;
+  if (keys['ArrowUp'] || keys['KeyW']) sy = -1;
+  if (keys['ArrowDown'] || keys['KeyS']) sy = 1;
+  let run = keys['ShiftLeft'] || keys['ShiftRight'];
+  if (stick.active) { sx = stick.x; sy = stick.y; run = Math.hypot(stick.x, stick.y) > 0.85; }  // 大きくたおすと はしる
+  if (keys['KeyX'] && !G.crouchKey) { G.crouch = !G.crouch; logEvent('crouch', { on: G.crouch }); }
+  G.crouchKey = keys['KeyX'];
+  player.yaw -= sx * 2.2 * dt;
+  fwd.set(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
+  // ⚠ 監督 9/5「あと行動が早い」。歩き11m/sはボルト並み、走ると その1.5倍だった。
+  //    兵科の speed を約0.64倍にし、走りも 1.6→1.5 にした
+  let sp = G.cls.speed * (run ? 1.5 : 1) * (G.crouch ? 0.5 : 1);
+  const nx = P.x - fwd.x * sy * sp * dt;
+  const nz = P.z - fwd.z * sy * sp * dt;
+  // 建物にはめり込まない
+  if (!hitsHouse(nx, nz, P.y) && Math.abs(nx) < 300 && Math.abs(nz) < 300) { P.x = nx; P.z = nz; }
+  // 🪜 足場とはしごのぶん、高さは standH で決める（地面だけを見ると 壁の上に立てない）
+  const wantY = standH(P.x, P.z);
+  P.y += (wantY - P.y) * Math.min(1, dt * 10);            // 段差はなめらかに
+  if (Math.abs(wantY - P.y) < 0.05) P.y = wantY;
+  player.group.rotation.y = player.yaw;
+  player.group.scale.y = G.crouch ? 0.62 : 1;
+
+  // ---- 常備柵：さわるとダメージ（監督8/29） ----
+  for (const F of fortresses) for (const fe of F.fences) {
+    if (Math.hypot(P.x-fe.x, P.z-fe.z) < 2.6) { hitPlayer(8*dt + 0); G.fenceHurt = (G.fenceHurt||0)+dt;
+      if (G.fenceHurt > 0.5) { showMessage('⚠ 柵（さく）に さわると いたい！ 入口を さがせ', 1.5); G.fenceHurt = 0; } }
+  }
+
+  // ---- HPじわじわ回復（監督8/29「打たれても待ってるとじわじわ回復する」） ----
+  G.hurtT += dt;
+  if (G.hurtT > 4 && G.hp < G.maxHp) G.hp = Math.min(G.maxHp, G.hp + 4*dt);
+
+  // ---- こうげき ----
+  fireCd -= dt; grenCd -= dt; skillCd -= dt; knifeCd -= dt;
+  // 🔪 さす（監督 9/5「ナイフだよあと全員」）。⚠ どの兵科でも使える。
+  //    近いけど とどく範囲はせまい＝銃の代わりにはならない、近づけたときのごほうび
+  if ((keys['KeyQ'] || knifePressed) && knifeCd <= 0) {
+    knifeCd = 0.8;
+    let hit = null, bestD = 3.0;
+    for (const s2 of soldiers) {
+      if (s2.faction !== 'foe' || s2.state === 'dead') continue;
+      const q = s2.group.position;
+      const d = Math.hypot(q.x-P.x, q.z-P.z);
+      if (d > bestD) continue;
+      // 前を向いている相手だけ（うしろは刺せない）
+      const dot = (-Math.sin(player.yaw))*(q.x-P.x)/(d||1) + (-Math.cos(player.yaw))*(q.z-P.z)/(d||1);
+      if (dot < 0.35) continue;
+      bestD = d; hit = s2;
+    }
+    if (hit) { hitSoldier(hit, 70); showMessage('🔪 さした！', 1); logEvent('knife', { hit: true }); }
+    else { showMessage('🔪 空ぶり…（もっと近づく）', 0.9); logEvent('knife', { hit: false }); }
+  }
+  const firing = keys['Space'] || firePressed;
+  // 🗡 サーベル隊は 撃つかわりに **けんを振る**（監督9/7「普通銃のところがけんになる」）。
+  // ⚠ ナイフ（Q・70・3m）とは別もの。1回でたおせる（監督9/8「2A」）けど、
+  //   とどく所まで行かないと 何もできない＝そこが この兵科の値段
+  if (firing && fireCd <= 0 && G.cls.melee) {
+    fireCd = G.cls.cd;
+    let hit = 0;
+    for (const s2 of soldiers) {
+      if (s2.faction !== 'foe' || s2.state === 'dead') continue;
+      const q = s2.group.position;
+      const d = Math.hypot(q.x - P.x, q.z - P.z);
+      if (d > SABER_REACH) continue;
+      // 前を向いている相手だけ（うしろは切れない）。ナイフより ひろく なぎ払える
+      const dot = (-Math.sin(player.yaw)) * (q.x - P.x) / (d || 1) + (-Math.cos(player.yaw)) * (q.z - P.z) / (d || 1);
+      if (dot < SABER_ARC) continue;
+      // 📈 7BC：レベル6〜13のあいだ けんが つよくなる
+      hitSoldier(s2, Math.round(G.cls.melee * rendoDmgMul())); hit++;
+    }
+    // 見た目：けんを ふる
+    const w2 = player.group && player.group.userData.weapon;
+    if (w2) { w2.rotation.y = -1.2; setTimeout(() => { if (w2) w2.rotation.y = 0; }, 130); }
+    showMessage(hit ? `🗡 ${hit}人 きった！` : '🗡 とどかない…（もっと近づく）', hit ? 1 : 0.9);
+    logEvent('saber', { hit });
+  } else if (firing && fireCd <= 0) {
+    fireCd = G.cls.cd;
+    const spd = 90;
+    const dir = fwd.clone();
+    dir.x += (Math.random()-0.5) * G.cls.spread * (G.crouch ? 0.5 : 1) * 2;
+    dir.y += (Math.random()-0.5) * G.cls.spread;
+    shoot({ pos: P.clone().add(new THREE.Vector3(0, 1.6, 0)).addScaledVector(fwd, 1),
+            vel: dir.multiplyScalar(spd), owner: 'me', dmg: G.cls.dmg });
+    playGun();
+    logEvent('fire', { cls: G.cls.id });
+  }
+  if ((keys['KeyB'] || grenPressed) && grenCd <= 0 && G.gren > 0) {
+    grenCd = 30; G.gren--;   // 監督ルール 9/5：一回投げたら30秒つかえない
+    shoot({ pos: P.clone().add(new THREE.Vector3(0, 1.8, 0)), vel: fwd.clone().multiplyScalar(16).add(new THREE.Vector3(0, 8, 0)),
+            owner: 'me', dmg: 55, gravity: 18, blast: 6, life: 4, size: 0.3, color: 0x37474f });
+    showMessage('💣 手榴弾！（のこり ' + G.gren + '・つぎまで30秒）', 1.6);
+    logEvent('grenade', { left: G.gren });
+  }
+  if ((keys['KeyC'] || cannonPressed) && G.cannon > 0) {
+    G.cannon = 0;
+    shoot({ pos: P.clone().add(new THREE.Vector3(0, 2, 0)), vel: fwd.clone().multiplyScalar(38).add(new THREE.Vector3(0, 16, 0)),
+            owner: 'me', dmg: 120, gravity: 20, blast: 13, life: 6, size: 0.7, color: 0x222222 });
+    showMessage('💥💥 大砲 発射！！（1人1回だけ）', 2.5);
+    logEvent('cannon', {});
+    playBoom();
+  }
+  // ---- 🎯 投石車（監督9/8）。近くにあるときだけ 使える ----
+  // ⚠ 「持っている道具」ではなく「その場所に行くと使えるもの」。だから
+  //   基地や塹壕まで進む理由になる。大砲（1人1回）とちがって 何回でも撃てる
+  G.mortarCd = (G.mortarCd || 0) - dt;
+  let nearMortar = null, nmD = MORTAR_RANGE;
+  for (const m of MORTARS) {
+    const d = Math.hypot(P.x - m.x, P.z - m.z);
+    if (d >= nmD) continue;
+    // 🏕 基地の投石車は **その基地を取ってから**（監督9/9「占領目標物」＝取る意味）。
+    //    塹壕の2門は だれのものでもないので いつでも使える
+    const owner = BASES.find(v => v.mortar === m);
+    if (owner && owner.owner !== 'ally') continue;
+    nmD = d; nearMortar = m;
+  }
+  G.nearMortar = nearMortar;
+  if (nearMortar && (keys['KeyR'] || mortarPressed) && G.mortarCd <= 0) {
+    G.mortarCd = MORTAR_CD;
+    shoot({ pos: new THREE.Vector3(nearMortar.x, H(nearMortar.x, nearMortar.z) + 2.2, nearMortar.z),
+            vel: fwd.clone().multiplyScalar(30).add(new THREE.Vector3(0, 26, 0)),
+            owner: 'me', dmg: MORTAR_DMG, gravity: 20, blast: MORTAR_BLAST, life: 7,
+            size: 0.45, color: 0x37474f });
+    // 📚 2026-09-12 に一次資料で確かめたこと（research/sangokushi-weapons.md）。
+    //   ⚠ 監督が書いた名前（投石車）は 変えない。**ほんとうの名前を そえるだけ**にする
+    G.mortarShot = (G.mortarShot || 0) + 1;
+    showMessage(G.mortarShot === 1
+      ? '🪨 投石車 発射！ ほんとうの名前は「發石車（はっせきしゃ）」。' +
+        '袁紹の兵が「霹靂車」と あだ名をつけた（三国志 巻六）'
+      : '🪨 投石車 発射！（高くとんで 落ちる）', G.mortarShot === 1 ? 5.5 : 1.4);
+    logEvent('mortar', {});
+    playBoom();
+  }
+
+  // ---- とくぎ（E）：兵科ごと ----
+  // ponytail: KeyE が とくぎ と そせい の両方を叩く（:1346 も KeyE を見ている）,
+  //           キーを分けるなら 監督に確認してから（ボタン側の仕様も変わる）
+  if ((keys['KeyE'] || skillPressed) && skillCd <= 0) {
+    if (G.cls.skill === 'heal') {
+      skillCd = 5;
+      G.hp = Math.min(G.maxHp, G.hp + 30);
+      let healed = 0;
+      for (const s of soldiers) {
+        if (s.faction === 'ally' && s.state === 'fight' && s.group.position.distanceTo(P) < 8) {
+          s.hp = Math.min(s.maxHp, s.hp + 40); updateHpBar(s); healed++;
+        }
+      }
+      showMessage('🩹 ほうたい！ じぶん＋なかま' + healed + '人 かいふく', 2);
+      logEvent('heal', { healed });
+    } else if (G.cls.skill === 'bag') {
+      skillCd = 1.2;
+      if (sandbags.length >= 10) { showMessage('🧱 砂袋は 10個まで！', 1.5); }
+      else {
+        const bx = P.x - fwd.x*2.5, bz = P.z - fwd.z*2.5;
+        const m = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.3, 1),
+          new THREE.MeshLambertMaterial({ color: 0xb59a6a }));
+        m.position.set(bx, H(bx, bz)+0.65, bz);
+        m.rotation.y = player.yaw;
+        scene.add(m);
+        sandbags.push({ mesh: m, x: bx, z: bz });
+        showMessage('🧱 砂袋を置いた（' + sandbags.length + '/10）弾をふせぐぞ', 1.5);
+        logEvent('place_bag', { n: sandbags.length });
+      }
+    } else if (G.cls.skill === 'scope') {
+      skillCd = 0.5;
+      G.scope = !G.scope;
+      camera.fov = G.scope ? 28 : 70; camera.updateProjectionMatrix();
+      showMessage(G.scope ? '🔭 スコープON（もう一回で もどる）' : '🔭 スコープOFF', 1.2);
+      logEvent('scope', { on: G.scope });
+    } else if (G.cls.skill === 'dash') {
+      // 🗡 サーベル隊のとくぎ：前へ一気に つめる。
+      // ⚠ 銃が無い兵科なので、**近づく手段**そのものが とくぎでないと成立しない
+      skillCd = 6;
+      const dx = -Math.sin(player.yaw) * 11, dz = -Math.cos(player.yaw) * 11;
+      const nx = P.x + dx, nz = P.z + dz;
+      if (!hitsHouse(nx, nz, P.y) && Math.abs(nx) < 300 && Math.abs(nz) < 300) { P.x = nx; P.z = nz; }
+      showMessage('🗡 とつげき！（つぎまで6秒）', 1.3);
+      logEvent('dash', {});
+    }
+  }
+  // じぶんの要塞で ほきゅう。🏕 取った基地でも できる（＝前線で補給できる＝取る意味）
+  const atHome = Math.hypot(P.x-FORT_ALLY.x, P.z-FORT_ALLY.z) < 14
+    || BASES.some(v => v.owner === 'ally' && Math.hypot(P.x-v.x, P.z-v.z) < BASE_ZONE);
+  if (atHome) {
+    if (G.gren < 3) { G.gren = 3; showMessage('💣 手榴弾を ほきゅうした！', 1.5); }
+  }
+
+  // ---- 蘇生（監督ルール：みんな蘇生できる・倒れて30秒いない） ----
+  let revTarget = null;
+  for (const s of soldiers) {
+    if (s.state !== 'down') continue;
+    s.downT -= dt;
+    if (s.downT <= 0) {   // 30秒すぎた…
+      s.state = 'dead'; s.deadT = 20;
+      scene.remove(s.group);
+      continue;
+    }
+    if (s.faction === 'ally' && s.group.position.distanceTo(P) < 4) revTarget = s;
+  }
+  // 🩹 監督 9/5「蘇生近ずくと蘇生っていうボタンがほしい」。
+  // ⚠ 前は 近づくだけで 勝手に蘇生が進んでいた。近くに来たらボタンを出し、押している間だけ進む
+  // 🎯 投石車のボタン：そばにある時だけ。⚠ しゃがみボタンと同じ左側だが 高さをずらしてある
+  // ⚠ tick は毎フレーム走る。display を毎回書くと 無駄に レイアウトを触る。
+  //   **前と同じなら書かない**を1か所に置いて、出し入れは全部ここを通す
+  setDisp('trainEndBtn', G.training);
+  setDisp('mortarBtn', G.nearMortar);
+  // 💥 大砲は 1人1回。0になったら **押しても何も起きないボタン**が残るので消す
+  //   （つぎの試合で startGame が G.cannon=1 に戻す）
+  if (isTouch) setDisp('cannonBtn', false);     // ponytail: 三国志では出さない, 投げる武器を足すなら ここ
+  // 💣 手榴弾は 0でも 基地にもどれば 3本にもどる＝**消さずに うすく**する
+  if (isTouch) setDisp('grenBtn', false);       // ponytail: 同上
+  if (G.nearMortar && G.mortarCd <= 0) $('mortarBtn').classList.add('on');
+  else $('mortarBtn').classList.remove('on');
+  setDisp('reviveBtn', !!revTarget);
+  if (revTarget) $('reviveBtn').classList.add('on'); else $('reviveBtn').classList.remove('on');
+  if (revTarget && (revivePressed || keys['KeyE'])) {
+    const need = G.cls.skill === 'heal' ? 1.5 : 3;   // 医療兵は2倍はやい
+    revTarget.revT += dt;
+    $('stateRow').textContent = '🩹 蘇生中… ' + Math.ceil(need - revTarget.revT) + '（おしつづけて！）';
+    if (revTarget.revT >= need) {
+      revTarget.state = 'fight'; revTarget.hp = revTarget.maxHp * 0.5; revTarget.revT = 0;
+      revTarget.group.rotation.z = 0;
+      updateHpBar(revTarget);
+      showMessage('✨ なかまを 蘇生した！！', 2.5);
+      logEvent('revive', {});
+    }
+  } else if (revTarget) {
+    $('stateRow').textContent = '🩹 なかまが たおれてる！ 🩹そせい を おす（キーは E）';
+  } else {
+    for (const s of soldiers) if (s.state === 'down') s.revT = 0;
+    $('stateRow').textContent = G.crouch ? '🧎 しゃがみ中（ねらわれにくい）' : '';
+  }
+  // しんだ兵は、しばらくすると 要塞から わいてくる（戦いがつづくように）
+  for (const s of soldiers) {
+    if (s.state !== 'dead') continue;
+    s.deadT -= dt;
+    if (s.deadT <= 0) {
+      const home = s.faction === 'ally' ? FORT_ALLY : FORT_FOE;
+      s.group.position.set(home.x + (Math.random()-0.5)*20, 0, home.z + (Math.random()-0.5)*20);
+      s.group.position.y = H(s.group.position.x, s.group.position.z);
+      s.group.rotation.z = 0;
+      s.hp = s.maxHp; s.state = 'fight';
+      updateHpBar(s);
+      scene.add(s.group);
+    }
+  }
+
+  // ---- AI兵 ----
+  // ⚠ 監督報告 9/5「敵が前をとおってもうたなかっか」（3回）。原因は射程だった。
+  //    弾は 秒速70m × 1.8秒 ＝ 126m とどくのに、AIは 55m まで近づかないと撃たなかった。
+  //    ＝目の前を素通りする兵ができる。武器のとどく手前（110m）まで引き上げる
+
+  for (const s of soldiers) {
+    if (s.state !== 'fight') continue;
+    const sp2 = s.group.position;
+    // ねらう相手：敵側→自分か味方AI／味方側→敵AI
+    let tgt = null, best = 1e9;
+    const foes = s.faction === 'ally'
+      ? soldiers.filter(o => o.faction === 'foe' && o.state === 'fight')
+      : soldiers.filter(o => o.faction === 'ally' && o.state === 'fight');
+    for (const o of foes) {
+      const d = o.group.position.distanceTo(sp2);
+      if (d < best) { best = d; tgt = o.group.position; }
+    }
+    if (s.faction === 'foe') {
+      const dp = P.distanceTo(sp2);
+      if (dp < best) { best = dp; tgt = P; }
+    }
+    // 目的地：のっとり係は相手の要塞へ／基地係は いちばん近い「自分のものでない基地」へ／
+    //         戦う係は敵のいるほうへ。
+    // ⚠ lane で横にずらす＝全員が同じ一点に集まって 一列で突っこむのを防ぐ
+    // 🏕 監督9/9「あの基地は、以前までの占領目標物のやつで」。
+    //   ⚠ **敵も取りに来ないと「取り合い」にならない**。だから基地をねらう係を作る
+    //     （probe で「敵も取りかえせる」が通らなかったのは、そもそも敵が基地へ行かないから）
+    let baseGoal = null;
+    if (s.mission === 'base') {
+      let bd = 1e9;
+      for (const bs of BASES) {
+        if (bs.owner === s.faction) continue;              // 自分のものは ねらわない
+        const d = Math.hypot(bs.x - sp2.x, bs.z - sp2.z);
+        if (d < bd) { bd = d; baseGoal = bs; }
+      }
+    }
+    const base = baseGoal ? { x: baseGoal.x, z: baseGoal.z }
+      : s.mission === 'capture'
+      ? (s.faction === 'ally' ? FORT_FOE : FORT_ALLY)
+      : (tgt ? { x: tgt.x, z: tgt.z } : (s.faction === 'ally' ? FORT_FOE : FORT_ALLY));
+    const goal = { x: base.x, z: base.z + (s.mission === 'capture' ? s.lane : 0) };
+    const gd = Math.hypot(goal.x-sp2.x, goal.z-sp2.z);
+    // ⚠ 監督 9/5「あと味方が突進するの面白くない」。
+    //    いままでは **撃ちながら ずっと真っすぐ歩いていた**＝突撃にしか見えない。
+    //    敵が射程に入ったら **止まって撃つ**。ときどきだけ前へ出る（押す→止まる→撃つ）
+    s.pushT -= dt;
+    if (s.pushT <= 0) {
+      s.pushing = !s.pushing;
+      s.pushT = s.pushing ? (1.0 + Math.random()*1.4) : (2.2 + Math.random()*2.6);
+    }
+    const engaged = tgt && best < AI_RANGE;
+    // 🏕 基地係は 近づいたら 止まる（そこに立っていないと 取れない）
+    if ((!engaged || s.pushing) && gd > (s.mission === 'capture' ? 6 : baseGoal ? 4 : 22)) {
+      const dx = (goal.x-sp2.x)/gd, dz = (goal.z-sp2.z)/gd;
+      sp2.x += dx * 6.5 * dt; sp2.z += dz * 6.5 * dt;
+      sp2.y = H(sp2.x, sp2.z);
+      s.group.rotation.y = Math.atan2(dx, dz) + Math.PI;
+    }
+    // 💣 監督 9/5「あと敵も手榴弾も投げてほしい」。
+    // ⚠ 近すぎると自分も巻きこむ。遠すぎると届かない＝20〜55mのときだけ投げる。
+    //    人にも30秒の待ちがあるので、AIも同じくらい間をあける（片方だけ連発だと不公平）
+    s.grenT = (s.grenT === undefined) ? 8 + Math.random()*20 : s.grenT - dt;
+    if (s.grenT <= 0) {
+      if (!(tgt && best > 20 && best < 55)) {
+        s.grenT = 2;            // 距離が合わない＝すぐ見なおす（長く待つと ほとんど投げない）
+      } else {
+        s.grenT = 22 + Math.random()*20;
+        const gv = tmpV.set(tgt.x - sp2.x, 0, tgt.z - sp2.z);
+        const flat = gv.length() || 1;
+        gv.normalize().multiplyScalar(flat * 0.62);        // 山なりに とどく速さ
+        gv.y = 9;
+        shoot({ pos: sp2.clone().add(new THREE.Vector3(0, 1.8, 0)), vel: gv,
+                owner: s.faction, dmg: 45, gravity: 18, blast: 6, life: 4, size: 0.3, color: 0x37474f });
+        logEvent('ai_grenade', { faction: s.faction });
+      }
+    }
+    // うつ
+    // 🎯 訓練のときは 敵は撃ってこない（監督5C＝練習の場）。⚠ ここを入れないと
+    //   「訓練」と言いながら 本番と同じ危なさになって、練習にならない
+    s.cd -= dt;
+    if (tgt && best < AI_RANGE && s.cd <= 0 && !(G.training && s.faction === 'foe')) {
+      s.cd = 1.2 + Math.random()*0.8;
+      const dir = tmpV.set(tgt.x-sp2.x, 1.4 + (tgt===P ? (G.crouch ? 0.2 : 0.5) : 0.5) - 1.5, tgt.z-sp2.z).normalize();
+      // しゃがんでいる自分は ねらいがズレやすい（＝しゃがみの意味）
+      const miss = (tgt === P && G.crouch) ? 0.14 : 0.06;
+      dir.x += (Math.random()-0.5)*miss; dir.y += (Math.random()-0.5)*miss; dir.z += (Math.random()-0.5)*miss;
+      shoot({ pos: sp2.clone().add(new THREE.Vector3(0, 1.6, 0)), vel: dir.multiplyScalar(70),
+              owner: s.faction, dmg: 9, color: s.faction === 'foe' ? 0xff5252 : 0xfff176 });
+    }
+  }
+
+  // ---- 弾 ----
+  for (let i = projs.length-1; i >= 0; i--) {
+    const p = projs[i];
+    p.vel.y -= p.gravity * dt;
+    p.mesh.position.addScaledVector(p.vel, dt);
+    p.life -= dt;
+    let done = false;
+    const pp = p.mesh.position;
+    // 砂袋が弾をふせぐ（工作兵のとくぎの意味）
+    for (const b of sandbags) {
+      if (Math.hypot(pp.x-b.x, pp.z-b.z) < 1.6 && pp.y < H(b.x, b.z)+1.6) { done = true; break; }
+    }
+    // 地面
+    if (!done && pp.y <= H(pp.x, pp.z)) {
+      if (p.blast) { explode(pp.clone(), true); blastDamage(pp, p.blast, p.dmg, p.owner); }
+      done = true;
+    }
+    // 兵にあたる
+    if (!done) {
+      if (p.owner === 'foe') {
+        if (pp.distanceTo(P) < (G.crouch ? 0.9 : 1.2) + 0.4) { hitPlayer(p.dmg); done = true; }
+        if (!done) for (const s of soldiers) {
+          if (s.faction !== 'ally' || s.state !== 'fight') continue;
+          if (pp.distanceTo(s.group.position) < 1.5) { hitSoldier(s, p.dmg, 'foe'); done = true; break; }
+        }
+      } else {
+        for (const s of soldiers) {
+          if (s.faction !== 'foe' || s.state !== 'fight') continue;
+          if (pp.distanceTo(s.group.position) < 1.5) {
+            if (p.blast) { explode(pp.clone(), true); blastDamage(pp, p.blast, p.dmg, p.owner); }
+            else hitSoldier(s, p.dmg, p.owner);
+            done = true; break;
+          }
+        }
+      }
+    }
+    if (done || p.life <= 0) { scene.remove(p.mesh); projs.splice(i, 1); }
+  }
+  for (let i = explosions.length-1; i >= 0; i--) {
+    const e = explosions[i];
+    e.life -= dt;
+    e.mesh.scale.multiplyScalar(1 + dt*4);
+    e.mesh.material.opacity = Math.max(0, e.life);
+    if (e.life <= 0) { scene.remove(e.mesh); explosions.splice(i, 1); }
+  }
+
+  // ---- 🏕 基地の取り合い（監督9/9「あの基地は、以前までの占領目標物のやつで」）----
+  // ⚠ 勝ち負けには直結させない。取ると **その基地の投石車が使える**・**手榴弾がほきゅうできる**。
+  //   「取る意味」だけを先に作って、勝ちに関係させるかは 監督に聞く
+  for (const bs of BASES) {
+    let mine = 0, foe = 0;
+    if (Math.hypot(P.x - bs.x, P.z - bs.z) < BASE_ZONE) mine++;
+    for (const s2 of soldiers) {
+      if (s2.state !== 'fight') continue;
+      if (Math.hypot(s2.group.position.x - bs.x, s2.group.position.z - bs.z) >= BASE_ZONE) continue;
+      if (s2.faction === 'ally') mine++; else foe++;
+    }
+    // ⚠ 両方いる時は 取れない（取り合っている最中）。片方だけの時に進む
+    const side = (mine > 0 && foe === 0) ? 'ally' : (foe > 0 && mine === 0) ? 'foe' : null;
+    if (!side || bs.owner === side) { bs.capT = 0; continue; }
+    bs.capT += dt;
+    if (bs.capT >= BASE_CAP_SEC) {
+      bs.capT = 0;
+      const was = bs.owner;
+      bs.owner = side;
+      if (bs.flag) bs.flag.material.color.set(side === 'ally' ? G.myNation.color : G.foeNation.color);
+      if (side === 'ally') showMessage('🏕 基地を とった！（' + BASES.filter(v => v.owner === 'ally').length + '/12）', 2);
+      else if (was === 'ally') showMessage('⚠ 基地を とりかえされた…', 2);
+      logEvent('base_capture', { side, x: bs.x, z: bs.z, mine: BASES.filter(v => v.owner === 'ally').length });
+    }
+  }
+
+  // ---- 🛡 守る：時間でかち（監督9/8「守るなら自分の首都がある」）----
+  // ⚠ 「守る」には もともと終わり方が無い（こちらが取りに行かないと何も起きない）。
+  //   だから 時間で決める。のこり時間は HUD に出す＝あと何秒がんばればいいか 見えないと つらい
+  if (G.mode === 'defend' && !G.training) {
+    G.defendT += dt;
+    if (G.defendT >= DEFEND_SEC) return win();
+  }
+
+  // ---- のっとり（監督ルール：敵の要塞をのっとったら勝ち） ----
+  const capBar = $('capBarWrap');
+  let showBar = false;
+  for (const F of fortresses) {
+    const enemyOfF = F.side === 'ally' ? 'foe' : 'ally';
+    let attackers = 0;
+    for (const s of soldiers) {
+      if (s.faction === enemyOfF && s.state === 'fight' &&
+          Math.hypot(s.group.position.x-F.x, s.group.position.z-F.z) < F.zone) attackers++;
+    }
+    const meIn = F.side === 'foe' && Math.hypot(P.x-F.x, P.z-F.z) < F.zone;
+    if (meIn) attackers++;
+    if (attackers > 0) {
+      F.capT += dt;
+      if (meIn) {
+        showBar = true;
+        $('capLabel').textContent = '🚩 のっとり中…！';
+        $('capFill').style.width = Math.min(100, F.capT/3*100) + '%';
+      }
+      if (F.side === 'ally' && F.capT > 1 && !F.warned) { F.warned = true; showMessage('⚠⚠ じぶんの城が おとされそう！！ もどれ！！', 3); }
+      if (F.capT >= 3) {
+        if (F.side === 'foe') return win();
+        else return lose();
+      }
+    } else { F.capT = Math.max(0, F.capT - dt*2); F.warned = false; }
+  }
+  capBar.style.display = showBar ? 'block' : 'none';
+
+  // ---- カメラ（三人称・うしろから。スコープ中はまっすぐ遠くを見る） ----
+  const camOff = tmpV.set(Math.sin(player.yaw)*7, 4.5, Math.cos(player.yaw)*7);
+  camera.position.lerp(camOff.add(P), 1 - Math.pow(0.001, dt));
+  camera.position.y = Math.max(camera.position.y, H(camera.position.x, camera.position.z) + 1.6);
+  camera.lookAt(P.x + fwd.x*(G.scope ? 60 : 8), P.y + 1.8, P.z + fwd.z*(G.scope ? 60 : 8));
+
+  // ---- HUD ----
+  $('hpFill').style.width = Math.max(0, G.hp/G.maxHp*100) + '%';
+  $('grenCt').textContent = G.gren;
+
+  // ⚠ ここは 1つの場所に 2つのことを出す。前は 守るののこり時間を上に書いていたが、
+  //   この行が **すぐ下で上書き**していて 一度も出ていなかった（実測で発見）。
+  //   出す先が同じなら **組み立ても1か所**にする
+  // 🏕 取った基地の数。⚠ 数が見えないと「取り合っている」ことに気づけない
+  $('cannonCt').textContent = G.cannon;
+  const cdParts = ['🏕 ' + BASES.filter(v => v.owner === 'ally').length + '/12'];
+  if (G.mode === 'defend' && !G.training) {
+    const left = Math.max(0, Math.ceil(DEFEND_SEC - G.defendT));
+    cdParts.push('🛡 のこり ' + Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0'));
+  }
+  // ponytail: 待ち時間は grenCd だけ画面に出ている, fireCd/skillCd/knifeCd/G.mortarCd も
+  //           出すなら ここに足す（「とつげきの残り6秒」が見えないのは 別の課題）
+  if (grenCd > 0) cdParts.push('⏳ つぎの手榴弾まで ' + Math.ceil(grenCd) + '秒');
+  $('cdRow').textContent = cdParts.join('　');
+  const dx = FORT_FOE.x - P.x, dz = FORT_FOE.z - P.z;
+  const rel = Math.atan2(dx, dz) - (player.yaw + Math.PI);
+  $('arrowIcon').style.transform = `rotate(${-rel*180/Math.PI}deg)`;
+  $('arrowDist').textContent = Math.round(Math.hypot(dx, dz)) + 'm';
+  if (G.msgT > 0) { G.msgT -= dt; if (G.msgT <= 0) $('message').style.opacity = 0; }
+
+  // 遠い兵のHPバーは消す（近くの戦いだけ見えればいい／画面が札だらけになるのを防ぐ）
+  for (const s of soldiers) {
+    if (s.hpSprite) s.hpSprite.visible = s.state === 'fight' && s.group.position.distanceTo(P) < 70;
+    // ⚠ 倒れた兵は横向きに寝るので、影も一緒に立ってしまう。そのときは消す
+    if (s.group.userData.shadow) s.group.userData.shadow.visible = s.state === 'fight';
+  }
+
+  drawMinimap();
+  renderer.render(scene, camera);
+}
+
+// ============ レーダー（海戦とおなじ・自分がいつも まんなか＝とみさわさんの方式） ============
+const mm = $('minimap').getContext('2d');
+function drawMinimap() {
+  mm.clearRect(0, 0, 140, 140);
+  const sc = 140/500, ox = 70, oy = 70;
+  const P = player.group.position;
+  const sx = x => ox + (x - P.x)*sc, sy = z => oy + (z - P.z)*sc;
+  const M = 7;
+  const clamp = v => Math.max(M, Math.min(140-M, v));
+  for (const F of fortresses) {
+    mm.fillStyle = F.side === 'ally' ? '#29b6f6' : '#ff1744';
+    mm.beginPath(); mm.arc(clamp(sx(F.x)), clamp(sy(F.z)), 5, 0, 7); mm.fill();
+    mm.strokeStyle = '#fff'; mm.lineWidth = 1.2; mm.stroke();
+  }
+  for (const s of soldiers) {
+    if (s.state === 'dead') continue;
+    const x = sx(s.group.position.x), y = sy(s.group.position.z);
+    if (x < M || x > 140-M || y < M || y > 140-M) continue;
+    mm.fillStyle = s.state === 'down' ? '#ffe066' : s.faction === 'foe' ? '#ff5252' : '#00e676';
+    mm.fillRect(x-2, y-2, 4, 4);
+  }
+  mm.save();
+  mm.translate(ox, oy);
+  mm.rotate(-player.yaw + Math.PI);
+  mm.fillStyle = '#fff';
+  mm.beginPath(); mm.moveTo(0, -5); mm.lineTo(3.5, 4); mm.lineTo(-3.5, 4); mm.closePath(); mm.fill();
+  mm.restore();
+}
+
+// ============ 勝ち負け ============
+// 🎯 訓練を おわる（監督5C：本番とは別のモードなので、勝ち負けではなく「おわる」）
+function endTraining() {
+  if (!G.running || !G.training) return;
+  G.running = false;
+  logEvent('train_end', { kills: G.kills });
+  $('endTitle').textContent = '🎯 訓練 おわり！';
+  $('endText').textContent = 'たおした的：' + G.kills;
+  endCommon();
+}
+function win() {
+  G.running = false;
+  logEvent('win', { kills: G.kills });
+  $('endTitle').textContent = G.training ? '🎯 訓練 おわり！'
+    : G.mode === 'defend' ? '🛡 首都を まもりきった！！' : '🏆 敵の首都を のっとった！！';
+  $('endText').textContent = G.myNation.flag + ' ' + G.myNation.name + '軍の かち！　たおした数：' + G.kills;
+  endCommon();
+}
+function lose() {
+  G.running = false;
+  logEvent('lose', { kills: G.kills });
+  $('endTitle').textContent = '😢 城を おとされた…';
+  $('endText').textContent = 'つぎは 城を まもりながら せめよう！　たおした数：' + G.kills;
+  endCommon();
+}
+function endCommon() {
+  // 📈 練度がたまる（監督の数字：本番=3分の2／訓練=3分の1）。
+  // ⚠ 勝っても負けても たまる。監督は「本番で」としか言っていないので 勝ち負けで分けない
+  const before = rendo.lv;
+  const r = addRendo(G.training ? REN_TRAIN : REN_BATTLE, G.training ? 'train' : 'battle');
+  const gaugeTxt = rendo.lv >= REN_MAX_LV ? 'いちばん上！'
+    : 'レベル' + rendo.lv + '（あと ' + Math.round((1 - rendo.gauge) * 100) + '%）';
+  $('endText').innerHTML += '<br>📈 練度 ' + (G.training ? '＋3分の1（訓練）' : '＋3分の2（本番）')
+    + ' → ' + gaugeTxt
+    + (r.up ? '<br><b style="color:#ffd54f">⬆ レベルが ' + before + ' → ' + rendo.lv + ' に上がった！</b>'
+              + (SKILLS.some(x => x.lv > before && x.lv <= rendo.lv)
+                 ? '<br>🗡 おぼえた技：<b>' + SKILLS.filter(x => x.lv > before && x.lv <= rendo.lv).map(x => x.name).join('・') + '</b>'
+                 : '<br>（技はふえないが 体力とけんの強さが 上がった）') : '');
+  paintRendo();
+  $('endScreen').style.display = 'flex';
+  $('capBarWrap').style.display = 'none';
+  // ⚠ 前は knifeBtn と reviveBtn が この並びから 抜けていた。いま見えないのは
+  //   おわりの画面(z-index 20)が かぶさっているからで、z-index をいじると出てくる
+  for (const id of ['fireBtn', 'grenBtn', 'skillBtn', 'cannonBtn', 'crouchBtn', 'mortarBtn',
+                    'trainEndBtn', 'pauseBtn', 'knifeBtn', 'reviveBtn']) $(id).style.display = 'none';
+}
+// ============ 📈 練度の画面と 訓練モード ============
+function paintRendo() {
+  $('renLv').textContent = rendo.lv;
+  $('renFill').style.width = Math.round(rendo.gauge * 100) + '%';
+  $('renFill').style.background = rendo.lv >= REN_MAX_LV ? '#ffd54f' : '#8bc34a';
+  const got = learned();
+  // ⚠ 覚えたものと、つぎに覚えるものを **両方**出す。つぎが見えないと 訓練する気にならない
+  const next = SKILLS.find(s => s.lv > rendo.lv);
+  $('renSkills').innerHTML =
+    '<b>おぼえた技（' + got.length + '）</b>：' +
+      got.map(s => s.name).join('・') +
+    (next ? '<br><span style="opacity:.8">つぎ：レベル' + next.lv + ' で <b>' + next.name + '</b>（' + next.eff + '）</span>' : '') +
+    (rendo.lv >= 6 && rendo.lv <= 13
+      ? '<br><span style="opacity:.8">レベル6〜13は 技はふえないが <b>体力 +' + rendoHpBonus() +
+        '・けんの強さ ×' + rendoDmgMul().toFixed(2) + '</b>（監督7BC）</span>' : '') +
+    (rendo.lv >= REN_MAX_LV ? '<br><b style="color:#ffd54f">いちばん上まで 上がった！</b>' : '');
+}
+// 🎯 訓練（監督5C：タイトル画面のメニューから）。
+// ⚠ 本番と同じ地図を使うが **敵は撃ってこない**。的を切る／撃つ練習だけ。
+//   終わると ゲージが 3分の1 たまる（監督の数字）
+function startTraining() {
+  G.training = true;
+  startGame();
+  // 敵をぜんぶ「的」にする＝撃ってこない・こちらの練習台になる
+  for (const s of soldiers) if (s.faction === 'foe') { s.training = true; s.cd = 1e9; }
+  showMessage('🎯 訓練！ 的を たおしてみよう（おわると 練度が 3分の1 たまる）', 3.2);
+  logEvent('train_start', { lv: rendo.lv });
+}
+$('btnTrain').onclick = startTraining;
+paintRendo();   // ⚠ 起動したときにも 出す（呼ばないと レベルが1のまま止まって見える）
+$('btnGo').onclick = () => { G.training = false; startGame(); };
+// ?dev=1 のときだけ、テスト用にコンソールから中を触れる（v6と同じ流儀）
+if (DEVMODE) {
+  window.dbg = () => ({ G, player, soldiers, projs, sandbags, fortresses, startGame, keys, H, standH, LADDERS, PLATFORMS, houses, rocks, hitPlayer, hitSoldier, THREE, camera, scene,
+    BASES, MORTARS, TRENCH_ZS, TRENCH_HALF, BASE_XS, BASE_ZS, hitsHouse,   // 🏕🎯 9/8の注文ぶん
+    SKILLS, REN_MAX_LV, REN_BATTLE, REN_TRAIN, addRendo, saveRendo, paintRendo, startTraining, endTraining,
+    rendoHpBonus, rendoDmgMul, learned, get rendo() { return rendo; },       // 📈 練度
+    DEFEND_SEC, MODES, togglePause, BASE_ZONE, BASE_CAP_SEC,                 // ⚔🛡⏸🏕 9/8〜9/9
+    UI_SCALES, setUiScale, get uiScale() { return uiScale; },                // 🔍 ボタンの大きさ 9/10
+    NATIONS, CLASSES, BUILD, FORT_ALLY, FORT_FOE, CASTLE_HALF, WALL_H,       // ⚔ 三国志 9/12
+    set rendo(v) { rendo = v; saveRendo(); } });
+}
+$('btnRetry').onclick = () => { $('endScreen').style.display = 'none'; $('titleScreen').style.display = 'flex'; paintRendo(); };
+
+// ⏳ ここまで来た＝Three.js も読めて 部品もそろった。よみこみ画面を閉じる（3本共通・パパ9/10）。
+//   ⚠ ここに来られない時（CDNが死んでいる等）は 共通部品が 25秒で「よみこみが おわらない」と言う
+if (window.YuLoad) YuLoad.done();
+
+tick();
+</script>
+</body>
+</html>
