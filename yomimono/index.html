@@ -1,0 +1,1120 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>三国志 ほんとうさがし</title>
+<style>
+  :root{
+    color-scheme: dark;
+    --bg:#12181d; --fg:#eceff1; --dim:#9fb0bb;
+    --card:#1a232a; --line:#33444f;
+    --L1:#4fc3f7; --L2:#81c784; --L3:#ffb74d; --L4:#f06292; --L5:#b0bec5;
+    --hi:#ffd54f;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:0 0 60px;background:var(--bg);color:var(--fg);
+    font-family:"Hiragino Maru Gothic ProN","Yu Gothic",system-ui,sans-serif;
+    line-height:1.95;font-size:17px;-webkit-text-size-adjust:100%}
+  .wrap{max-width:760px;margin-inline:auto;padding:0 14px}
+  rt{font-size:.52em;color:var(--dim);font-weight:normal}
+  ruby{ruby-position:over}
+
+  /* ---- とびら ---- */
+  header{background:linear-gradient(170deg,#1b2a33 0%,#12181d 100%);
+    border-bottom:3px solid var(--hi);padding:26px 0 20px;margin-bottom:6px}
+  h1{font-size:clamp(26px,7.6vw,40px);margin:0 0 .1em;line-height:1.35;letter-spacing:.01em}
+  h1 small{display:block;font-size:.42em;color:var(--hi);letter-spacing:.14em;margin-bottom:.5em;font-weight:normal}
+  .sub{color:var(--dim);font-size:.94em;margin:.4em 0 0}
+
+  h2{font-size:clamp(20px,5.6vw,26px);margin:2.2em 0 .1em;padding:.5em 0 .3em;
+    border-bottom:3px solid var(--line);scroll-margin-top:10px}
+  h2 .n{color:var(--hi);margin-right:.35em}
+  h3{font-size:clamp(17px,4.6vw,20px);margin:1.9em 0 .2em;color:var(--hi)}
+  p{margin:.75em 0}
+
+  /* ---- タブ ---- */
+  .tabs{display:flex;gap:8px;margin:14px 0 4px;position:sticky;top:0;z-index:9;
+    background:var(--bg);padding:8px 0}
+  .tab{flex:1;padding:12px 6px;border-radius:11px;border:2px solid #546e7a;
+    background:#22303a;color:var(--fg);font-family:inherit;font-size:15px;font-weight:bold;cursor:pointer}
+  .tab.on{background:#00695c;border-color:var(--hi);color:#fff}
+  #kantoku{display:none}
+  body.k #yomi{display:none}
+  body.k #kantoku{display:block}
+
+  /* ---- もくじ ---- */
+  nav.toc{background:var(--card);border:2px solid var(--line);border-radius:14px;padding:12px 14px;margin:14px 0}
+  nav.toc b{color:var(--hi)}
+  nav.toc ol{margin:.4em 0 0;padding-left:1.4em}
+  nav.toc li{margin:.16em 0}
+  nav.toc a{color:var(--fg);text-decoration:none;border-bottom:1px dotted #5c7080}
+
+  /* ---- 部品 ---- */
+  .box{background:var(--card);border:2px solid var(--line);border-radius:14px;padding:13px 15px;margin:16px 0}
+  .kore{background:#0d3b34;border:2px solid #26a69a;border-radius:14px;padding:13px 15px;margin:16px 0}
+  .kore b.t{display:block;color:#80cbc4;font-size:.9em;letter-spacing:.1em;margin-bottom:.2em}
+  .warn{background:#3a2a12;border-left:6px solid #ffa726;border-radius:0 12px 12px 0;padding:11px 14px;margin:14px 0}
+  .bad{background:#3a1b1b;border-left:6px solid #ef5350;border-radius:0 12px 12px 0;padding:11px 14px;margin:14px 0}
+  .yuu{background:#15303f;border:2px dashed #4fc3f7;border-radius:14px;padding:13px 15px;margin:16px 0}
+  .yuu b.t{display:block;color:#4fc3f7;margin-bottom:.2em}
+  .src{color:var(--dim);font-size:.8em;line-height:1.7;margin-top:.4em}
+  .kanbun{font-family:"Yu Mincho","MS Mincho",serif;background:#0e1418;border:1px solid var(--line);
+    border-radius:9px;padding:8px 11px;margin:.5em 0;font-size:.95em;color:#cfd8dc;overflow-x:auto;white-space:nowrap}
+
+  /* 層バッジ */
+  .L{display:inline-block;border-radius:7px;padding:.06em .5em;font-size:.76em;font-weight:bold;
+     color:#0d1216;vertical-align:.12em;white-space:nowrap}
+  .L1{background:var(--L1)} .L2{background:var(--L2)} .L3{background:var(--L3)}
+  .L4{background:var(--L4)} .L5{background:var(--L5)}
+
+  figure{margin:18px 0;background:#0e1418;border:2px solid var(--line);border-radius:14px;overflow:hidden}
+  figure img{display:block;width:100%;height:auto;background:#fff}
+  figcaption{padding:9px 13px 11px;font-size:.86em;color:#c3cfd6;line-height:1.75}
+  figcaption b{color:var(--hi)}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  @media(max-width:430px){.two{grid-template-columns:1fr}}
+
+  .scroller{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:16px 0;
+    border:2px solid var(--line);border-radius:14px;background:#0e1418;padding:10px}
+  .scroller svg{display:block}
+  table{border-collapse:collapse;width:100%;font-size:.92em;margin:14px 0}
+  th,td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}
+  th{background:#22303a;color:var(--hi)}
+  .ok{color:#81c784;font-weight:bold} .ng{color:#ef9a9a;font-weight:bold}
+
+  footer{margin-top:40px;padding-top:16px;border-top:2px solid var(--line);color:var(--dim);font-size:.82em;line-height:1.8}
+  footer a{color:#90caf9}
+  .top{display:inline-block;margin-top:8px;color:var(--hi);text-decoration:none;font-size:.9em}
+</style>
+
+<header><div class="wrap">
+  <h1><small>ゆうじんの ゲームの おまけ</small>三国志 ほんとうさがし</h1>
+  <p class="sub">ゲームや まんがで見る三国志は、どこまで ほんとう？<br>
+  2000年前の本を ひらいて、ぜんぶ たしかめた。</p>
+</div></header>
+
+<div class="wrap">
+<div class="tabs">
+  <button class="tab on" id="tabY">📖 よみもの</button>
+  <button class="tab" id="tabK">🎮 ゲームに どう入れるか</button>
+</div>
+
+<div id="yomi">
+
+<div class="yuu"><b class="t">▶ このページが できたわけ</b>
+ゆうじん（小4）が、家にあった三国志の本から <b>兵器の名前を10個</b> 書きうつして、
+パパに送ってきた。<br>
+<span class="kanbun" style="white-space:normal">霹靂車／投石車／幔／井闌／雲てい／とう車／楼船／走舸／蒙衝／闘艦</span>
+「これをゲームに入れて」という注文だった。<br><br>
+入れる前に、ぜんぶ調べた。<b>そうしたら、とんでもないことが分かった。</b></div>
+
+<nav class="toc">
+  <b>もくじ</b>
+  <ol>
+    <li><a href="#s0">いちばん大事な話 — 4つの だんだん</a></li>
+    <li><a href="#s1">兵器のはなし（石を飛ばす・はしご・丸太）</a></li>
+    <li><a href="#s2">火矢のはなし（爆発しない）</a></li>
+    <li><a href="#s3">連弩のはなし（じつは とても弱い）</a></li>
+    <li><a href="#s4">船のはなし（赤壁で 燃えたのは だれの船？）</a></li>
+    <li><a href="#s5">城のはなし（城は、町だった）</a></li>
+    <li><a href="#s6">馬のはなし（あぶみが 片っぽしかない）</a></li>
+    <li><a href="#s7">調べかた — ぼくらが使った 7つの手</a></li>
+    <li><a href="#s8">まだ わかっていないこと</a></li>
+  </ol>
+</nav>
+
+<h2 id="s0"><span class="n">1</span>いちばん大事な話 — 4つの だんだん</h2>
+
+<p>「三国志の兵器」で けんさくすると、いろんな道具が ずらっと出てくる。
+でも それを書いた本は <b>ぜんぶ 別の時代の 別の人が 書いている。</b>
+ごちゃまぜにすると、かんたんに まちがえる。</p>
+
+<p>だから まず、<b>「だれが いつ 書いたか」で 4つに分ける。</b>
+これさえ分かれば、あとの話は ぜんぶ すっと入ってくる。</p>
+
+<div class="scroller">
+<svg viewBox="0 0 900 250" width="900" role="img" aria-label="三国志にかかわる本の年表">
+  <defs><marker id="ar" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+    <path d="M0,0 L8,4 L0,8 z" fill="#78909c"/></marker></defs>
+  <line x1="40" y1="120" x2="870" y2="120" stroke="#78909c" stroke-width="3" marker-end="url(#ar)"/>
+
+  <!-- 三国時代の帯 -->
+  <rect x="52" y="104" width="100" height="32" rx="8" fill="#1b3d4d" stroke="#4fc3f7" stroke-width="2"/>
+  <text x="102" y="126" fill="#4fc3f7" font-size="14" font-weight="bold" text-anchor="middle">三国時代</text>
+  <text x="102" y="92" fill="#b0bec5" font-size="13" text-anchor="middle">220〜280年</text>
+  <text x="102" y="160" fill="#eceff1" font-size="13" text-anchor="middle">赤壁は208年</text>
+  <text x="102" y="178" fill="#eceff1" font-size="13" text-anchor="middle">官渡は200年</text>
+
+  <g font-size="13" text-anchor="middle">
+    <!-- ① -->
+    <circle cx="215" cy="120" r="10" fill="#4fc3f7"/>
+    <text x="215" y="92" fill="#b0bec5">280年ごろ</text>
+    <text x="215" y="158" fill="#4fc3f7" font-weight="bold">①『三国志』</text>
+    <text x="215" y="176" fill="#eceff1">陳寿が書いた記録</text>
+    <text x="215" y="194" fill="#9fb0bb" font-size="12">＝おきた時から 60年ぐらい</text>
+    <!-- ② -->
+    <circle cx="360" cy="120" r="10" fill="#81c784"/>
+    <text x="360" y="92" fill="#b0bec5">429年</text>
+    <text x="360" y="158" fill="#81c784" font-weight="bold">②「注」</text>
+    <text x="360" y="176" fill="#eceff1">裴松之が 足した</text>
+    <text x="360" y="194" fill="#9fb0bb" font-size="12">＝150年あとの 集めた話</text>
+    <!-- ③ -->
+    <circle cx="520" cy="120" r="10" fill="#ffb74d"/>
+    <text x="520" y="92" fill="#b0bec5">801年・1044年</text>
+    <text x="520" y="158" fill="#ffb74d" font-weight="bold">③兵器の教科書</text>
+    <text x="520" y="176" fill="#eceff1">『通典』『武経総要』</text>
+    <text x="520" y="194" fill="#9fb0bb" font-size="12">＝500〜800年あと</text>
+    <!-- ④ -->
+    <circle cx="680" cy="120" r="10" fill="#f06292"/>
+    <text x="680" y="92" fill="#b0bec5">1500年ごろ</text>
+    <text x="680" y="158" fill="#f06292" font-weight="bold">④『三国志演義』</text>
+    <text x="680" y="176" fill="#eceff1">作られた お話</text>
+    <text x="680" y="194" fill="#9fb0bb" font-size="12">＝1200年あと</text>
+    <!-- ⑤ -->
+    <circle cx="820" cy="120" r="10" fill="#b0bec5"/>
+    <text x="820" y="92" fill="#b0bec5">いま</text>
+    <text x="820" y="158" fill="#b0bec5" font-weight="bold">⑤日本語</text>
+    <text x="820" y="176" fill="#eceff1">「投石車」「火矢隊」</text>
+  </g>
+
+  <!-- 距離の注記 -->
+  <path d="M152,46 L520,46" stroke="#ffb74d" stroke-width="2" stroke-dasharray="5 4"/>
+  <path d="M152,40 L152,52 M520,40 L520,52" stroke="#ffb74d" stroke-width="2"/>
+  <text x="336" y="34" fill="#ffb74d" font-size="14" font-weight="bold" text-anchor="middle">この あいだ 約800年</text>
+  <text x="336" y="228" fill="#78909c" font-size="12" text-anchor="middle">※ 年の間かくは 見やすさのために そろえてある（じっさいの長さの比とは ちがう）</text>
+</svg>
+</div>
+
+<div class="kore"><b class="t">▼ ここだけ おぼえる</b>
+<b>①②③④ どれも うそじゃない。ぜんぶ ほんとうに 書かれている。</b><br>
+でも <b>「いつ・だれが 書いたか」が ちがう</b>。
+①は じっさいに見た人に近い。④は 1200年あとの 作り話。<br>
+<b>ごちゃまぜにして「三国志の兵器」と ならべたものが、いま いちばん多い。</b></div>
+
+<p>このページでは、出てくる話ぜんぶに この色をつける。</p>
+<p style="line-height:2.6">
+<span class="L L1">① 正史の本文</span> ＝いちばん たしか　
+<span class="L L2">② あとから足した注</span> ＝150年あと　
+<span class="L L3">③ ずっとあとの教科書</span> ＝500〜800年あと　
+<span class="L L4">④ 物語（演義）</span> ＝1200年あと　
+<span class="L L5">⑤ いまの日本語</span>
+</p>
+
+<div class="warn">⚠ <b>大事な ことわり。</b>
+「これは①だ」「これは④だ」と 分けるのに使ったのは、インターネットで読める 電子の本文。
+<b>紙の ちゃんとした本（中華書局本）は 1さつも 見ていない。</b>
+じっさい、電子の本文が 1文字まちがっている場所を 2つ 見つけた（→ <a href="#s7" style="color:#ffd54f">7章</a>）。
+だから ここに書いたことも、<b>紙の本で 見なおす ひつようが ある。</b></div>
+
+<h2 id="s1"><span class="n">2</span>兵器のはなし</h2>
+
+<h3>🪨 「霹靂車」と「投石車」は、じつは 同じもの</h3>
+
+<p>ゆうじんが書いてきたリストの 1つめと 2つめ。
+<ruby>霹靂車<rt>へきれきしゃ</rt></ruby>と <ruby>投石車<rt>とうせきしゃ</rt></ruby>。
+べつべつの兵器みたいに 見える。<b>でも 同じ機械だった。</b></p>
+
+<div class="scroller">
+<svg viewBox="0 0 860 200" width="860" role="img" aria-label="3つの名前が1つの機械を指す図">
+  <g font-size="15" text-anchor="middle">
+    <rect x="20" y="24" width="200" height="52" rx="12" fill="#1b3d4d" stroke="#4fc3f7" stroke-width="2"/>
+    <text x="120" y="46" fill="#4fc3f7" font-weight="bold">發石車</text>
+    <text x="120" y="66" fill="#cfd8dc" font-size="13">はっせきしゃ ＝ 正式な名前</text>
+
+    <rect x="20" y="86" width="200" height="52" rx="12" fill="#1b3d4d" stroke="#4fc3f7" stroke-width="2"/>
+    <text x="120" y="108" fill="#4fc3f7" font-weight="bold">霹靂車</text>
+    <text x="120" y="128" fill="#cfd8dc" font-size="13">＝敵の兵が つけた あだ名</text>
+
+    <rect x="20" y="148" width="200" height="44" rx="12" fill="#2a2f33" stroke="#b0bec5" stroke-width="2"/>
+    <text x="120" y="176" fill="#b0bec5" font-weight="bold">投石車 ＝ いまの日本語</text>
+
+    <path d="M228,50 C300,50 300,100 356,100" stroke="#4fc3f7" stroke-width="2.5" fill="none"/>
+    <path d="M228,112 L356,104" stroke="#4fc3f7" stroke-width="2.5" fill="none"/>
+    <path d="M228,170 C300,170 300,116 356,112" stroke="#b0bec5" stroke-width="2.5" fill="none" stroke-dasharray="6 4"/>
+
+    <rect x="360" y="60" width="200" height="92" rx="14" fill="#0e1418" stroke="#ffd54f" stroke-width="3"/>
+    <text x="460" y="92" fill="#ffd54f" font-size="17" font-weight="bold">ぜんぶ これ 1つ</text>
+    <text x="460" y="116" fill="#eceff1" font-size="14">人が 何人かで</text>
+    <text x="460" y="136" fill="#eceff1" font-size="14">縄を 引っぱって 飛ばす</text>
+
+    <path d="M568,106 L610,106" stroke="#ef5350" stroke-width="2.5" fill="none"/>
+    <rect x="614" y="56" width="226" height="100" rx="14" fill="#3a1b1b" stroke="#ef5350" stroke-width="2"/>
+    <text x="727" y="82" fill="#ef9a9a" font-size="15" font-weight="bold">✕ おもりで 飛ばすやつ</text>
+    <text x="727" y="106" fill="#eceff1" font-size="14">（西洋の トレビュシェット）</text>
+    <text x="727" y="130" fill="#ffb74d" font-size="14">三国志より 1000年ぐらい あと</text>
+    <text x="727" y="148" fill="#b0bec5" font-size="13">三国志には まだ 無い</text>
+  </g>
+</svg>
+</div>
+
+<p><span class="L L1">①</span> 正式な名前は <b>發石車</b>。
+200年の <ruby>官渡<rt>かんと</rt></ruby>の戦いで、曹操が これを作って
+<ruby>袁紹<rt>えんしょう</rt></ruby>の やぐらを ぜんぶ こわした。
+そのとき <b>袁紹の兵が「かみなり車だ！」と あだ名をつけた</b>。それが「霹靂車」。</p>
+<div class="kanbun">太祖乃爲發石車，擊紹樓，皆破，紹衆號曰霹靂車（『三国志』巻六）</div>
+<p class="src">↑「太祖（＝曹操）は 發石車を 作り、袁紹の やぐらを 撃って ぜんぶ こわした。
+袁紹の兵たちは これを 霹靂車と 呼んだ」</p>
+
+<p>おもしろいのは、<b>あだ名のほうも ちゃんと 記録に のこっている</b>ということ。
+「霹靂車は 物語だけの名前」と 書いてある日本語のページが あるけど、それは まちがい。</p>
+
+<div class="bad">❌ <b>よく言われるけど ちがう話</b><br>
+「霹靂車を 発明したのは <ruby>劉曄<rt>りゅうよう</rt></ruby>」——これは <span class="L L4">④物語</span>。
+物語『三国志演義』の第30回に そう書いてある。
+でも <b>記録のほうの 劉曄のページには、發石車の話が 一行も 出てこない。</b></div>
+
+<figure>
+  <img src="img/houshaki-e.jpg" alt="武経総要にのっている虎蹲砲の絵" loading="lazy">
+  <figcaption><b>石を飛ばす兵器の絵。</b>名前は「<ruby>虎蹲砲<rt>こそんほう</rt></ruby>」。
+  右上に 漢字で書いてある。ななめの わくに 長い うでがついていて、左に たれているのが 引っぱる縄。<br>
+  <span style="color:#ffb74d">⚠ ただし この絵がのっている本『武経総要』は <b>1044年</b>。
+  三国志より 800年あと <span class="L L3">③</span>。だから「三国志の投石車の絵」ではない。</span></figcaption>
+</figure>
+
+<figure>
+  <img src="img/houshaki-mokei.jpg" alt="博物館にある抛石機の模型" loading="lazy">
+  <figcaption><b>博物館に ある 大きな模型。</b>札に「<ruby>抛石機<rt>ほうせきき</rt></ruby>（模型）」と 書いてある。
+  下に たれている 白い縄が 見える。これを <b>人が 何人かで いっせいに 引っぱると、
+  反対がわの うでが はね上がって 石が 飛ぶ。</b>足もとに 丸い石が ころがっている。<br>
+  唐の教科書にも「<b>人挽其端而投之</b>（人が はしを 引いて 投げる）」と 書いてある。</figcaption>
+</figure>
+
+<h3>🪜 雲梯 — 火に とても弱い</h3>
+
+<p><ruby>雲梯<rt>うんてい</rt></ruby>は、車の上に 長いはしごを 立てて、城の壁に かける道具。
+リストの中で <b>いちばん 歴史が 古い</b>。戦国時代の『墨子』という本に もう出てくる。</p>
+
+<p>228年の <ruby>陳倉<rt>ちんそう</rt></ruby>の戦い <span class="L L2">②</span>。
+<ruby>諸葛亮<rt>しょかつりょう</rt></ruby>が 雲梯と <ruby>衝車<rt>しょうしゃ</rt></ruby>で せめた。
+守っていたのは <ruby>郝昭<rt>かくしょう</rt></ruby>という人で、兵は <b>たった1000人ちょっと</b>。</p>
+
+<div class="kanbun">昭於是以火箭逆射其雲梯，梯然，梯上人皆燒死</div>
+<p class="src">↑「郝昭は 火の矢を 撃ちかえして 雲梯を 射た。はしごは 燃え、
+<b>はしごの上にいた 兵は みんな 焼け死んだ</b>」</p>
+
+<div class="kore"><b class="t">▼ ゲームに使える</b>
+<b>「雲梯は 火に弱い」は、こっちで勝手に 決めた設定じゃない。記録に そう書いてある。</b>
+弱点に ちゃんと 出どころがある道具は、じつは めずらしい。</div>
+
+<figure>
+  <img src="img/untei-e.jpg" alt="武経総要の雲梯の絵" loading="lazy">
+  <figcaption><b>雲梯。</b>車輪が 6つ。上に はしごが ななめに 立っていて、
+  てっぺんに <b>かぎ</b>がついている（城の壁に ひっかける）。
+  はしごの手前にあるのは、矢を ふせぐ 大きな たて。<br>
+  <span style="color:#ffb74d">⚠ これも 1044年の本の絵 <span class="L L3">③</span>。
+  三国志のころの雲梯が この形だったとは 言えない。でも <b>木でできているのは 同じ。だから 燃える。</b></span></figcaption>
+</figure>
+
+<h3>🪵 「とう車」の正体 — <span style="color:#4fc3f7">これは ゆうじんが 決めた</span></h3>
+
+<p>リストの中で、<b>1つだけ どうしても 分からないものが あった。</b>「とう車」。</p>
+
+<p>「とうしゃ」と読める漢字が <b>3つ</b>あって、<b>どれかによって 話が 正反対になる。</b></p>
+
+<table>
+<tr><th>漢字</th><th>どんな道具</th><th>いつの本に出てくる</th></tr>
+<tr><td><b>衝車</b><br>しょうしゃ</td><td>丸太で 門を ドンドン突いて 破る<br>（せめる がわ）</td><td class="ok">✅ 三国志の記録にある <span class="L L2">②</span></td></tr>
+<tr><td><b>撞車</b><br>とうしゃ</td><td>上から 振りおろして、かけられた はしごを たたき折る<br>（まもる がわ）</td><td class="ng">❌ ずっと あとの本だけ <span class="L L3">③</span></td></tr>
+<tr><td><b>頭車</b><br>とうしゃ</td><td>屋根つきの 箱。トンネルを 掘る兵を まもる</td><td class="ng">❌ ずっと あとの本だけ <span class="L L3">③</span></td></tr>
+</table>
+
+<p><b>読み方だけで決めると、下の2つになる。</b>「とうしゃ」と読むんだから。
+そして それだと <b>三国志には 無い道具</b>ということになって、答えが ひっくり返る。</p>
+
+<div class="yuu"><b class="t">▶ 決め手になった ひとこと</b>
+パパが ゆうじんに、絵を3つ ならべて 聞いた。<br>
+「本に のっているのは どれ？ ①丸太で門を突く ②上から振りおろす ③屋根つきの箱」<br><br>
+ゆうじんの答え：<b style="font-size:1.15em">「丸太で門を叩いてい」</b><br><br>
+<b>①。＝ 衝車で 決まり。</b>三国志の記録に ちゃんと 出てくる ほうだった。<br>
+<b>読み方で決めずに、本の絵を 見てもらったのが 正解だった。</b>
+これは 大人の調べ方でも やる手で、ゆうじんは それを 自分で やった。</div>
+
+<p>その衝車、じつは <b>こわされた記録</b>も ある。さっきの 陳倉の戦い。
+郝昭は 雲梯を 焼いたあと、こんどは 衝車を つぶした。</p>
+<div class="kanbun">昭又以繩連石磨壓其衝車，衝車折</div>
+<p class="src">↑「郝昭は こんどは <b>縄で 石うす（石のひきうす）を つないで つるし、
+衝車の上に 落として つぶした</b>。衝車は 折れた」</p>
+<p>投石機じゃない。<b>その辺にあった 重たいものを 縄で つるして 落としただけ。</b>
+こういう「ありもので なんとかする」ところが、記録の おもしろさ。</p>
+
+<h3>🗼 井闌 — こわす道具じゃなく、のぞく道具</h3>
+<p><ruby>井闌<rt>せいらん</rt></ruby>は <b>城の壁より 高い 動く やぐら</b>。
+壁を こわすためじゃなくて、<b>上に 弓の兵を のせて、城の中を 見下ろして 射る</b>ための道具。
+陳倉では 諸葛亮が <b>100尺（30mぐらい）</b>の井闌を 作った <span class="L L2">②</span>。<br>
+郝昭の 手は こうだった——<b>城の 内がわに、もう1まい 壁を 建てた。</b>見下ろされても 意味がなくなる。</p>
+
+<h3>🛡 幔 — ⚠ これだけ、三国志に 出てこない</h3>
+<p>リストの「<ruby>幔<rt>まん</rt></ruby>」（木幔）。四輪車に はねつるべを 立てて、
+牛の皮を はった 大きな たてを つるし上げ下げして、矢を ふせぎながら 壁に 取りつく道具。</p>
+<div class="bad">❌ <b>『三国志』を さがしても、攻城の道具としての「幔」は 出てこない。</b>
+出てくる「幔」は ぜんぶ <b>陣のまく</b>や <b>船にかけた赤い布</b>や <b>宴会のカーテン</b>。<br>
+道具の木幔が たしかに出てくる いちばん古い記録は <b>410年ごろ</b>。
+＝三国志が おわって <b>130年ぐらい あと</b>。</div>
+<p>だから ゆうじんのリストの中で、<b>幔だけが「三国志の兵器」とは 言えない</b>。
+本に のっていたということは、その本が <b>「三国志っぽい昔の中国の兵器」を まとめて のせた</b>ということ。
+——これも、悪いことじゃない。<b>ただ、そうだと 知っておくだけ。</b></p>
+
+<h2 id="s2"><span class="n">3</span>火矢のはなし — 一発では 燃えない</h2>
+
+<p>ゆうじんが あとから 足した注文に「<b>火矢隊も</b>」があった。これも 調べた。</p>
+
+<div class="kore"><b class="t">▼ ここだけ おぼえる</b>
+ほんとうの名前は <b><ruby>火箭<rt>かせん</rt></ruby></b>。これは <span class="L L1">①正史の本文</span>にある。<br>
+<b>「火矢」は 日本語</b>。中国の むかしの本を ぜんぶ さがしても、三国志のところに 0件。<br>
+<b>「火矢隊」という 部隊は、どこにも 無い <span class="L L5">⑤</span>。</b>これは ゲームのことば。<br>
+（＝ゲームで「火矢隊」と 呼ぶのは べつに いい。<b>それが 今のことばだと 知っていれば いい。</b>）</div>
+
+<h3>🔥 火箭は「2段がまえ」だった</h3>
+<p>これが いちばん おどろいた。<b>火のついた矢を 射ても、一発では 燃えない。</b>
+唐の教科書には、こう 書いてある。</p>
+<div class="kanbun">以小瓢盛油，冠矢端…瓢敗油散，射油散處，火立然</div>
+
+<div class="scroller">
+<svg viewBox="0 0 860 230" width="860" role="img" aria-label="火箭の2段がまえの図">
+  <g font-size="14">
+    <!-- panel 1 -->
+    <rect x="14" y="18" width="256" height="150" rx="14" fill="#0e1418" stroke="#455a64" stroke-width="2"/>
+    <text x="30" y="44" fill="#ffd54f" font-size="16" font-weight="bold">① 油の矢を 射る</text>
+    <line x1="34" y1="100" x2="180" y2="100" stroke="#cfd8dc" stroke-width="3"/>
+    <path d="M34,100 l14,-7 v14 z" fill="#cfd8dc"/>
+    <ellipse cx="196" cy="100" rx="17" ry="21" fill="#8d6e63" stroke="#ffcc80" stroke-width="2"/>
+    <circle cx="196" cy="82" r="6" fill="#8d6e63" stroke="#ffcc80" stroke-width="2"/>
+    <text x="142" y="140" fill="#eceff1" font-size="13" text-anchor="middle">矢の先に つけた</text>
+    <text x="142" y="158" fill="#eceff1" font-size="13" text-anchor="middle">小さい ひょうたん（中は 油）</text>
+    <!-- panel 2 -->
+    <rect x="286" y="18" width="256" height="150" rx="14" fill="#0e1418" stroke="#455a64" stroke-width="2"/>
+    <text x="302" y="44" fill="#ffd54f" font-size="16" font-weight="bold">② 割れて 油が 散る</text>
+    <rect x="470" y="62" width="54" height="92" fill="#5d4037" stroke="#8d6e63" stroke-width="2"/>
+    <text x="497" y="118" fill="#d7ccc8" font-size="12" text-anchor="middle" writing-mode="tb">城の板</text>
+    <g fill="none" stroke="#ffb74d" stroke-width="3" stroke-linecap="round">
+      <path d="M462,74 l-30,-16"/><path d="M462,92 l-38,-4"/><path d="M462,110 l-36,10"/>
+      <path d="M462,128 l-30,20"/><path d="M462,140 l-16,22"/>
+    </g>
+    <circle cx="424" cy="56" r="4" fill="#ffb74d"/><circle cx="414" cy="88" r="4" fill="#ffb74d"/>
+    <circle cx="418" cy="124" r="4" fill="#ffb74d"/><circle cx="424" cy="152" r="4" fill="#ffb74d"/>
+    <text x="362" y="158" fill="#eceff1" font-size="13" text-anchor="middle">まだ 燃えていない</text>
+    <!-- panel 3 -->
+    <rect x="558" y="18" width="288" height="150" rx="14" fill="#0e1418" stroke="#ef5350" stroke-width="2"/>
+    <text x="574" y="44" fill="#ff8a65" font-size="16" font-weight="bold">③ そこへ もう1本、火の矢</text>
+    <line x1="578" y1="100" x2="690" y2="100" stroke="#cfd8dc" stroke-width="3"/>
+    <path d="M690,100 l-14,-7 v14 z" fill="#cfd8dc"/>
+    <g fill="#ff7043"><path d="M574,100 c-10,-14 4,-18 0,-30 c16,10 20,22 10,30 z"/></g>
+    <rect x="762" y="62" width="54" height="92" fill="#5d4037" stroke="#8d6e63" stroke-width="2"/>
+    <g fill="#ff7043" opacity=".95">
+      <path d="M756,150 c-14,-26 8,-34 2,-58 c26,20 32,42 16,58 z"/>
+      <path d="M736,150 c-10,-18 6,-24 2,-40 c18,14 22,30 12,40 z"/>
+    </g>
+    <text x="700" y="158" fill="#ff8a65" font-size="13" text-anchor="middle">ここで はじめて 燃える</text>
+  </g>
+  <text x="430" y="200" fill="#ffd54f" font-size="15" font-weight="bold" text-anchor="middle">つまり ——「油を ぶちまける」→「火をつける」の 2回いる</text>
+  <text x="430" y="220" fill="#78909c" font-size="12" text-anchor="middle">出どころ：唐『通典』巻160・『太白陰経』巻四 <tspan fill="#ffb74d">③</tspan></text>
+</svg>
+</div>
+
+<div class="warn">⚠ <b>よく見る「油をしみこませた布を 矢に 巻く」は、この2つの本には 書いていない。</b>
+どこから来た話なのか、<b>見つけられなかった</b>。だから ここでは「分からない」と しておく。</div>
+
+<h3>💥 火箭は 爆発しない</h3>
+<p>ゲームだと 火矢が当たると ドカンと 爆発することが ある。<b>三国志の時代には、それは 無い。</b></p>
+<ul>
+<li>三国志の火箭 ＝ <b>油</b>（228年・258年）<span class="L L1">①</span><span class="L L2">②</span></li>
+<li>火薬を 入れた火箭 ＝ <b>1044年の本から</b> <span class="L L3">③</span></li>
+<li><b>その差、およそ 800年。</b></li>
+</ul>
+<p>同じ「火箭」という漢字が、あとの時代に <b>ロケット</b>のことも 指すようになったから
+（いまの中国語で「火箭」＝ロケット）、ごっちゃに なりやすい。</p>
+
+<h3>🚢 赤壁で、火矢は 飛んでいない</h3>
+<p>いちばん有名な <ruby>赤壁<rt>せきへき</rt></ruby>の戦い（208年）。
+火矢を 雨のように 射かけて 曹操の船を 焼いた——という絵を よく見る。
+<b>記録を 読むと、そう 書いていない。</b></p>
+<div class="kanbun">乃取蒙沖鬥艦數十艘，實以薪草，膏油灌其中…蓋放諸船，同時發火</div>
+<p class="src">↑「<ruby>蒙衝<rt>もうしょう</rt></ruby>・<ruby>闘艦<rt>とうかん</rt></ruby>を 数十せき 取り、
+<b>たきぎと草を いっぱいに つめて、その中に 油を そそいだ</b>…
+<ruby>黄蓋<rt>こうがい</rt></ruby>が 船を 放ち、いっせいに 火を つけた」</p>
+
+<div class="kore"><b class="t">▼ ここが ひっくり返る</b>
+① <b>燃やしたのは、呉が 自分の船。</b>「曹操の艦隊を 焼いた」じゃなくて、
+「黄蓋が <b>自分たちの船</b>を 火の船に 仕立てて ぶつけた」。<br>
+② <b>火を つけたのは 乗っている人。</b>矢で 火を 送った文は 一行も 無い。<br>
+③ この巻ぜんたいを さがしても「火箭」も「火矢」も <b>0件</b>。
+物語『三国志演義』の 赤壁の回にも 火箭は 出てこない。</div>
+
+<figure>
+  <img src="img/hibune-e.jpg" alt="武経総要の火船の絵" loading="lazy">
+  <figcaption><b>火をつけて ぶつける船（火船）。</b>右上に「火船」と 書いてある。
+  上は いかだ、下は 船。どちらも <b>たきぎを 山づみにして</b>、てっぺんから 炎が 出ている。
+  下の船の 前のほうに、<b>とがった かぎ</b>が ついている（敵の船に 引っかけるため）。<br>
+  <span style="color:#ffb74d">⚠ 1044年の本の絵 <span class="L L3">③</span>。
+  でも 黄蓋が やったことは、これに とても近い。</span></figcaption>
+</figure>
+
+<div class="bad">❌ <b>「鉄の鎖で 船を つないだ」「<ruby>龐統<rt>ほうとう</rt></ruby>の 連環の計」は <span class="L L4">④物語</span>。</b>
+記録のほうは「<b>方連船艦，首尾相接</b>」＝「船を 四角く つらねて、前と後ろを つないだ」としか 書いていない。
+鎖とは 書いていない。</div>
+
+<h2 id="s3"><span class="n">4</span>連弩のはなし — じつは とても 弱い</h2>
+
+<p>ゆうじんの注文「<b>連弩 と軍馬</b>」。
+<ruby>連弩<rt>れんど</rt></ruby>は、矢が つぎつぎ 出る <ruby>弩<rt>いしゆみ</rt></ruby>。
+<b>諸葛亮が 発明した すごい秘密兵器</b>、というイメージが ある。<br>
+調べたら、<b>3つとも ちがった。</b></p>
+
+<h3>① 発明していない。「直した」だけ</h3>
+<p>記録の本文（いちばん たしかな <span class="L L1">①</span>）に 書いてあるのは、たった これだけ。</p>
+<div class="kanbun">亮性長於巧思，損益連弩，木牛流馬，皆出其意</div>
+<p class="src">↑「諸葛亮は くふうが とくいな 人で、<b>連弩を 損益し</b>、木牛流馬も 考え出した」</p>
+<p><b>「損益」＝ へらしたり 足したり ＝ 直した、という意味。</b>
+「作った」とは 書いていない。</p>
+<p>そして、<b>連弩そのものは 諸葛亮より 400年以上 前から あった。</b></p>
+<table>
+<tr><th>いつ</th><th>何が あったか</th></tr>
+<tr><td><b>前210年</b></td><td>『史記』に、<b>秦の始皇帝が 自分で 連弩を かまえて 大きな魚を 撃った</b>と ある</td></tr>
+<tr><td><b>前99年</b></td><td>『漢書』に、<ruby>李陵<rt>りりょう</rt></ruby>が 連弩で 敵の王を 撃った と ある</td></tr>
+<tr><td>前漢</td><td>宮中の <b>本のリスト</b>に「<b>望遠連弩射法 15巻</b>」＝<b>連弩の 撃ち方の 専門書が 15巻も あった</b></td></tr>
+<tr><td>戦国時代</td><td>お墓から <b>本物が 出てきている</b>（矢の箱に 18本 入る 小さい連弩）</td></tr>
+</table>
+<p><b>17世紀（江戸時代ごろ）の中国の学者も、もう 同じことを 書いている。</b>
+「諸葛亮から 始まったのではない。<b>秦の始皇帝が 自分で 連弩で 魚を 撃っている</b>」（『通雅』）。
+——<b>350年前に すでに 気づかれていた話</b>を、いまも くりかえしている。</p>
+
+<h3>② ほんとうは とても 弱い</h3>
+<p>これが いちばん おどろいた。
+<b>じっさいの連弩を 見て さわった むかしの中国の人</b>が、感想を 書きのこしている。</p>
+<table>
+<tr><th>本</th><th>書いてあること</th></tr>
+<tr><td>『天工開物』（明）</td><td>「みぞを 刻んで 矢を10本 入れる…<b>しかけは よくできているが、力が とても 弱い。20歩あまりしか とどかない。
+これは 家の どろぼうよけの 道具で、軍隊の 武器ではない</b>」</td></tr>
+<tr><td>『通雅』（明のおわり）</td><td>「<b>ただ 力が 小さく、近くしか とどかない</b>」</td></tr>
+<tr><td>『思辨録』（清）</td><td>「<b>10歩の中でも うすい絹すら やぶれない。これは 子どもの おもちゃだ</b>」</td></tr>
+</table>
+
+<div class="kore"><b class="t">▼ ゲームに使える</b>
+<b>「たくさん 速く 撃てる。でも 近くしか とどかず、力が 弱い」</b>——
+これは こっちで バランスを 考えて 決めた数字じゃない。<b>本に そう 書いてある。</b><br>
+ゲームの つよさ調整に、そのまま 使える 記録は めったに ない。これは その めずらしい 1つ。</div>
+
+<div class="two">
+  <figure style="margin:0">
+    <img src="img/rendo-e.jpg" alt="連発式の弩の断面図" loading="lazy">
+    <figcaption><b>矢が つぎつぎ 出る 弩の しくみ図。</b>上の 四角い 箱に 矢を 立てて 入れておく。
+    右の 長い とってを 前後に あおると、矢が 1本ずつ 落ちて 飛ぶ。<br>
+    <span style="color:#ffb74d">⚠ これは <b>1903年</b>に イギリスの人が 描いた図。
+    三国志の連弩が この形だったかは <b>分からない</b>。</span></figcaption>
+  </figure>
+  <figure style="margin:0">
+    <img src="img/do-kanagu.jpg" alt="漢代の青銅の弩機" loading="lazy">
+    <figcaption><b>弩の 引き金の 金具（本物）。</b>漢の時代＝三国志の すぐ前。青銅でできている。
+    立っている板は <b>ねらいを つける ものさし</b>。
+    木の部分は くさって なくなり、<b>金属だけが 2000年 のこった。</b></figcaption>
+  </figure>
+</div>
+
+<h3>③ 蜀の 秘密兵器でもない</h3>
+<p>いちばん たしかな 本文 <span class="L L1">①</span>の中で、
+<b>連弩が じっさいに 撃たれている 場面は たった1つ。</b>
+それが——<b>魏の軍</b>が、<b>238年</b>に <ruby>襄平<rt>じょうへい</rt></ruby>という城を せめたとき。
+<b>諸葛亮が 死んで 4年あと。</b></p>
+<div class="bad">❌ <b>「連弩を100丁ならべて 一度に10本ずつ 毒矢を 撃った」は <span class="L L4">④物語</span>。</b>
+『三国志演義』の第108回。しかも 使っているのは 諸葛亮じゃなくて <ruby>姜維<rt>きょうい</rt></ruby>。<br>
+おまけに <b>物語のほうが</b>、諸葛亮の さいごの場面で こう 言わせている——
+「わたしには 連弩の やり方が ある。<b>ついに 使えなかった</b>」。</div>
+<div class="warn">⚠ <ruby>馬鈞<rt>ばきん</rt></ruby>という 技術者が「連弩を <b>5倍</b>に できる」と 言った話がある。
+これも 調べたら、<b>「言った」だけ</b>だった。原文は「<b>言</b>作之可令加五倍」＝<b>言った</b>。
+別の本にも「<b>まだ 作っていない</b>」「<b>ためすことも しなかった</b>」と ある。
+<b>＝作られなかった 案。</b>（ゲームに 出すなら「まぼろしの 5倍連弩」として 出すと 記録どおり）</div>
+
+<h2 id="s4"><span class="n">5</span>船のはなし</h2>
+
+<p>ゆうじんのリストの 後半4つ。
+<ruby>楼船<rt>ろうせん</rt></ruby>・<ruby>走舸<rt>そうか</rt></ruby>・<ruby>蒙衝<rt>もうしょう</rt></ruby>・<ruby>闘艦<rt>とうかん</rt></ruby>。<br>
+<b>4つとも、記録の本文に ちゃんと 出てくる言葉 <span class="L L1">①</span>。</b>そこは 合っている。<br>
+でも——<b>「この4種類に 分ける」という 分けかた自体が、あとの時代のもの <span class="L L3">③</span>。</b></p>
+
+<figure>
+  <img src="img/gunsen-e.jpg" alt="武経総要の楼船の絵と説明文" loading="lazy">
+  <figcaption><b>楼船の絵。</b>右上に「<b>樓舡</b>」（＝楼船）。左の たての文を 見てほしい。
+  <b>「樓船者、舡上建樓三重…」</b>＝「楼船とは、船の上に <b>楼を 3重に 建て</b>…」と 書いてある。<br>
+  <span style="color:#ffd54f">これが <b>「楼船＝3階建て」の 出どころ</b>。</span>
+  <span style="color:#ffb74d">⚠ ただし この本は 1044年（この刷りは 1510年）<span class="L L3">③</span>。
+  三国志の <ruby>董襲<rt>とうしゅう</rt></ruby>が 乗っていた 楼船が 3階建てだった、という証拠は <b>無い</b>。</span><br>
+  甲板の 右のほうに、石を 飛ばす 長い うでが のっている（船の上の 投石機）。</figcaption>
+</figure>
+
+<h3>⚓ 蒙衝は「体当たり用の 速い船」ではなかった</h3>
+<p>いちばん イメージが ひっくり返ったのが これ。<br>
+ふつう「蒙衝＝ 皮で おおった 速い船で、<b>先の角で 敵船を 突きやぶる</b>」と 説明される。<br>
+<b>三国志の本文に 出てくる 蒙衝は、まるで ちがった。</b></p>
+
+<div class="kanbun">橫兩蒙衝挾守沔口，以栟閭大紲繫石爲矴，上有千人，以弩交射</div>
+<p class="src">↑「<ruby>黄祖<rt>こうそ</rt></ruby>は <b>蒙衝を 2せき、横向きに ならべて</b> 川の入口を ふさぎ、
+<b>しゅろの 太い縄で 石に つないで いかりにした</b>。上には 1000人がいて、弩を 雨のように 撃った」</p>
+
+<div class="scroller">
+<svg viewBox="0 0 720 210" width="720" role="img" aria-label="蒙衝が川をふさいでいる図">
+  <rect x="0" y="0" width="720" height="210" fill="#0e1418"/>
+  <rect x="0" y="30" width="720" height="150" fill="#123243"/>
+  <rect x="0" y="0" width="720" height="30" fill="#25342b"/>
+  <rect x="0" y="180" width="720" height="30" fill="#25342b"/>
+  <text x="360" y="20" fill="#81c784" font-size="13" text-anchor="middle">きし</text>
+  <text x="360" y="200" fill="#81c784" font-size="13" text-anchor="middle">きし</text>
+  <rect x="300" y="52" width="46" height="46" rx="8" fill="#5d4037" stroke="#ffcc80" stroke-width="2"/>
+  <rect x="300" y="112" width="46" height="46" rx="8" fill="#5d4037" stroke="#ffcc80" stroke-width="2"/>
+  <text x="323" y="80" fill="#ffe082" font-size="14" font-weight="bold" text-anchor="middle">蒙衝</text>
+  <text x="323" y="140" fill="#ffe082" font-size="14" font-weight="bold" text-anchor="middle">蒙衝</text>
+  <path d="M300,75 L262,66" stroke="#bcaaa4" stroke-width="2.5"/><circle cx="256" cy="64" r="7" fill="#90a4ae"/>
+  <path d="M346,75 L384,66" stroke="#bcaaa4" stroke-width="2.5"/><circle cx="390" cy="64" r="7" fill="#90a4ae"/>
+  <path d="M300,135 L262,146" stroke="#bcaaa4" stroke-width="2.5"/><circle cx="256" cy="148" r="7" fill="#90a4ae"/>
+  <path d="M346,135 L384,146" stroke="#bcaaa4" stroke-width="2.5"/><circle cx="390" cy="148" r="7" fill="#90a4ae"/>
+  <text x="256" y="44" fill="#cfd8dc" font-size="12" text-anchor="middle">石のいかり</text>
+  <g stroke="#ff8a65" stroke-width="2">
+    <path d="M296,70 l-36,8"/><path d="M296,92 l-40,2"/><path d="M296,120 l-38,-6"/><path d="M296,142 l-34,12"/>
+  </g>
+  <text x="150" y="104" fill="#ff8a65" font-size="14" text-anchor="middle" font-weight="bold">1000人が 弩を 撃つ</text>
+  <path d="M600,95 l-42,0 l0,20 l42,0 l16,-10 z" fill="#37474f" stroke="#4fc3f7" stroke-width="2"/>
+  <text x="588" y="80" fill="#4fc3f7" font-size="13" text-anchor="middle">大舸船</text>
+  <path d="M556,105 L404,105" stroke="#4fc3f7" stroke-width="2.5" stroke-dasharray="7 5"/>
+  <path d="M400,105 l14,-7 v14 z" fill="#4fc3f7"/>
+  <text x="624" y="140" fill="#cfd8dc" font-size="12" text-anchor="middle">董襲と 凌統が</text>
+  <text x="624" y="158" fill="#cfd8dc" font-size="12" text-anchor="middle">よろいを 2まい 着て 突入</text>
+  <text x="360" y="182" fill="#ffd54f" font-size="13" text-anchor="middle" font-weight="bold">縄を 刀で 切ると、蒙衝が 流されて 道が あく</text>
+</svg>
+</div>
+
+<p><b>蒙衝は 動いていない。ぴたっと 止まって 川を ふさぐ「浮かぶ 関所」だった。</b>
+突っこんだのは、攻めてきた ほうの <b>大舸船</b>。<br>
+「速い装甲艇」のイメージは、<b>後漢の辞書（突っこむ船）</b>と <b>唐の教科書（皮を はった 速い船）</b>を
+<b>くっつけて 作った</b>もの。どちらか 一方だけでは そうならない。</p>
+
+<figure>
+  <img src="img/moushou-e.jpg" alt="武経総要の蒙衝の絵" loading="lazy">
+  <figcaption><b>蒙衝の絵</b>（右上に「蒙衝」）。丸い屋根で 上が おおわれていて、
+  中に 人が ならんでいる。船ばらに <b>ぽつぽつと 点</b>が 見えるのは、
+  皮を はって びょうで 留めた しるし。下に つき出ているのが かい。
+  <span style="color:#ffb74d">⚠ これも 1044年の本 <span class="L L3">③</span>。</span></figcaption>
+</figure>
+
+<h3>🛶 走舸は「偵察の 快速艇」ではなく、逃げるための船</h3>
+<p>本文で 走舸が 使われている場面は 2つ。<b>2つとも「逃げる・助ける」。</b></p>
+<ul>
+<li><b>赤壁</b>——火の船の <b>うしろに つないでおいて</b>、火をつけたあと 乗りうつって 逃げる</li>
+<li><b>濡須</b>——夜の 突風で 楼船が ひっくり返り、部下たちは 走舸に 逃げた</li>
+</ul>
+<p>その <ruby>濡須<rt>じゅしゅ</rt></ruby>の夜、部下が
+「董襲さま、走舸に お乗りください」と さけんだ。
+董襲は <b>「持ち場を まもれと 命じられている。つぎに 言う者は 斬る」</b>と 言って、船と ともに 死んだ。
+——物語じゃなくて、<b>記録のほうに 書いてある話</b>。</p>
+
+<h2 id="s5"><span class="n">6</span>城のはなし — 中国の「城」は、町だった</h2>
+
+<div class="yuu"><b class="t">▶ ゆうじんが 本を見て 言った 2つ</b>
+<b>「城に入ったら 民家もあるし 兵士も多い」</b><br>
+<b>「城の形は、城によって違う」</b><br><br>
+この2つを、2000年前の本で たしかめた。<br>
+<b style="font-size:1.15em">結果：2つとも あたり。しかも 一次資料で そのまま 裏が取れた。</b><br>
+<span style="color:#9fb0bb;font-size:.92em">（じつは この2つは、日本語の解説や ゲームの絵が
+いちばん よく まちがえるところ。それを 本の絵から 見ぬいた。）</span></div>
+
+<h3>🏙 「城」という字の 意味が、もう それを 言っている</h3>
+<p>いちばん 古い 漢字の辞書『説文解字』に、こう 書いてある。</p>
+<div class="kanbun">城，以盛民也</div>
+<p class="src">↑「城とは、<b>民（たみ）を 入れておく もの</b>である」</p>
+<p>日本の城（戦うための 建物）とは 別物。
+<b>中国の城は、町ぜんたいを ぐるっと 壁で かこんだもの。</b>
+だから 中に 家がある。市場もある。役所もある。</p>
+
+<div class="scroller">
+<svg viewBox="0 0 760 300" width="760" role="img" aria-label="中国の城の中身の図">
+  <rect x="0" y="0" width="760" height="300" fill="#0e1418"/>
+  <rect x="40" y="30" width="680" height="240" fill="#1c2a20" stroke="#a1887f" stroke-width="14"/>
+  <text x="380" y="20" fill="#a1887f" font-size="14" text-anchor="middle" font-weight="bold">土の かべ（かこい）</text>
+  <!-- gates -->
+  <rect x="352" y="24" width="56" height="16" fill="#5d4037" stroke="#ffcc80" stroke-width="2"/>
+  <rect x="352" y="262" width="56" height="16" fill="#5d4037" stroke="#ffcc80" stroke-width="2"/>
+  <rect x="32" y="130" width="16" height="48" fill="#5d4037" stroke="#ffcc80" stroke-width="2"/>
+  <rect x="712" y="130" width="16" height="48" fill="#5d4037" stroke="#ffcc80" stroke-width="2"/>
+  <text x="380" y="54" fill="#ffcc80" font-size="13" text-anchor="middle">門（上に やぐらが ある）</text>
+  <!-- houses -->
+  <g fill="#455a64" stroke="#90a4ae" stroke-width="1.5">
+    <path d="M80,180 l26,-20 l26,20 v34 h-52 z"/><path d="M150,180 l26,-20 l26,20 v34 h-52 z"/>
+    <path d="M220,180 l26,-20 l26,20 v34 h-52 z"/><path d="M80,240 l26,-18 l26,18 v24 h-52 z"/>
+    <path d="M150,240 l26,-18 l26,18 v24 h-52 z"/><path d="M220,240 l26,-18 l26,18 v24 h-52 z"/>
+  </g>
+  <text x="176" y="150" fill="#cfd8dc" font-size="15" text-anchor="middle" font-weight="bold">民家が ならぶ</text>
+  <text x="176" y="132" fill="#9fb0bb" font-size="12" text-anchor="middle">漢の都 長安には 160の 区画が あった</text>
+  <!-- market -->
+  <rect x="330" y="150" width="130" height="64" rx="8" fill="#3e2723" stroke="#ffab91" stroke-width="2"/>
+  <text x="395" y="178" fill="#ffab91" font-size="15" text-anchor="middle" font-weight="bold">市場</text>
+  <text x="395" y="200" fill="#d7ccc8" font-size="12" text-anchor="middle">長安には 9つ あった</text>
+  <!-- office -->
+  <rect x="330" y="70" width="130" height="56" rx="8" fill="#1b3d4d" stroke="#4fc3f7" stroke-width="2"/>
+  <text x="395" y="104" fill="#4fc3f7" font-size="15" text-anchor="middle" font-weight="bold">役所</text>
+  <!-- soldiers -->
+  <g fill="#81c784">
+    <circle cx="540" cy="110" r="7"/><circle cx="566" cy="110" r="7"/><circle cx="592" cy="110" r="7"/>
+    <circle cx="540" cy="136" r="7"/><circle cx="566" cy="136" r="7"/><circle cx="592" cy="136" r="7"/>
+  </g>
+  <text x="566" y="88" fill="#81c784" font-size="15" text-anchor="middle" font-weight="bold">兵</text>
+  <!-- civilians -->
+  <g fill="#ffd54f">
+    <circle cx="540" cy="190" r="6"/><circle cx="562" cy="190" r="6"/><circle cx="584" cy="190" r="6"/>
+    <circle cx="606" cy="190" r="6"/><circle cx="551" cy="212" r="6"/><circle cx="573" cy="212" r="6"/>
+    <circle cx="595" cy="212" r="6"/>
+  </g>
+  <text x="573" y="240" fill="#ffd54f" font-size="14" text-anchor="middle" font-weight="bold">ふつうの人・女・お年より</text>
+  <text x="573" y="258" fill="#9fb0bb" font-size="12" text-anchor="middle">たてこもる時も 中に いる</text>
+</svg>
+</div>
+
+<p>だから <b>「城を落とす」は「とりでを つぶす」じゃなくて「町を まるごと 取る」</b>ということ。
+記録に こんな 場面が 出てくる。</p>
+<ul>
+<li><b>冀城</b>（213年）——8か月 たてこもったあと、役人が
+<b>「町の人が 傷ついて かわいそうだ」</b>と 言って、自分から 門を 開けて 敵を 入れた <span class="L L1">①</span></li>
+<li><b>襄平</b>（238年）——食べ物が つきて「人相食」（人が 人を 食べた）と 書かれている <span class="L L1">①</span></li>
+</ul>
+
+<figure>
+  <img src="img/tourou.jpg" alt="後漢の陶楼（焼き物の建物模型）" loading="lazy">
+  <figcaption><b>後漢の人が お墓に 入れた 焼き物の 建物の模型。</b>
+  何階も ある やぐら（<ruby>楼<rt>ろう</rt></ruby>）。よく見ると <b>てすりのところに 小さい人が いる</b>
+  （弓をかまえている人も いる）。左には 2階建ての 家。手前の 丸い ふちは 水の ほり。<br>
+  <b>三国志の 城の中の 建物は、こういう 感じだった。</b></figcaption>
+</figure>
+
+<h3>📐 「城の形は 城によって ちがう」も、そのとおりだった</h3>
+<p>「中国の城は 四角が 基本」と よく 言われる。
+たしかに『周礼』という 古い本には「<b>方九里</b>、まわりに 3つずつ 門」と 書いてある。
+<b>でも それは「お手本の 設計図」。</b></p>
+<p>同じくらい 古い『管子』という本に、正面から こう 書いてある。</p>
+<div class="kanbun">城郭不必中規矩，道路不必中準繩</div>
+<p class="src">↑「<b>城の かたちは 定規に 合わせなくて いい。道も まっすぐで なくて いい</b>」
+＝<b>土地に 合わせて 作れ</b>、ということ。</p>
+
+<table>
+<tr><th>城</th><th>どんな形／なぜ</th></tr>
+<tr><td><b>漢の都 長安</b></td><td>四角じゃない。「<b>南は 南斗の形、北は 北斗の形</b>」＝ひしゃくの形。
+だから「<ruby>斗城<rt>とじょう</rt></ruby>」と 呼ばれた。<b>帝国の 首都が 四角くない。</b></td></tr>
+<tr><td><b>合肥新城</b>（233年）<span class="L L1">①</span></td><td>元の城は 川や湖に 近くて、<b>船で 攻められるのが いや</b>だった。
+そこで <b>30里（約12km）内陸の けわしい 場所に、城ごと 建て直した。</b><br>
+＝<b>城の 場所と 形は、敵で 決まる。</b></td></tr>
+<tr><td><b>石頭城</b>（212年）<span class="L L1">①</span></td><td>孫権が <b>岩山 そのものを 城にした</b>。</td></tr>
+</table>
+
+<h3>🧱 三国志の城は「土」でできている</h3>
+<p>石垣でも レンガでもない。<b>土を どんどん つき固めて 積み上げた 壁</b>（版築）。</p>
+<figure>
+  <img src="img/hanchiku.jpg" alt="版築でできた古代の城壁の断面" loading="lazy">
+  <figcaption><b>本物の 土の城壁。</b>道路工事で 切られた 断面。
+  <b>横じまが はっきり 見える</b>——これが <b>1段ずつ 土を つき固めた あと</b>。
+  わくを 組んで 土を 入れ、棒で どんどん たたいて 固め、
+  わくを 上に ずらして また 入れる。これを くりかえす。</figcaption>
+</figure>
+<p>219年、<ruby>樊城<rt>はんじょう</rt></ruby>が 大水で 沈んだときの 記録は、こう 書く。</p>
+<div class="kanbun">漢水暴溢…城不沒者數板</div>
+<p class="src">↑「漢水が あふれ…<b>沈まずに 残った城壁は 数『板』だった</b>」<br>
+——「板」は <b>この わく 1段ぶん</b>。<b>壁の 高さを「板 何段」で 数えている。</b>
+土の壁だと 知っていないと 出てこない 言い方。</p>
+
+<h3>❌ 三国志の城に 「無い」もの</h3>
+<p>ゲームや イラストで よく見る かざりのうち、<b>『三国志』を さがしても 1件も 出てこない</b>ものが ある。</p>
+<table>
+<tr><th>よく見るもの</th><th>『三国志』に</th><th>いちばん古く 見つかった記録</th></tr>
+<tr><td><ruby>甕城<rt>おうじょう</rt></ruby>（門の外の 二重の囲い）</td><td class="ng">0件</td><td>1068〜1077年から <span class="L L3">③</span></td></tr>
+<tr><td><ruby>馬面<rt>ばめん</rt></ruby>（壁から 出っぱった 台）</td><td class="ng">0件</td><td>1044年 <span class="L L3">③</span></td></tr>
+<tr><td><ruby>女牆<rt>じょしょう</rt></ruby>（上の ギザギザ）</td><td class="ng">0件</td><td>801年 <span class="L L3">③</span></td></tr>
+<tr><td>角楼（すみの やぐら）</td><td class="ng">0件</td><td>見つけられなかった</td></tr>
+<tr style="opacity:.75"><td>（たしかめ用）城門</td><td class="ok">61件</td><td>——</td></tr>
+<tr style="opacity:.75"><td>（たしかめ用）<ruby>塢<rt>う</rt></ruby></td><td class="ok">34件</td><td>——</td></tr>
+</table>
+<p class="src">↑下の2行は「<b>さがす道具が ちゃんと 動いているか</b>」を たしかめるために 入れてある。
+これが 0件だったら、上の 0件は「無い」じゃなくて「<b>さがせていない</b>」ということになる。
+——これは 大事な手なので、<a href="#s7" style="color:#ffd54f">7章</a>で もう一度 書く。</p>
+
+<h3>🛡 郝昭の「4連続 カウンター」</h3>
+<p>228年の 陳倉。<b>郝昭の兵は 1000人ちょっと。せめる 諸葛亮は 何万人。</b>
+それでも <b>20日以上 守りきって、諸葛亮は 引き上げた。</b>
+どう 守ったか——<b>4つ、ぜんぶ ちがう手</b>だった <span class="L L2">②</span>。</p>
+<table>
+<tr><th>諸葛亮の 手</th><th>郝昭の かえし</th></tr>
+<tr><td>🪜 <b>雲梯</b>を 壁に かける</td><td>🔥 <b>火の矢で 焼く</b>。はしごの上の 兵は みんな 焼け死んだ</td></tr>
+<tr><td>🪵 <b>衝車</b>で 門を 突く</td><td>🪨 <b>縄で 石うすを つるして 落とす</b>。衝車は 折れた</td></tr>
+<tr><td>🗼 <b>井闌</b>（30mの やぐら）で 見下ろして 射る</td><td>🧱 <b>内がわに もう1まい 壁を 建てる</b></td></tr>
+<tr><td>⛏ <b>トンネル</b>を 掘って 城内に 出る</td><td>🕳 <b>城の中から 横に 掘って、断ち切る</b></td></tr>
+</table>
+<div class="kore"><b class="t">▼ ゲームに使える</b>
+<b>4つとも「相手の 手に 合わせて 出す」形になっている。</b>
+＝「守る側の カード」を 4まい 用意して、相手が 出した道具に 合わせて 出す、という遊びが
+<b>そのまま 記録から 作れる。</b></div>
+
+<h3>🗝 城が 落ちるのは、たいてい 裏切り</h3>
+<p>これも おもしろかった。<b>壁の 耐久度が 0になって 落ちる、という話が あまり 無い。</b></p>
+<ul>
+<li><b>鄴</b>（204年）——夜、守りの 担当者が <b>自分で 東の門を 開けて</b> 敵を 入れた <span class="L L1">①</span></li>
+<li><b>冀城</b>（213年）——役人が <b>門を 開けて 出むかえた</b> <span class="L L1">①</span></li>
+<li><b>下邳</b>（198年）——川を せき止めて <b>城を 水に しずめた</b> <span class="L L1">①</span></li>
+</ul>
+<div class="bad">❌ <b>「空城の計」</b>（諸葛亮が 城を 空っぽに 見せて 敵を 追い返した）は、
+記録の <span class="L L2">②注</span>に 出てくる。<b>でも、
+注を つけた 裴松之 本人が「この本の 話は ぜんぶ でたらめだ」と はっきり 書いて 否定している。</b></div>
+
+<h2 id="s6"><span class="n">7</span>馬のはなし — あぶみが、まだ 片っぽ しかない</h2>
+
+<p>ゆうじんの注文「<b>軍馬</b>」。ここが、<b>ゲームの絵が いちばん 分かれるところ</b>だった。</p>
+
+<div class="kore"><b class="t">▼ ここだけ おぼえる</b>
+<b>「馬に乗って 戦う」は ほんとう。</b>記録の本文に 何人も 出てくる <span class="L L1">①</span>。<br>
+<b>でも「両足で あぶみを 踏んばって 戦う」は、三国志の時代には まだ 無い。</b><br>
+この2つは <b>べつの話</b>。よく ごっちゃに される。</div>
+
+<h3>🦶 まず 写真を 見てほしい</h3>
+
+<figure>
+  <img src="img/kiheiyou.jpg" alt="西漢の彩色された騎兵俑" loading="lazy">
+  <figcaption><b>前漢（三国志より 200年ほど前）の 騎兵の 人形。</b>
+  1965年に 将軍の お墓から 出てきた 本物。<br>
+  <b style="color:#ffd54f">足もとを 見てほしい。まっすぐ 下に ぶら下がっているだけ。
+  踏むものが 何も ない。</b></figcaption>
+</figure>
+
+<div class="two">
+  <figure style="margin:0">
+    <img src="img/kiba-doukizou.jpg" alt="後漢の青銅の騎馬像" loading="lazy">
+    <figcaption><b>後漢（＝三国志の すぐ前）の 青銅の 騎兵。</b>
+    お墓から 出てきた 本物。矢じるしや 旗を 持って 馬に 乗っている。
+    <b>ここにも あぶみは 見あたらない。</b></figcaption>
+  </figure>
+  <figure style="margin:0">
+    <img src="img/kura-bronze.jpg" alt="漢代の青銅の馬、鞍つき" loading="lazy">
+    <figcaption><b>漢の 青銅の 馬。背中に <ruby>鞍<rt>くら</rt></ruby>が のっている。</b>
+    見てのとおり <b>低くて 平ら</b>。<br>
+    前と後ろが 高く もり上がった 鞍が ふつうに なるのは、<b>三国志より あと</b>。</figcaption>
+  </figure>
+</div>
+
+<div class="two">
+  <figure style="margin:0">
+    <img src="img/abumi-katappo.jpg" alt="西晋の騎馬俑" loading="lazy">
+    <figcaption><b>西晋（265〜316年）の 焼き物の 騎馬人形。</b>長沙で 出てきた。<br>
+    <b style="color:#ffd54f">博物館の説明に「何体かに、<b>乗るための あぶみが 片っぽだけ</b> ついている」と ある。</b><br>
+    <span style="color:#ffb74d">⚠ 小さくて この写真では 見えにくい。「見えた」とは 書かない。</span></figcaption>
+  </figure>
+  <figure style="margin:0">
+    <img src="img/abumi-ryouhou.jpg" alt="馮素弗墓から出土した鐙" loading="lazy">
+    <figcaption><b>本物の あぶみ（415年）。</b><ruby>馮素弗<rt>ふうそふつ</rt></ruby>という人の
+    お墓から <b>2つ そろって</b> 出てきた。木の しんに 金色の 銅板を はってある。<br>
+    <b style="color:#ffd54f">＝三国志が おわって 135年あと。</b></figcaption>
+  </figure>
+</div>
+
+<h3>📅 つまり、こういう 順番</h3>
+<table>
+<tr><th>いつ</th><th>あぶみ</th><th>三国志（220〜280年）から</th></tr>
+<tr><td>〜後漢</td><td class="ng">無い</td><td>三国志の 前</td></tr>
+<tr><td><b>271年</b>（東呉）<br><span style="color:#ffb74d">⚠ この年は まだ もめている（→9章）</span></td><td><b>片っぽだけ</b>（左に1つ・三角）</td><td class="ok">三国志の 中！</td></tr>
+<tr><td><b>302年</b>（西晋）</td><td><b>片っぽだけ</b></td><td>22年あと</td></tr>
+<tr><td><b>322年ごろ</b>（東晋）</td><td class="ok"><b>両がわ そろう</b>（いちばん古い）</td><td><b>おわり（280年）から 42年あと</b><br>赤壁（208年）からは <b>114年あと</b></td></tr>
+<tr><td>415年（北燕）</td><td>両がわ・実物が のこっている</td><td>135年あと</td></tr>
+</table>
+
+<p>しかも、<b>発表した人たち 自身が こう 書いている</b>——
+「これは <b>片がわだけの あぶみで、馬に 乗るときの 補助の 道具</b>。
+<b>乗ってしまったら、これを 踏まないし、体を ささえるのにも 使わない</b>」。</p>
+
+<p>もうひとつ。<b>『三国志』ぜんぶを さがしても「鐙」という 漢字が 1回も 出てこない。</b>
+（三国志の となりの 国の 装備リストも「<b>弓・矢・鞍・くつわ</b>」で 止まっていて、あぶみが 無い。）</p>
+
+<div class="kore"><b class="t">▼ ゲームで 使うなら</b>
+<b>あぶみは 左に 1つだけ 描く</b>のが 史実どおり。
+<b>両足を 踏んばっている絵は、フライング</b>（いちばん古い 両がわの あぶみは 322年ごろ＝
+三国志が おわった あと）。<br>
+もっと はっきり 年代が 出るのは <b>鞍のほう</b>——三国志のころは <b>低くて 平ら</b>。</div>
+
+<h3>⚔ それでも、馬の上で ちゃんと 戦っている</h3>
+<p><b>「あぶみが無いから 馬の上では 戦えなかった」という 逆向きの まちがい</b>も よく ある。
+<b>記録の本文が それを 否定する。</b></p>
+<table>
+<tr><th>だれ</th><th>本文に 書いてあること <span class="L L1">①</span></th></tr>
+<tr><td><ruby>丁奉<rt>ていほう</rt></ruby></td><td>「<b>馬に またがり 矛を持って、敵の 陣の中へ 突っこんだ</b>」</td></tr>
+<tr><td><ruby>関羽<rt>かんう</rt></ruby></td><td>「<b>馬を 走らせて、何万の 中で 顔良を 刺し</b>、首を取って 帰った」</td></tr>
+<tr><td><ruby>董卓<rt>とうたく</rt></ruby></td><td>「<b>弓ぶくろを 左右 2つ 帯び、馬を 走らせながら 左にも 右にも 射た</b>」</td></tr>
+<tr><td><ruby>呂布<rt>りょふ</rt></ruby></td><td>「弓も 馬も うまく、力は 人なみはずれ、<b>飛将</b>と よばれた」</td></tr>
+</table>
+<p><b>いま いちばん 安全な 線：</b>
+「馬の上で 戦えた。ただし <b>主な 戦い方は 動き回ることと 馬の上から 弓を 射ること</b>で、
+正面から 重い騎兵で 突きくずす 戦い方 ではない」。</p>
+
+<h3>🐎 赤兔は 呂布の馬。関羽の馬では ない</h3>
+<div class="kanbun">布有良馬曰赤兔。常與其親近成廉、魏越等陷鋒突陣，遂破燕軍</div>
+<p class="src">↑「呂布には <ruby>赤兔<rt>せきと</rt></ruby>という 名馬が いた。
+いつも 側近の 成廉・魏越たちと <b>敵の 先頭に 切りこみ、陣を 突きやぶり</b>、燕の軍を 破った」</p>
+<div class="bad">❌ <b>「関羽の 愛馬は 赤兔」は <span class="L L4">④物語</span>。</b>
+『三国志』で 赤兔が 出てくるのは <b>呂布のページ だけ</b>。
+曹操が 関羽に 赤兔を あげる場面は『三国志演義』第25回。<br>
+❌ <b>「人中に 呂布あり、馬中に 赤兔あり」も 本文ではなく <span class="L L2">②注</span>。</b><br>
+❌ <b>劉備の <ruby>的盧<rt>てきろ</rt></ruby>も、本文には 一度も 出てこない <span class="L L2">②</span>。</b></div>
+
+<h3>🐴 騎兵を 最強に しなくていい 理由</h3>
+<p><ruby>公孫瓚<rt>こうそんさん</rt></ruby>の <b>白馬義従</b>——
+白い馬だけを 数千頭 えらび、弓のうまい兵を 乗せた 精鋭部隊。かっこいい。<br>
+<b>その 同じ記録の すぐあとに、こう 書いてある。</b></p>
+<div class="kanbun">麴義以八百兵爲先登…瓚軍敗績</div>
+<p class="src">↑ <ruby>界橋<rt>かいきょう</rt></ruby>の戦いで、
+<b><ruby>麴義<rt>きくぎ</rt></ruby>が 歩兵 800人を 先頭に 立てて、公孫瓚の軍を 破った。</b></p>
+<div class="kore"><b class="t">▼ ゲームに使える</b>
+<b>「騎兵は 歩兵に 負けることがある」に、ちゃんと 記録の 裏づけが ある。</b>
+騎兵を いちばん強い兵科に しなくても、史実から 外れない。むしろ 合っている。</div>
+
+<h3>🤺 一騎打ちは、引き分けで おわる</h3>
+<p>「正史に 一騎打ちは 無い」と よく 言われる。<b>これも まちがい。ある。</b>
+ただし——<b>見つかった 2件とも、勝負が つかずに おわっている。</b></p>
+
+<p><b><ruby>太史慈<rt>たいしじ</rt></ruby> × <ruby>孫策<rt>そんさく</rt></ruby></b>（神亭）<span class="L L1">①</span></p>
+<div class="kanbun">策刺慈馬，而攬得慈項上手戟，慈亦得策兜鍪</div>
+<p class="src">↑「<b>孫策は 太史慈の 馬を 刺し、太史慈の 首のうしろの 手戟を もぎ取った。
+太史慈も 孫策の かぶとを もぎ取った。</b>」<br>
+そこへ 両方の 兵が かけつけてきて、<b>そのまま 別れた。</b></p>
+<p>ぜんぜん 決着していない。<b>取ったのは 相手の かぶと。</b>
+しかも 太史慈は 1人、孫策は 13騎 連れていた（＝1対14の でくわし戦）。</p>
+<div class="kore"><b class="t">▼ ゲームに使える</b>
+<b>一騎打ちを「引き分けで おわる」ルールに すると、原典どおりで、しかも おもしろい。</b>
+「相手の かぶとを 取ったら 勝ち」——記録に そう 書いてあるんだから、
+<b>そういうルールに してもいい。</b></div>
+<div class="warn">⚠ <b>「馬に乗って 一騎打ちした」と はっきり 書いてある記録は、じつは <b>1件も 無い</b>。</b>
+呂布と <ruby>郭汜<rt>かくし</rt></ruby>の 一騎打ち <span class="L L2">②</span>も、
+原文に <b>2人が 馬に 乗っていたとは 書いていない</b>（馬が出てくるのは 助けに来た 部下のほうだけ）。
+武器も <b>矛</b>で、方天画戟ではない。</div>
+
+<h2 id="s7"><span class="n">8</span>調べかた — ぼくらが 使った 7つの手</h2>
+
+<p>じつは この ページで いちばん 役に立つのは、兵器の話 じゃないかもしれない。
+<b>どうやって たしかめたか</b>のほう。これは 三国志いがいでも 使える。</p>
+
+<h3>手① 読み方で 決めず、絵を 見てもらう</h3>
+<p>「とう車」。読み方から せめると <b>まちがえる</b>ところだった。
+<b>ゆうじんに「本の絵は どれ？」と 聞いたら、一発で 決まった。</b><br>
+<b>言葉より 絵のほうが 速いことが ある。</b></p>
+
+<h3>手② 「無い」と 言う前に、さがす道具を ためす</h3>
+<p>「投石車」で さがしたら <b>0件</b>だった。ここで「三国志に 投石車は 無い」と 言いたくなる。<br>
+<b>でも その前に、「當たるはずの言葉」で 引いてみた。</b>
+「發石車」→<b>88件</b>。「木幔」→<b>47件</b>。<b>＝道具は ちゃんと 動いている。</b>
+だから「0件」は 信じていい。<br>
+もし こっちも 0件だったら、<b>「無い」んじゃなくて「さがせていない」</b>だった。</p>
+<div class="warn">⚠ じっさい、はじめ 「甕城・馬面・女牆」を <b>まとめて</b> さがしたら 0件が 返ってきた。
+あやしいので <b>1語ずつ 引き直した</b>ら、別の言葉では 227件 出た。
+＝<b>まとめて さがす やり方が こわれていた。</b>まとめて 0件を 信じていたら、まちがっていた。</div>
+
+<h3>手③ 「0件」は「無い」ではなく「<b>ここには</b> 無い」</h3>
+<p>使ったのは インターネットの 図書館。<b>そこに 入っていない本も ある。</b>
+じっさい、明の兵書『武備志』は <b>本文が 入っていなかった</b>。
+＝<b>この 0件たちの 限界を、自分で 証明してしまった。</b></p>
+
+<h3>手④ 1文字で、攻める側と 守る側が 入れかわる</h3>
+<p>火矢のところ。最初に とってきた文は
+「<b>亮</b>於是以火箭逆射其雲梯」（＝諸葛亮が 火矢で 雲梯を 射た）だった。<br>
+おかしい。<b>雲梯は 諸葛亮 自身の 道具。自分の はしごを 焼いて どうする？</b><br>
+もとの文を 直接 開いて 読み直したら、正しくは <b>「昭」</b>（＝郝昭＝<b>守る側</b>）だった。<br>
+<b>1文字で 話が 正反対に なる。</b></p>
+
+<h3>手⑤ 有名な話ほど、尾ひれが ついている</h3>
+<p>このページに 出てきた「じつは ちがった」は、ほとんど
+<b>「かっこいい話に なるほうへ 話が 育っている」</b>。<br>
+連弩は「弱い」→「すごい連射兵器」に。蒙衝は「止まっている関所」→「速い装甲艇」に。
+走舸は「逃げる船」→「偵察の快速艇」に。<br>
+<b>おもしろい方向に ずれる。</b>これは 覚えておくと 強い。</p>
+
+<h3>手⑥ 「あとの時代のものだ」と 言うときは、両はしの 年を それぞれ たしかめる</h3>
+<p>「Aより Bが あとだから ちがう」と 言うには、<b>AとB、両方の年が 要る</b>。
+片方が「たぶん」なら、その 否定は 成り立たない。</p>
+
+<h3>手⑦ 分からなかったことを、消さずに 書いておく</h3>
+<p>いちばん 大事な手。<b>つぎが これ。</b></p>
+
+<h2 id="s8"><span class="n">9</span>まだ わかっていないこと</h2>
+
+<p>ここまで えらそうに 書いてきたけど、<b>たしかめられなかったことも たくさん ある。</b>
+かくさずに 書いておく。<b>そのほうが、あとで 見なおすときに 役に立つ。</b></p>
+
+<div class="warn">
+<b>⚠ 1. 紙の 本を 1さつも 見ていない。</b><br>
+使ったのは ぜんぶ インターネットで 読める 電子の本文。
+ちゃんとした 校訂本（学者が 何冊も 見くらべて 直した本）は 開いていない。<br>
+<b>そして じっさい、電子の本文が くずれている場所を 2か所 見つけた。</b>
+（「以<b>付</b>城中」か「以<b>射</b>城中」か／「亮<b>足</b>爲城突」か「亮<b>又</b>爲地突」か）<br>
+＝<b>この2か所は、紙の本で 見なおさないと 決められない。</b>
+</div>
+
+<div class="warn">
+<b>⚠ 2. 「世界最古の あぶみ（271年）」は、まだ みんなが みとめた話 ではない。</b><br>
+発表したのは 南京の 調査チーム。<b>2023年の 学術論文は、いまも 別のほう（長沙・302年）を
+いちばん古いと している。</b>どちらが 正しいかは <b>決まっていない</b>。
+</div>
+
+<div class="warn">
+<b>⚠ 3. 船の 大きさと 乗る人数は、どこから 来た数字か 分からない。</b><br>
+「蒙衝には 〇人 乗る」「闘艦は 全長 〇m」みたいな 数字を よく 見る。
+<b>もとの 教科書（唐・宋）を 読んだら、乗員数も 寸法も 書いていなかった。</b>
+＝あの数字の 出どころが <b>見つけられなかった</b>。
+</div>
+
+<div class="warn">
+<b>⚠ 4. ゆうじんが 読んだ 本そのものを、まだ たしかめていない。</b><br>
+本人は「三国志と三国志人物大事典」と 言っている。
+<b>その本が どれか（出版社・版）は 未確認。</b>
+——じつは これが <b>いちばん 大事</b>かもしれない。本が 分かれば、
+「この本は どの層を もとに 書いているか」が 分かる。
+</div>
+
+<div class="warn">
+<b>⚠ 5. ほかにも。</b>
+日本語の 読みがな（ろうせん／そうか／せいらん…）は <b>漢和辞典で たしかめていない</b>。
+年号を 西暦に なおす計算も <b>こよみで 検算していない</b>。
+「火の矢に 油をしみこませた布を 巻く」の 出どころは <b>見つからなかった</b>。
+</div>
+
+<div class="kore"><b class="t">▼ さいごに</b>
+<b>「分からない」と 書けることは、弱さじゃない。</b><br>
+ぜんぶ 分かったフリをした ページは、どこが あやしいか 分からないから、
+<b>まちがっていても 直せない。</b><br>
+「ここは たしか」「ここは あやしい」と 分けて 書いてあれば、
+<b>あとから 誰かが（ゆうじんでも、友達でも）その 1点だけを たしかめて、直せる。</b><br><br>
+——このページは、<b>そのために 書いてある。</b>
+</div>
+
+<p style="text-align:center;margin:30px 0"><a class="top" href="#">▲ いちばん上へ</a></p>
+
+</div><!-- /#yomi -->
+
+<div id="kantoku">
+
+<p style="color:#9fb0bb">このページは <b>監督（ゆうじん）用</b>。
+調べたことを「じゃあ ゲームを どうするか」に 変えたもの。<br>
+友だちが 読んでも いいけど、<b>読みものは 左のタブのほう</b>。</p>
+
+<h2><span class="n">A</span>もう 入っているもの ✅</h2>
+
+<table>
+<tr><th>ゲームの中身</th><th>どの記録から</th></tr>
+<tr><td>🏯 <b>城が 4つ</b>（本城2・支城2）</td><td>ゆうじん「城はいくもあって」＋記録どおり</td></tr>
+<tr><td>🏯 <b>城ごとに 形が ちがう</b>（四角で門2／横長／たて長／二重の壁）</td><td>『管子』「城の形は 定規に 合わせなくていい」／長安＝ひしゃくの形／合肥は 12km 引っこした</td></tr>
+<tr><td>🧱 <b>二重の壁</b>の城</td><td>陳倉で 郝昭が「内がわに もう1まい 壁を 建てた」 <span class="L L2">②</span></td></tr>
+<tr><td>🏘 城の中に <b>民家</b>・🛡 <b>守備兵</b></td><td>ゆうじん「城に入ったら民家もある」＝記録どおり。
+『説文解字』「城とは 民を 入れるもの」</td></tr>
+<tr><td>🪵 <b>衝車</b>（丸太で 門を 3回 突くと やぶれる）</td><td>ゆうじん「丸太で門を叩いてい」で 決まった <span class="L L2">②</span></td></tr>
+<tr><td>🏹 <b>矢では 門が こわれない</b></td><td>記録でも 門を やぶるのは <b>火</b>か <b>丸太</b>。矢ではない</td></tr>
+<tr><td>🎯 <b>連弩</b>＝速いけど 近くまで</td><td>『天工開物』「力が とても弱い・20歩あまり」。<b>数字の 出どころが 本</b></td></tr>
+<tr><td>🔥 <b>火矢</b>＝門と衝車に 3倍きく</td><td>記録の2回とも「<b>相手の 木の道具を 焼く</b>」ために 使われている</td></tr>
+<tr><td>🐴 <b>軍馬</b></td><td>丁奉「馬にまたがり 矛を持って 突っこんだ」 <span class="L L1">①</span></td></tr>
+<tr><td>📚 はじめて使ったとき <b>出どころの 解説</b>が出る</td><td>（投石車＝發石車 と 同じやり方）</td></tr>
+</table>
+
+<h2><span class="n">B</span>つぎに 入れられるもの 💡</h2>
+<p>ぜんぶ <b>記録に 書いてある</b>ことから 作れるもの。<b>どれから やるか、決めてほしい。</b></p>
+
+<div class="box"><b>B1 🪨 石うすで 衝車を つぶす</b>（守る側の技）<br>
+郝昭が やったこと そのまま。<b>縄で 石うすを つるして 落とす。</b>
+<span style="color:#81c784">✅ 9/13 ゆうじん「衝車を潰すのはいいと思う」＝<b>やる</b></span></div>
+
+<div class="box"><b>B2 🪵 敵も 衝車を つかう</b><br>
+<span style="color:#81c784">✅ 9/13 ゆうじん「敵もつかうでいい」＝<b>やる</b></span><br>
+＝自分の城の門も やぶられる。守る遊びが できる。</div>
+
+<div class="box"><b>B3 🪜 雲梯</b>（外から 壁に かける はしご）<br>
+<b>火に とても弱い</b>——これは <b>記録に そう 書いてある</b>めずらしい例。
+「登っている とちゅうで 焼かれる」まで 作れる。</div>
+
+<div class="box"><b>B4 🗼 井闌</b>（城壁より 高い 動く やぐら）<br>
+<b>こわす道具じゃない。上から 城の中を 見下ろして 射る道具。</b>
+→ 守る側は <b>内がわに もう1まい 壁</b>を 建てて 返す（＝もう 二重の壁が ある！つながる）</div>
+
+<div class="box"><b>B5 🛡 守る側の「4まいのカード」</b><br>
+郝昭の 4連続カウンターを そのまま ルールにする。<br>
+雲梯 →火矢／衝車 →石うす／井闌 →内がわの壁／トンネル →横に掘る。<br>
+<b>攻める側が 出した道具に 合わせて、守る側が カードを 出す。</b></div>
+
+<div class="box"><b>B6 🗝 うらぎりで 門が あく</b><br>
+記録では <b>城は たいてい 壁が こわれて 落ちるんじゃなく、中の人が 門を 開けて 落ちる</b>。
+＝「門を 開けさせる」勝ち方を もう1つ 作れる。</div>
+
+<div class="box"><b>B7 🤺 一騎打ちは 引き分けで おわる</b><br>
+太史慈×孫策は <b>馬を 刺され、手戟を 取られ、かぶとを 取り返して、そのまま 別れた</b>。
+→ <b>「相手の かぶとを 取ったら 勝ち」</b>という ルールが、記録から そのまま 作れる。</div>
+
+<div class="box"><b>B8 🐴 騎兵を いちばん強くしない</b><br>
+白馬義従（精鋭の 騎兵部隊）は、<b>歩兵 800人に 負けている</b>。
+＝騎兵を 強すぎなく しても、史実から 外れない。</div>
+
+<div class="box"><b>B9 🦶 あぶみを 片っぽだけ 描く</b><br>
+三国志のころは <b>左に 1つだけ、しかも 乗るときの ふみ台</b>。
+（もっと 効くのは <b>鞍</b>——三国志のころは <b>低くて 平ら</b>）</div>
+
+<div class="box"><b>B10 ⚓ 蒙衝を「浮かぶ 関所」にする</b>（水の戦いを 作るとき）<br>
+速い船じゃない。<b>横向きに ならべて 石の いかりで 止め、上から 1000人が 弩を 撃つ。</b><br>
+<b>勝ち方は「縄を 刀で 切る」</b>——切ると 蒙衝が 流されて 道が あく。
+<span style="color:#ffd54f">これは そのまま ステージに なる。</span></div>
+
+<h2><span class="n">C</span>決めてほしいこと ❓</h2>
+<p>番号＋アルファベットで 答えてくれると 助かる（例：<b>1A 3B</b>）。</p>
+
+<div class="box"><b>1. 地図の話</b>（「領地の地図がほしい」の 返事）<br>
+どっちの 地図？<br>
+　<b>A</b> 戦っている 戦場の 地図（いま 右上に 小さいのが 出てる。<b>あれを 大きくする</b>）<br>
+　<b>B</b> <b>魏・呉・蜀の 3国が、どこを 持っているかの 地図</b>（戦いに 勝つと ぬりかわる）<br>
+　<b>C</b> 両方</div>
+
+<div class="box"><b>2. 「敵が なんか 投げてきた」の 正体が 分かった</b><br>
+あれは <b>手榴弾（しゅりゅうだん）</b>。陸上戦から そのまま 残っていた。<br>
+⚠ <b>三国志の 時代に 火薬は まだ ない</b>（800年あと）。それに <b>スマホだと 自分は 投げられないのに 敵だけ 投げてくる</b>＝ずるい。<br>
+どうする？<br>
+　<b>A</b> 敵の 手榴弾を <b>消す</b>（三国志に 合わせる）<br>
+　<b>B</b> 手榴弾を <b>火のついた かめ（火の玉）に 見た目を 変える</b>んで 残す<br>
+　<b>C</b> <b>両方が 投げられる</b>ようにして 残す</div>
+
+<div class="box"><b>3. 投石車の 爆発</b><br>
+9/13「今のままで」＝<b>オレンジの 火の玉のまま に する</b>、で 合ってる？<br>
+　<b>A</b> 合ってる。そのまま<br>
+　<b>B</b> やっぱり 土けむりに してみる</div>
+
+<div class="box"><b>4. つぎに 作るのは？</b>（B1・B2は やるのが 決まってる。<b>その つぎ</b>）<br>
+　<b>A</b> B3 雲梯（火で 焼ける はしご）<br>
+　<b>B</b> B5 守る側の 4まいのカード<br>
+　<b>C</b> B10 蒙衝の 関所（水の戦い）<br>
+　<b>D</b> B7 一騎打ち（かぶとを 取ったら 勝ち）</div>
+
+<div class="box"><b>5. まだ 返事が 見えてない ものが 2つ ある</b><br>
+・「<b>３Ａ</b>」＝「自分が 人になる（歩いて 戦う）」で 合ってる？<br>
+・交易ゲームの「<b>売り地200個</b>」<br>
+<span style="color:#9fb0bb">※ 答えてくれてるのに こっちに 届いていないだけ かもしれない。<b>もう一度だけ 聞かせて。</b></span></div>
+
+<p style="text-align:center;margin:30px 0"><a class="top" href="#">▲ いちばん上へ</a></p>
+</div><!-- /#kantoku -->
+
+<footer>
+<p><b>📚 このページの もとになった しらべもの</b><br>
+2026年9月12日〜13日、ゆうじんが 書き写した 兵器リストを きっかけに、
+中国の 古い本の 電子テキスト（維基文庫・識典古籍）に あたって たしかめた。
+くわしい 記録（引用の 原文・確認したURL・未確認リスト）は パパの
+<span style="color:#90caf9">~/.claude/research/sangokushi-weapons.md / -cavalry.md / -castles.md</span> に 入っている。</p>
+
+<p><b>🖼 写真と 絵の 出どころ</b>（ぜんぶ ウィキメディア・コモンズ。使っていい 条件つきのもの）<br>
+・あぶみ2つ（馮素弗墓）— Windmemories, CC BY-SA 4.0<br>
+・西晋の騎馬俑／後漢の陶楼／漢の弩機／版築の城壁 — Gary Todd, CC0<br>
+・後漢の青銅騎馬 — Gary Lee Todd, CC BY-SA 4.0<br>
+・漢の青銅馬（鞍つき）— PericlesofAthens, CC BY-SA 4.0<br>
+・前漢の彩色騎兵俑 — Editor at Large, CC BY-SA 2.5<br>
+・抛石機の模型 — Gary Todd, CC BY-SA 4.0<br>
+・雲梯の絵 — Yprpyqp, CC BY-SA 4.0<br>
+・虎蹲砲／蒙衝／楼船／火船（『武経総要』1044年・この刷りは1510年）— パブリックドメイン<br>
+・連発弩の しくみ図（1903年）— CC BY 1.0</p>
+
+<p style="color:#78909c">※ このページの 文と 図（SVG）は パパ（と Claude）が 書いた。
+まちがいが 見つかったら 直す。<b>直した記録も のこす。</b></p>
+</footer>
+</div><!-- /.wrap -->
+
+<script>
+  const $ = id => document.getElementById(id);
+  $('tabY').onclick = () => { document.body.classList.remove('k'); $('tabY').classList.add('on'); $('tabK').classList.remove('on'); scrollTo(0,0); };
+  $('tabK').onclick = () => { document.body.classList.add('k');    $('tabK').classList.add('on'); $('tabY').classList.remove('on'); scrollTo(0,0); };
+  // #kantoku で来たら 監督タブを開く
+  if (location.hash === '#kantoku') $('tabK').onclick();
+</script>

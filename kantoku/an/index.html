@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>監督の 案ボード</title>
+<!-- ⚠ このページは どこからもリンクしない（../index.html の 🔑 だけ）。
+     友だちに配る games/ には 出さない（パパ9/22「遊んだ友達に案が見えるのは避けたい」）。
+     開くには 数字の合言葉（監督が決める）。ponytail: 合言葉は sha-256 で持つだけ＝本気で探せば見える程度の鍵,
+     家の話が混じる案は ここに載せず 原本/ にだけ残す運用でカバーする -->
+<style>
+  :root{ color-scheme:dark; --bg:#12181d; --fg:#eceff1; --dim:#9fb0bb; --card:#1a232a; --line:#33444f; --hi:#ffd54f; }
+  *{box-sizing:border-box}
+  body{margin:0;padding:0 0 60px;background:var(--bg);color:var(--fg);
+    font-family:"Hiragino Maru Gothic ProN","Yu Gothic",system-ui,sans-serif;line-height:1.9;font-size:17px;-webkit-text-size-adjust:100%}
+  .wrap{max-width:760px;margin-inline:auto;padding:0 14px}
+  header{background:linear-gradient(170deg,#1b2a33 0%,#12181d 100%);border-bottom:3px solid var(--hi);padding:24px 0 16px;margin-bottom:6px}
+  h1{font-size:clamp(24px,7vw,36px);margin:0;line-height:1.35}
+  h1 small{display:block;font-size:.45em;color:var(--hi);letter-spacing:.14em;margin-bottom:.4em;font-weight:normal}
+  .sub{color:var(--dim);font-size:.92em;margin:.4em 0 0}
+  h2{font-size:clamp(20px,5.6vw,26px);margin:1.8em 0 .2em;padding-bottom:.25em;border-bottom:3px solid var(--line)}
+  .box{background:var(--card);border:2px solid var(--line);border-radius:14px;padding:12px 15px;margin:12px 0}
+  .box b.t{display:block;color:var(--hi);margin-bottom:.15em}
+  .box .d{color:var(--dim);font-size:.82em}
+  .box ul{margin:.3em 0 0;padding-left:1.3em}
+  .box li{margin:.1em 0}
+  .now{border-color:#26a69a;background:#0d3b34}
+  .now b.t{color:#80cbc4}
+  .done{opacity:.85}
+  .ask{border-style:dashed;border-color:#4fc3f7;background:#15303f}
+  .ask b.t{color:#4fc3f7}
+  .note{background:#3a2a12;border-left:6px solid #ffa726;border-radius:0 12px 12px 0;padding:10px 14px;margin:14px 0;font-size:.95em}
+  /* 合言葉 */
+  #gate{max-width:420px;margin:60px auto;text-align:center}
+  #gate input{font-size:32px;letter-spacing:.4em;text-align:center;width:9em;max-width:100%;padding:10px;border-radius:12px;
+    border:2px solid var(--line);background:#0e1418;color:var(--fg);font-family:inherit}
+  #gate button{display:block;margin:14px auto 0;font-size:18px;padding:12px 28px;border-radius:12px;border:2px solid var(--hi);
+    background:#00695c;color:#fff;font-family:inherit;font-weight:bold;cursor:pointer}
+  #gate .ng{color:#ef9a9a;min-height:1.6em;margin-top:8px}
+  #board{display:none}
+</style>
+</head>
+<body>
+
+<div id="gate" class="wrap">
+  <p style="font-size:44px;margin:0">🔑</p>
+  <p>ゆうじんが きめた <b>数字の合言葉</b>を 入れてね</p>
+  <input id="code" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="8" placeholder="0000">
+  <button id="go">ひらく</button>
+  <div class="ng" id="ng"></div>
+</div>
+
+<div id="board">
+<header><div class="wrap">
+  <h1><small>ゆうじん監督 専用</small>監督の 案ボード</h1>
+  <p class="sub">ゆうじんが 送ってくれた案は、ここに ぜんぶ ためてある。消えていない。<br>
+  「作る」のは <b>1つずつ</b>。順番は ゆうじんが きめる。</p>
+</div></header>
+
+<div class="wrap">
+
+<div class="note">📌 パパから：1つのゲームを <b>さいごまで作って、遊んで、直してから</b> 次にいきたい。
+案を出すのは どんどん やってほしい。作るのは 順番に。</div>
+
+<h2>🔨 いま作っている（約束のぶん）</h2>
+<div class="box now"><b class="t">⚔ 三国志合戦</b>
+<ul>
+  <li>縄で <b>石臼</b>を吊って 衝車をつぶす（9/13「衝車を潰すのはいいと思う」）</li>
+  <li><b>敵も 衝車を使う</b>（9/13「敵もつかうでいい」）</li>
+  <li>手榴弾は <b>自分も投げられるようにして 残す</b>（9/15「1 C」）</li>
+  <li><b>魏・呉・蜀が どこを持っているかの地図</b>。勝つと ぬりかわる（9/15「2 B」）</li>
+</ul></div>
+
+<h2>📥 順番待ちの案（ゆうじんの言葉で）</h2>
+
+<div class="box"><b class="t">🏯 国づくりのゲーム</b><span class="d">9/15</span>
+<ul>
+  <li>まず 何ヵ国作るかを きめて 始まる</li>
+  <li>自分で 城を作る。最初に <b>土台</b>、次に <b>堀</b>。堀は「あいだを開ける／開けない」がある。
+      開けると 人が一人ずつ入って 登れる。そこを攻撃されると 落ちる</li>
+  <li>ふだん（政治）：屯田・治水・兵士を作る・軍馬を育てる・軍艦を作る・貿易船を作る・城を作る・城を改装する・<b>憲法も作れる</b></li>
+  <li>戦争：自分が向いている方に 大砲や 鉄砲が撃たれる。<b>突撃</b>は 指したところに進んで、敵と となりあうと 交戦が始まる</li>
+</ul></div>
+
+<div class="box"><b class="t">🤝 みんなで ＋ 援軍</b><span class="d">9/16</span>
+<ul>
+  <li>みんなで 出来るようにする</li>
+  <li>ほかの国と国が 戦争になったら <b>援軍を送れる</b>。指揮官を えらんで、自分が 指揮官になって 指揮する</li>
+  <li><b>どっちに 味方するか</b> きめられる</li>
+</ul></div>
+
+<div class="box"><b class="t">🚂 交易物語</b><span class="d">9/10・9/15</span>
+<ul>
+  <li><b>売り地は 200こ</b>。買うには その土地まで行く（9/15）</li>
+  <li>駅は <b>50こ</b>まで（いまは 街20・駅12こまで）</li>
+</ul></div>
+
+<div class="box"><b class="t">✈ 太平洋の翼に 足すもの</b><span class="d">8/25〜8/29</span>
+<ul>
+  <li><b>ガチャ</b>：敵を倒すと3チール・勝つと5チール・15チールで1回。出てくる乗り物が <b>増えていく</b>形（9/4に確定）</li>
+  <li>ガチャの乗り物：B29・日向・春風・近衛・実志月・デンマーク・呉・陸奥・長門・加賀・赤城・霧島・金剛・最上・大井・川内・夕張・木曽・吉良・雷・B25</li>
+  <li><b>基地を増やす</b>（日本とアメリカ）・マップを広く・レーダーを真ん中に・白＝日本 赤＝アメリカのマーク</li>
+</ul></div>
+
+<div class="box"><b class="t">🪖 陸上戦に 足すもの</b><span class="d">8/25〜8/30</span>
+<ul>
+  <li>工作兵は 作れる物が <b>表で出てくる</b>／はしごで登れる／常備柵（当たるとダメージ）</li>
+  <li>重機関銃／迫撃砲（地面に当たると爆発）／ダメージゲージは 待つと じわじわ回復／しゃがむ・走る／<b>建物がある</b></li>
+  <li>国：日本・イギリス・ドイツ・インド・ロシア・フランス・イタリア・中国・オランダ・ポルトガル・スペイン／服は 普通兵服・騎兵服・上官服／1人一回 大砲が打てる</li>
+</ul></div>
+
+<div class="box"><b class="t">⛵ 大航海時代 金を求めて（べつのゲーム）</b><span class="d">8/25</span>
+<ul>
+  <li>世界地図で どこの国にするか えらぶ。自分の設定を書いて 顔をきめる</li>
+  <li>木を切る → 船細工屋で 船の外と中を書く → 旗のマークを書く → 船員をさがす（1つの地区に30人）</li>
+  <li>赤道から東は 鉱などが多い・500文／西は 生糸・香料・オリーブ油・天然ソーダ・500ドル</li>
+</ul></div>
+
+<h2>❓ パパが ゆうじんに 聞いていること</h2>
+<div class="box ask"><b class="t">返事が まだのもの</b>
+<ul>
+  <li>手榴弾は「1Cだけ」か「1Cと かめ の両方」か</li>
+  <li>次に作るのは どれから？（三国志合戦の約束ぶん／国づくり／みんなで＋援軍）</li>
+  <li>レーダーは まんなか？ 右上？　／　みんなでルームは 何人まで？　／　「チール」の由来</li>
+  <li>陸上戦は「はしご」と「工作兵の表」どっちが先？</li>
+</ul></div>
+
+<h2>✅ できたもの</h2>
+<div class="box done"><ul>
+  <li>✈ 太平洋の翼：<b>みんなでルーム＋数字の合言葉</b>（9/5）／<b>人になって 島や 船の上を歩く</b>（9/5）／蘇生は 倒れて30秒以内（8/28にきまった）</li>
+  <li>🪖 陸上戦 第1号（9/5）：兵科5つ・みんな蘇生・要塞をとったら勝ち</li>
+  <li>🚂 交易物語：<b>駅</b>（9/11）。線路が来ている街に 建てられる</li>
+  <li>⚔ 三国志合戦 第1号（9/12）：魏・呉・蜀／攻める側と守る側／城＝壁＋門2つ、壁の上に立てる／投石車・衝車・火矢・連弩・軍馬／城の中に 民家と兵士</li>
+  <li>📖 読み物「三国志 ほんとうさがし」：調べたことを 全部 やさしくした</li>
+</ul></div>
+
+<p class="d" style="color:var(--dim);font-size:.8em;margin-top:30px">案の原文（誤字もそのまま）は パパのパソコンの「原本」フォルダに 全部 残してある。</p>
+</div>
+</div>
+
+<script>
+// 合言葉は sha-256 で持つ。⚠ 監督が数字を決めたら HASH を差しかえる：
+//   node -e "console.log(require('crypto').createHash('sha256').update('4桁').digest('hex'))"
+// いまは仮の「2026」
+const HASH = '158a323a7ba44870f23d96f1516dd70aa48e9a72db4ebb026b0a89e212a208ab';
+async function sha(s){ const b=await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+  return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join(''); }
+async function tryOpen(){
+  const v=document.getElementById('code').value.trim();
+  if(!v) return;
+  let h='';
+  try{ h=await sha(v); }catch(e){ document.getElementById('ng').textContent='この画面では ひらけない（https で ひらいてね）'; return; }
+  if(h===HASH){ document.getElementById('gate').style.display='none'; document.getElementById('board').style.display='block';
+    try{ sessionStorage.setItem('an_ok','1'); }catch(e){} }
+  else { document.getElementById('ng').textContent='ちがうみたい。もういちど'; document.getElementById('code').select(); }
+}
+document.getElementById('go').onclick=tryOpen;
+document.getElementById('code').addEventListener('keydown',e=>{ if(e.key==='Enter') tryOpen(); });
+try{ if(sessionStorage.getItem('an_ok')==='1'){ document.getElementById('gate').style.display='none'; document.getElementById('board').style.display='block'; } }catch(e){}
+</script>
+</body>
+</html>

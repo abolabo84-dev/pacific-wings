@@ -202,6 +202,13 @@
   <span style="font-size:.82rem; opacity:.8">📚 投石車の ほんとうの名前は「發石車」。
   「霹靂車」は 袁紹の兵が つけた あだ名（どちらも 正史『三国志』に 出てくる）</span><br>
   ❤ HPは 矢がささっても 待ってると じわじわ回復する</p>
+  <!-- 📖 読み物（監督9/13「パパが調べてきた設定など兵器などを入れて送ってくれたらいい」）。
+       ゲームの中に文章を貼るのではなく **別ページ**にした＝友だちにも そのまま渡せる -->
+  <p style="margin:.2em 0 1em">
+    <a href="../yomimono/" style="display:inline-block; padding:10px 18px; border-radius:11px;
+       border:2px solid #ffd54f; background:rgba(0,0,0,.35); color:#ffd54f; text-decoration:none;
+       font-weight:bold; font-size:1rem">📖 しらべたこと「三国志 ほんとうさがし」</a><br>
+    <span style="font-size:.78rem; opacity:.75">兵器・城・馬を 2000年前の本で たしかめた読み物（友だちも どうぞ）</span></p>
   <!-- 📈 練度（監督9/8「5C＝訓練はタイトル画面のメニュー」） -->
   <div id="rendoBox" style="margin:1em auto 0; max-width:min(92vw,560px); text-align:left;
        background:rgba(0,0,0,.3); border:2px solid #7a8b5a; border-radius:12px; padding:10px 14px">
@@ -327,7 +334,8 @@ const NATIONS = [
 // ⚠ はしごとクラフト表は最小形では未実装（下のponytail）
 const AI_RANGE = 110;   // AI兵が撃ちはじめる距離（弾は126mとどく）
 // 服のわりあて（監督 9/5「ふくもつくってほしい」）。3種類を5兵科に配る
-const OUTFIT = { rifle: 'coat', medic: 'pack', eng: 'pack', scout: 'camo', saber: 'coat' };
+const OUTFIT = { rifle: 'coat', medic: 'pack', eng: 'pack', scout: 'camo', saber: 'coat',
+                 crossbow: 'pack', firearrow: 'coat', horse: 'camo' };
 // 🗡 サーベル隊（監督 9/7「サーベル隊ていうのが作りたい／普通銃のところがけんになる
 //    ナイフより強い／特技をナイフの横のわくにして」＋ 9/8「1A（6つ目の兵科）」「2A（1回でたおせる）」
 //    「3A（ボタンの場所の話）」）。
@@ -352,6 +360,33 @@ const CLASSES = [
   { id: 'saber',  name: '剣兵', icon: '⚔', speed: 8,  hp: 100, dmg: 0,  cd: 0.45, spread: 0,
     desc: '弓のかわりに けん。1回で たおせる。足がはやい。近づかないと 何もできない',
     skill: 'dash', melee: SABER_DMG },
+  // ====== ここから 監督9/12「連弩 と軍馬」「火矢隊も」で足した3つ ======
+  // 🎯 連弩（れんど）＝ 止めずに つづけて射てる弩。⚠ 1本の力は 弓兵より弱い。
+  //    ⚠ 名前かぶり注意：このゲームには「練度（れんど）」ゲージが別にある。
+  //      関数 rendoHpBonus() は **練度**のほう。こっちの id は crossbow にしてある
+  // 📚 射程を みじかくしてある。**これは バランス調整ではなく 原典の数字**：
+  //    『天工開物』（明）「其力綿甚，所及二十餘步而已」＝力がとても弱く 二十歩あまりしか とどかない
+  //    『通雅』（明末）「但力小射近」／『思辨錄輯要』（清）「十歩之內不能穿魯縞」
+  //    ⚠ つまり 昔の中国の人が 実物を見て「弱い」と3人そろって書いている。
+  //      「連弩＝すごい連射兵器」は **原典の評価と 正反対**
+  { id: 'crossbow', name: '連弩', icon: '🎯', speed: 6.5, hp: 100, dmg: 12, cd: 0.13, spread: 0.055,
+    desc: '押しっぱなしで つづけて射てる。1本は弱くて **近くしか とどかない**。足はおそい',
+    skill: 'none', arrowLife: 0.55 },
+  // 🔥 火矢隊。⚠ 当たったら **もえつづける**（そこがふつうの矢とちがう）。
+  //    📚 陳倉の戦いで 郝昭が 諸葛亮の雲梯を 火箭（かせん）で焼いた記録がある
+  { id: 'firearrow', name: '火矢隊', icon: '🔥', speed: 7, hp: 95, dmg: 15, cd: 0.8, spread: 0.02,
+    desc: '当たると もえつづけて じわじわ へる。衝車（しょうしゃ）を 焼ける', skill: 'none', fire: true },
+  // 🐴 軍馬。とても はやい。⚠ **はしごが のぼれない**＝城壁の上に行けない。
+  //    ⚠ 馬の上から射ると ねらいが ぶれる（spread が大きい）
+  // 📚 2026-09-12 検証：**馬に乗って戦うのは 正史の本文にある**
+  //    （丁奉「跨馬持矛，突入其陣中」巻55／關羽「策馬刺良於萬衆之中」巻36）。
+  //    馬の上から弓も射ている（董卓「雙帶兩鞬，左右馳射」巻六）。
+  //    ⚠ だから「あぶみが無いから馬上では戦えない」は **まちがい**。
+  //    ⚠ ねらいが少しぶれるのは **こちらのバランス調整**（史実の話ではない）。
+  //       速さ13は ほかの兵科の2倍近い。何かと引きかえにしないと これだけ選ばれる
+  { id: 'horse', name: '軍馬', icon: '🐴', speed: 13, hp: 115, dmg: 18, cd: 0.75, spread: 0.05,
+    desc: '馬に乗る。すごく はやい。でも **はしごは のぼれない**（城壁の上に行けない）',
+    skill: 'none', horse: true },
 ];
 // ============ ⚔🛡 攻める／守る（監督9/8）============
 // 「攻めるな敵の首都がある／守るなら自分の首都がある」＝ 目あてが入れかわる。
@@ -402,6 +437,35 @@ scene.add(sun, new THREE.AmbientLight(0xbcd4a0, 1.1));
 //    520m に広げる（歩ける範囲は ±300 なので ±260 まで置ける）
 const FORT_ALLY = { x: -260, z: 0 };
 const FORT_FOE  = { x:  260, z: 0 };
+// 🏯 城は **いくつもある**（監督9/12「城はいくもあって海上戦ができる」＝⑤への答え）。
+// 🏯 **形は 城ごとに ちがう**（監督9/12「城の形は、城によって違う」）。
+// 本城（main）を おとされたら 勝ち負けが決まる。支城は **取ると そこから 出なおせる**。
+// ⚠ 支城は 台地に乗せない（fortH は本城だけ）＝地面の高さで ちがいが出る。これも「形のちがい」
+const CASTLE_SPECS = [
+  { key: 'allyMain', x: -260, z:    0, side: 'ally', main: true,
+    hx: 22, hz: 22, nx: 9, nz: 9, gates: [{ ax: 'x', sgn: 1 }, { ax: 'x', sgn: -1 }],
+    inner: false, homes: 5, garrison: 3, name: '味方の本城',
+    shape: '四角い城。門が 東と西に 2つ' },
+  { key: 'allySub',  x: -100, z: -160, side: 'ally', main: false,
+    hx: 20, hz: 12, nx: 7, nz: 11, gates: [{ ax: 'z', sgn: 1 }],
+    inner: false, homes: 3, garrison: 2, name: '西の支城',
+    shape: '横に長い城。門は 1つだけ' },
+  { key: 'foeSub',   x:  100, z:  160, side: 'foe',  main: false,
+    hx: 12, hz: 20, nx: 11, nz: 7, gates: [{ ax: 'x', sgn: -1 }],
+    inner: false, homes: 3, garrison: 3, name: '東の支城',
+    shape: 'たてに長い城。門は 1つだけ' },
+  // 🏯 二重の壁。📚 これは こちらの思いつきではない——陳倉で 郝昭（かくしょう）が
+  //   攻められている さいちゅうに **城の内がわに もう一枚 壁を築いた**記録がある
+  //   （三国志 巻三 裴松之注が引く『魏略』「昭又於內築重牆」）
+  { key: 'foeMain',  x:  260, z:    0, side: 'foe',  main: true,
+    hx: 22, hz: 22, nx: 9, nz: 9, gates: [{ ax: 'x', sgn: -1 }],
+    inner: true, homes: 6, garrison: 5, name: '敵の本城',
+    shape: '二重の壁の城。門は 西に1つ。中に もう一枚 壁がある' },
+];
+const SUB_ALLY = CASTLE_SPECS[1], SUB_FOE = CASTLE_SPECS[2];
+// 城のまわりに 木や岩を置かないための ちいさな道具
+const nearAnyCastle = (x, z, pad) =>
+  CASTLE_SPECS.some(c => Math.abs(x - c.x) < c.hx + pad && Math.abs(z - c.z) < c.hz + pad);
 function hillH(x, z) { return 2.2*Math.sin(x*0.015)*Math.cos(z*0.02) + 1.2*Math.sin(x*0.05+z*0.03); }
 // 🏕 基地12個（監督9/8「基地を１２こつくって間に塹壕がほしい」）。
 // ⚠ 監督は「要塞」（＝のっとったら勝ち）と「基地」を **別のことば**で言っている。
@@ -461,6 +525,7 @@ const rng = (() => { let s = 12345; return () => (s = (s*16807) % 2147483647) / 
 for (let i = 0; i < 46; i++) {
   const x = (rng()-0.5)*520, z = (rng()-0.5)*520;
   if (Math.hypot(x-FORT_ALLY.x, z) < 62 || Math.hypot(x-FORT_FOE.x, z) < 62) continue;   // ⚠ 城まわりは 木を置かない
+  if (nearAnyCastle(x, z, 26)) continue;   // 🏯 支城のまわりも あける（監督9/12で城がふえた）
   if (Math.abs(Math.abs(z)-55) < 10 && Math.abs(x) < 150) continue;
   const g = new THREE.Group();
   const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 4, 6), new THREE.MeshLambertMaterial({ color: 0x6d4c2f }));
@@ -479,6 +544,7 @@ function scatterRocks() {
   for (let i = 0; i < 34; i++) {
     const x = (Math.random()-0.5)*520, z = (Math.random()-0.5)*420;
     if (Math.hypot(x-(-260), z) < 36 || Math.hypot(x-260, z) < 36) continue;   // ⚠ 城の中と城壁はあける（壁の角は31m）
+    if (nearAnyCastle(x, z, 16)) continue;   // 🏯 支城の中と壁ぎわも あける
     const w = 3 + Math.random()*5, h = 1.6 + Math.random()*2.6, d = 3 + Math.random()*5;
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d),
       new THREE.MeshLambertMaterial({ color: Math.random() < 0.5 ? 0x7d7a6e : 0x8b8377 }));
@@ -498,6 +564,7 @@ const LADDERS = [];       // のぼり坂。t=0が上（壁がわ）／t=1が下
 //   同じ判定が要る。**共有の関数を1つ**にする（呼び出しごとに書くと 片方だけ壁抜けする）
 function hitsHouse(x, z, y) {
   for (const hs of houses) {
+    if (hs.open) continue;   // 🚪 あいた門・壊れた門は 通れる（監督9/12「丸太で門を叩いてい」）
     // ⚠ もう壁の上にのぼっている人は通す。ここが無いと、はしごを登った先で かべに阻まれて詰む
     if (hs.top !== undefined && y > hs.top - 1.6) continue;
     // 🏯 城壁は **四角**で見る。⚠⚠ 丸で近似すると、となりとの すきまを ふさぐために
@@ -513,8 +580,12 @@ function hitsHouse(x, z, y) {
   return false;
 }
 
-function standH(x, z) {
+// 🐴 noLadder：馬に乗っている人は **はしごを のぼれない**（監督9/12「軍馬」）。
+// ⚠ 足場（壁の上）も 同じ理由で 使わせない。はしごだけ切ると、
+//   壁ぎわで 足場の高さに引っぱり上げられて **馬が壁の上にワープする**
+function standH(x, z, noLadder) {
   let h = H(x, z);
+  if (noLadder) return h;
   for (const p of PLATFORMS)
     if (Math.abs(x - p.x) <= p.hx && Math.abs(z - p.z) <= p.hz) h = Math.max(h, p.y);
   for (const L of LADDERS) {
@@ -664,7 +735,7 @@ for (const tz of TRENCH_ZS) makeMortar(0, tz);   // 監督「塹壕に一個」
 //   三国志は **城を攻める**のが中身なので、壁を **つなげて** 四角く囲み、**門を2つ**あける。
 //   ＝「入口をさがす／門をふさぐ」「壁の上から射る」が そのまま 遊びになる。
 // ⚠ 壁の上には のぼれる（内がわに はしご2本）。陸上戦で作った はしごの部品を そのまま使う
-const CASTLE_HALF = 22;                              // 中心から 壁まで
+const CASTLE_HALF = 22;                              // 中心から 壁まで（本城の大きさ。他から参照される）
 // ⚠ 1辺のブロック数は **奇数**にする。偶数だと まんなかのブロックが無く、
 //   「まんなかを1つ抜いて門にする」が できない（8個で作ったら 門が z=3.2 にずれて、
 //    まっすぐ歩いてきた人が 壁にぶつかった。probe が見つけた）
@@ -673,56 +744,91 @@ const CASTLE_WALL_SEG = (CASTLE_HALF * 2) / WALL_N;
 // ⚠ 壁の厚みは 3.6m。2.4m だと **上を歩いたら すぐ外に落ちる**（実測：登りきった0.2秒後に落ちた）。
 //   城壁の上は「守る側が 矢を射る場所」＝そこに **立っていられる**ことに意味がある
 const WALL_T = 3.6, WALL_H = 5, WALL_SEG = CASTLE_WALL_SEG;
+const DOOR_HP = 320;                                 // 🚪 門の扉の かたさ（衝車なら 3回で折れる）
+let INNER_LOW = false;                               // 🏯 二重の壁の 内がわは 低くする（カメラ対策）
+const INNER_H = 3.0;
 const fortresses = [];
-function makeFortress(f, side, color) {
+
+// 🏯 城をつくる。監督9/12 で **形が城ごとに ちがう**ようになったので、
+//   四角い城のきまり（hx, hz, nx, nz, 門の場所）を **表から**作る形にした。
+// ⚠ 当たり判定は **軸に平行な四角**しか持てない（hitsHouse を見よ）。
+//   だから「六角の城」「丸い城」は 今の作りでは **壁抜けする**。
+//   形のちがいは たて横の長さ・門の数・二重の壁 で出す。
+// ponytail: 城の形は 長方形どまり, 斜めの壁が要るなら hitsHouse を 回転対応にしてから
+function makeFortress(f, color) {
   const g = new THREE.Group();
   const y = H(f.x, f.z);
   const wallMat = new THREE.MeshLambertMaterial({ color: 0x9a9086 });
-  const n = WALL_N;                                     // 1辺のブロック数（奇数）
-  const gateIdx = (n - 1) / 2;                          // ど まんなか＝門
-  // 四辺。東西（x = ±HALF）の まんなかだけ **門**にして あける
-  for (const ax of ['x', 'z']) for (const sgn of [-1, 1]) {
-    for (let i = 0; i < n; i++) {
-      if (ax === 'x' && i === gateIdx) continue;        // ← ここが門
-      const t = -CASTLE_HALF + WALL_SEG * (i + 0.5);
-      const dx = ax === 'x' ? sgn * CASTLE_HALF : t;
-      const dz = ax === 'x' ? t : sgn * CASTLE_HALF;
-      const w = ax === 'x' ? WALL_T : WALL_SEG;
-      const d = ax === 'x' ? WALL_SEG : WALL_T;
-      const m = new THREE.Mesh(new THREE.BoxGeometry(w, WALL_H, d), wallMat);
-      m.position.set(dx, WALL_H / 2, dz);
-      g.add(m);
-      // ⚠ 当たり判定は **四角**（hx/hz）。丸だと 厚み方向にも太って はしごが使えなくなる
-      houses.push({ x: f.x + dx, z: f.z + dz, hx: w / 2, hz: d / 2, top: y + WALL_H });
-      PLATFORMS.push({ x: f.x + dx, z: f.z + dz, hx: w / 2 + 0.3, hz: d / 2 + 0.3, y: y + WALL_H });
-      // 🏯 狭間（さま）のでこぼこ。⚠ **見た目だけ**（当たり判定は足さない＝重くしない）。
-      //   これが有ると無いとで「壁」が「城」に見えるかが変わる
-      if (i % 2 === 0) {
-        const cre = new THREE.Mesh(new THREE.BoxGeometry(w + 0.5, 1.1, d + 0.5), wallMat);
-        cre.position.set(dx, WALL_H + 0.55, dz);
-        g.add(cre);
+  const doors = [];
+
+  // ---- 壁を1周ぶん つくる（内がわの重牆も 同じ関数でつくる）----
+  function buildRing(HX, HZ, nx, nz, gates, withDoor) {
+    const segZ = (HZ * 2) / nx;        // x = ±HX の壁は z方向に nx 個
+    const segX = (HX * 2) / nz;        // z = ±HZ の壁は x方向に nz 個
+    const gateI = { x: (nx - 1) / 2, z: (nz - 1) / 2 };
+    for (const ax of ['x', 'z']) for (const sgn of [-1, 1]) {
+      const n = ax === 'x' ? nx : nz;
+      const seg = ax === 'x' ? segZ : segX;
+      for (let i = 0; i < n; i++) {
+        const t = (ax === 'x' ? -HZ : -HX) + seg * (i + 0.5);
+        const dx = ax === 'x' ? sgn * HX : t;
+        const dz = ax === 'x' ? t : sgn * HZ;
+        const w = ax === 'x' ? WALL_T : seg;
+        const d = ax === 'x' ? seg : WALL_T;
+        const isGate = i === gateI[ax] && gates.some(gt => gt.ax === ax && gt.sgn === sgn);
+        if (isGate) {
+          // 🚪 門。⚠ 監督9/12「丸太で門を叩いてい」＝**門は しまっている**ものになった。
+          //   前は ただの すきまだった（入りほうだい）。扉があるから 衝車に意味が出る
+          if (withDoor) {
+            const dm = new THREE.Mesh(new THREE.BoxGeometry(w * 0.9, WALL_H * 0.92, d * 0.9),
+              new THREE.MeshLambertMaterial({ color: 0x7a4f24 }));
+            dm.position.set(dx, WALL_H * 0.46, dz);
+            g.add(dm);
+            // ⚠ 当たり判定は houses に入れる。**壊れたら open にして 通す**
+            const col = { x: f.x + dx, z: f.z + dz, hx: w / 2, hz: d / 2, top: y + WALL_H, open: false };
+            houses.push(col);
+            doors.push({ mesh: dm, col, hp: DOOR_HP, maxHp: DOOR_HP, broken: false,
+                         x: f.x + dx, z: f.z + dz, ax, sgn });
+          }
+          // 🚪 門柱（見て「ここが入口だ」と分かる目じるし）
+          for (const off of [-seg * 0.5, seg * 0.5]) {
+            const post = new THREE.Mesh(new THREE.BoxGeometry(
+              ax === 'x' ? WALL_T + 0.6 : 1.2, WALL_H + 1.6, ax === 'x' ? 1.2 : WALL_T + 0.6),
+              new THREE.MeshLambertMaterial({ color: 0x6d4c2f }));
+            post.position.set(ax === 'x' ? dx : dx + off, (WALL_H + 1.6) / 2,
+                              ax === 'x' ? dz + off : dz);
+            g.add(post);
+          }
+          continue;
+        }
+        const wh = INNER_LOW ? INNER_H : WALL_H;
+        const m = new THREE.Mesh(new THREE.BoxGeometry(w, wh, d), wallMat);
+        m.position.set(dx, wh / 2, dz);
+        g.add(m);
+        // ⚠ 当たり判定は **四角**（hx/hz）。丸だと 厚み方向にも太って はしごが使えなくなる
+        houses.push({ x: f.x + dx, z: f.z + dz, hx: w / 2, hz: d / 2, top: y + wh });
+        PLATFORMS.push({ x: f.x + dx, z: f.z + dz, hx: w / 2 + 0.3, hz: d / 2 + 0.3, y: y + wh });
+        // 🏯 狭間（さま）のでこぼこ。⚠ **見た目だけ**（当たり判定は足さない＝重くしない）
+        if (i % 2 === 0) {
+          const cre = new THREE.Mesh(new THREE.BoxGeometry(w + 0.5, 1.1, d + 0.5), wallMat);
+          cre.position.set(dx, wh + 0.55, dz);
+          g.add(cre);
+        }
       }
     }
   }
-  // 🚪 門のところに 門柱（見て「ここが入口だ」と分かる目じるし）
-  for (const sgn of [-1, 1]) {
-    const t = -CASTLE_HALF + WALL_SEG * (gateIdx + 0.5);
-    for (const off of [-WALL_SEG * 0.5, WALL_SEG * 0.5]) {
-      const post = new THREE.Mesh(new THREE.BoxGeometry(WALL_T + 0.6, WALL_H + 1.6, 1.2),
-        new THREE.MeshLambertMaterial({ color: 0x6d4c2f }));
-      post.position.set(sgn * CASTLE_HALF, (WALL_H + 1.6) / 2, t + off);
-      g.add(post);
-    }
-  }
+  buildRing(f.hx, f.hz, f.nx, f.nz, f.gates, true);
+  // 🏯 二重の壁（重牆）。内がわの壁には 扉をつけない＝門のあとに もう一枚 越える壁がある
+  //   ⚠ 内がわの壁は **低くする**。5mのままだと、中に入ったときに うしろのカメラ（高さ4.5m）が
+  //     壁に はまって **画面が灰色**になる（スクショで発見。数字のテストには 写らない）
+  if (f.inner) { INNER_LOW = true; buildRing(f.hx * 0.5, f.hz * 0.5, 5, 5, [{ ax: 'x', sgn: 1 }], false); INNER_LOW = false; }
+
   // 🪜 はしごは **内がわ**に2本（南北の壁）。外から掛けられると 門の意味が消える
-  //    ⚠ 雲ていは「外から壁に掛けるはしご」。それを入れるのは 兵器を確かめてから
+  //    ⚠ 雲ていは「外から壁に掛けるはしご」。⚠ まだ入れていない（監督に確認してから）
   for (const sgn of [-1, 1]) {
-    const zz = sgn * CASTLE_HALF, x0 = f.x, x1 = f.x;
+    const zz = sgn * f.hz, x0 = f.x, x1 = f.x;
     // ⚠⚠ はしごの上のはし（t=0）は **壁の上の足場（PLATFORM）と 重なる**ところまで伸ばす。
-    //   足場は 壁の中心 ± (厚み/2 + 0.3)。はしごが そこまで届いていないと、
-    //   のぼりきった所に **1.7mの穴**があいて 地面まで落ちる（実測して見つけた）。
-    //   ⚠ 壁の当たり判定の中に入るが、そこに来た時点で 高さが 5m あるので すり抜けられる
-    //     （hitsHouse の「もう壁の上にいる人は通す」）
+    //   届いていないと のぼりきった所に 1.7mの穴があいて 地面まで落ちる（実測して見つけた）
     const z0 = f.z + zz - sgn * (WALL_T / 2 + 0.1), z1 = z0 - sgn * 6.0;
     LADDERS.push({ x0, z0, x1, z1, hw: 1.5, yTop: y + WALL_H, yBot: y });
     const lad = new THREE.Group();
@@ -742,7 +848,38 @@ function makeFortress(f, side, color) {
     }
     g.add(lad);
   }
-  // 🚩 旗（ここを おさえたら 勝ち）
+
+  // 🏘 城の中の 民家（監督9/12「城に入ったら民家もあるし兵士も多い」）。
+  // 📚 中国の「城」は 城壁でかこった **町**。だから 中に人が住んでいる。
+  // ⚠ 門から旗までの まっすぐの道は あけておく（民家で ふさぐと 入れなくなる）
+  const gateAxes = new Set(f.gates.map(gt => gt.ax));
+  const homeSpots = [];
+  for (let i = 0; i < 24 && homeSpots.length < f.homes; i++) {
+    const a = (i / 24) * Math.PI * 2 + 0.4;
+    // ⚠ 二重の壁の城は 内がわの壁（hx*0.5＝11m）に 民家が かぶる。外へ寄せる
+    const rr = f.inner ? 0.74 : 0.58;
+    const rx = Math.cos(a) * f.hx * rr, rz = Math.sin(a) * f.hz * rr;
+    if (gateAxes.has('x') && Math.abs(rz) < 6) continue;   // 東西の門からの道
+    if (gateAxes.has('z') && Math.abs(rx) < 6) continue;   // 南北の門からの道
+    if (Math.hypot(rx, rz) < 7) continue;                  // まんなかの旗のまわり
+    homeSpots.push([rx, rz]);
+  }
+  for (const [rx, rz] of homeSpots) {
+    const hw = 5.2, hd = 4.4, hh = 3.6;
+    const body = new THREE.Mesh(new THREE.BoxGeometry(hw, hh, hd),
+      new THREE.MeshLambertMaterial({ color: 0xc9b285 }));
+    body.position.set(rx, hh / 2, rz);
+    const roof = new THREE.Mesh(new THREE.ConeGeometry(Math.max(hw, hd) * 0.78, 2.4, 4),
+      new THREE.MeshLambertMaterial({ color: 0x6b3a25 }));
+    roof.position.set(rx, hh + 1.2, rz); roof.rotation.y = Math.PI / 4;
+    g.add(body, roof);
+    // ⚠ 民家も 通りぬけできない。四角で入れる（丸だと 角がふくらんで 道がふさがる）
+    // ⚠ home:true は **数えるための目じるし**。これが無いと、二重の壁のブロックまで
+    //   「民家」として数えてしまう（probe が 6軒のはずの城を 25軒と言った）
+    houses.push({ x: f.x + rx, z: f.z + rz, hx: hw / 2, hz: hd / 2, top: y + hh, home: true });
+  }
+
+  // 🚩 旗（ここを おさえたら 勝ち／支城なら 取れる）
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 14, 6), new THREE.MeshLambertMaterial({ color: 0xdddddd }));
   pole.position.y = 7;
   const flag = new THREE.Mesh(new THREE.PlaneGeometry(5, 3), new THREE.MeshLambertMaterial({ color, side: THREE.DoubleSide }));
@@ -750,10 +887,11 @@ function makeFortress(f, side, color) {
   g.add(pole, flag);
   g.position.set(f.x, y, f.z);
   scene.add(g);
+
   // 柵（監督8/29「常備柵は、当たるとダーメジを受ける」＝陸上戦の注文。一次資料なので そのまま）。
   // ⚠ 城壁の **外がわ**に置く。すきまが 通り道になる
   const fences = [];
-  const R = CASTLE_HALF + 12;
+  const R = Math.max(f.hx, f.hz) + 12;
   for (let i = 0; i < 18; i++) {
     const a = (i / 18) * Math.PI * 2;
     if (i % 9 === 4) continue;   // 入口（2か所あく）
@@ -765,9 +903,76 @@ function makeFortress(f, side, color) {
     scene.add(fence);
     fences.push({ x: fx, z: fz });
   }
-  const F = { ...f, side, color, flag, capT: 0, fences, zone: 9 };
+  const F = { ...f, color, flag, doors, capT: 0, fences, zone: f.main ? 9 : 7, group: g };
   fortresses.push(F);
+  setDoors(F);
   return F;
+}
+
+// 🪵 衝車（しょうしゃ）＝ 監督9/12「丸太で門を叩いてい」。
+// 📚 これが「とう車」の正体だった。読み「とうしゃ」から 撞車／頭車（どちらも宋の兵書）と
+//    決めていたら 正反対になっていた。**本の絵を見てもらったから 分かった。**
+//    『三國志』巻三 裴松之注が引く『魏略』（陳倉）「起雲梯**衝車**以臨城」＝三国の記録にある道具。
+// 📚 ⚠ 史実では **衝車には 対抗手段があった**：郝昭は 縄で石臼を吊るして 衝車を押しつぶした
+//    （「昭又以繩連石磨壓其衝車，**衝車折**」）。だから ここでも 衝車は こわれる（火矢で焼ける）
+const RAMS = [], RAM_RANGE = 9, RAM_CD = 2.4, RAM_DMG = 120, RAM_BURN = 12;
+function makeRam(F, d) {
+  // 門の **外がわ** 13m、さらに **横へ 7m** ずらして置く。
+  // ⚠ ど真ん前に置いたら 出撃したとたん 画面が衝車でいっぱいになり、門もふさいだ
+  //   （スクショで発見。数字のテストは 全部 OK だった）
+  const ox = d.ax === 'x' ? d.sgn * 13 : 7;
+  const oz = d.ax === 'z' ? d.sgn * 13 : 7;
+  const rx = d.x + ox, rz = d.z + oz;
+  const g = new THREE.Group();
+  const wood = new THREE.MeshLambertMaterial({ color: 0x6b4a2a });
+  // 丸太。門のほうを向ける（x門なら x方向、z門なら z方向）
+  const log = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 6.5, 8), wood);
+  log.rotation.z = Math.PI / 2;
+  if (d.ax === 'z') log.rotation.y = Math.PI / 2;
+  log.position.y = 1.9;
+  // 屋根（生の牛の皮をかけた小屋。矢よけ）
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(d.ax === 'x' ? 5.2 : 3.2, 0.4, d.ax === 'x' ? 3.2 : 5.2),
+    new THREE.MeshLambertMaterial({ color: 0x8d6e4f }));
+  roof.position.y = 3.2;
+  g.add(log, roof);
+  for (const wx of [-1.5, 1.5]) for (const wz of [-1.2, 1.2]) {
+    const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 0.3, 8), wood);
+    wheel.rotation.z = Math.PI / 2;
+    wheel.position.set(wx, 0.6, wz);
+    g.add(wheel);
+  }
+  g.position.set(rx, H(rx, rz), rz);
+  scene.add(g);
+  const R = { x: rx, z: rz, mesh: g, door: d, F, burn: 0, home: g.position.clone(), anim: 0 };
+  RAMS.push(R);
+  return R;
+}
+function makeRams() { for (const F of fortresses) for (const d of F.doors) makeRam(F, d); }
+function resetRams() { for (const R of RAMS) { R.burn = 0; R.anim = 0; R.mesh.position.copy(R.home); R.mesh.visible = true; } }
+// 🚪 門をこわす。だれが壊しても 同じ（敵AIは まだ使わない＝下の ponytail）
+function damageDoor(d, F, dmg, why) {
+  if (d.broken) return;
+  d.hp -= dmg;
+  if (d.hp <= 0) {
+    d.broken = true;
+    setDoors(F);
+    playBoom();
+    showMessage('🚪 門が やぶれた！（' + F.name + '）', 3);
+    logEvent('door_broken', { key: F.key, why });
+  }
+}
+// ponytail: 敵AIは 衝車を使わない・門も壊さない（プレイヤーだけ）, 監督が遊んで
+//           「敵も門を破って」と言ったら AI に mission:'ram' を足す
+
+// 🚪 門の開け閉め。**自分の側の城の門は あいている**（出入りできないと 話にならない）。
+//    敵の城の門は しまっている＝衝車で 破るか、はしごで 壁を越えるか
+// ⚠ 支城は 取り合いで side が入れかわる。入れかわるたび ここを呼ぶこと
+function setDoors(F) {
+  for (const d of F.doors) {
+    const open = d.broken || F.side === 'ally';
+    d.mesh.visible = !open;
+    d.col.open = open;
+  }
 }
 
 // ============ 兵士のモデル（カプセル＋頭。国の色） ============
@@ -794,7 +999,39 @@ function addOutfit(g, kind, c, top) {
     }
   }
 }
-function makeSoldier(color, dark, isMe, outfit, isSaber) {
+// 🐴 馬（監督9/12「軍馬」）。⚠ 兵の足もとから **下**へ伸ばす（local y = -HORSE_H 〜 0）。
+//    こうすると 兵の高さの計算（下端0）を いじらずに済む。
+//    乗っている時は group.position.y を HORSE_H だけ 上げる（そこは動かす側でやる）
+const HORSE_H = 1.5;
+function addHorse(g) {
+  // ⚠⚠ 1回目は 胴 0.9×2.4 で作って、うしろから見たら **ただの木箱**だった
+  //   （兵のカプセルは 半径0.5＝直径1m。それより細い馬は 体に かくれて 見えない）。
+  //   → 胴を 1.3×3.4 に太らせ、足を 外へ張り出し、首と頭を **前へ長く**出す。
+  //   数字のテストは 全部 OK だったのに 絵は壊れていた＝**見るまで 分からない種類**
+  const hide = new THREE.MeshLambertMaterial({ color: 0x7a5230 });
+  const dark = new THREE.MeshLambertMaterial({ color: 0x3e2a18 });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.0, 3.4), hide);
+  body.position.y = -HORSE_H + 1.0;
+  const chest = new THREE.Mesh(new THREE.BoxGeometry(1.15, 1.1, 0.9), hide);
+  chest.position.set(0, -HORSE_H + 1.05, -1.5);
+  const neck = new THREE.Mesh(new THREE.BoxGeometry(0.62, 1.35, 0.7), hide);
+  neck.position.set(0, -HORSE_H + 1.75, -1.95); neck.rotation.x = 0.45;
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 1.2), hide);
+  head.position.set(0, -HORSE_H + 2.3, -2.5); head.rotation.x = 0.55;
+  const mane = new THREE.Mesh(new THREE.BoxGeometry(0.18, 1.3, 0.22), dark);
+  mane.position.set(0, -HORSE_H + 2.2, -1.75); mane.rotation.x = 0.45;
+  g.add(body, chest, neck, head, mane);
+  // 足は 胴の外へ 張り出す＝うしろからでも 見える
+  for (const lx of [-0.62, 0.62]) for (const lz of [-1.25, 1.25]) {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.0, 0.3), dark);
+    leg.position.set(lx, -HORSE_H + 0.5, lz);
+    g.add(leg);
+  }
+  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.22, 1.1, 0.22), dark);
+  tail.position.set(0, -HORSE_H + 1.35, 1.8); tail.rotation.x = -0.55;
+  g.add(tail);
+}
+function makeSoldier(color, dark, isMe, outfit, isSaber, isHorse) {
   const g = new THREE.Group();
   const c = new THREE.Color(color);
   if (dark) c.multiplyScalar(0.55);   // 敵は同じ国の色でも 暗くする＝見分けがつく
@@ -833,6 +1070,8 @@ function makeSoldier(color, dark, isMe, outfit, isSaber) {
   shadow.position.y = 0.03;      // 地面とけんかしない ぎりぎりの高さ
   g.add(shadow);
   g.userData.shadow = shadow;
+  // 🐴 軍馬：馬を足して、影を 地面（馬の足もと）まで 下げる
+  if (isHorse) { addHorse(g); shadow.position.y = -HORSE_H + 0.03; shadow.scale.setScalar(1.5); }
   return g;
 }
 
@@ -870,7 +1109,14 @@ const projs = [];
 const sandbags = [];
 const explosions = [];
 const $ = id => document.getElementById(id);
-function showMessage(t, sec = 2.5) { $('message').textContent = t; $('message').style.opacity = 1; G.msgT = sec; }
+// ⚠ 文の中の **ここ** を 太字にする。前は textContent だったので
+//   画面に「敵の**本城**の旗の下に立て！」と **記号のまま** 出ていた（スクショで発見）。
+//   ⚠ タグを1つだけ通すので、先に < と & を ただの文字に変えてから 置きかえる
+function mdBold(t) {
+  return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+                  .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+}
+function showMessage(t, sec = 2.5) { $('message').innerHTML = mdBold(t); $('message').style.opacity = 1; G.msgT = sec; }
 
 // ============ 音（小さな効果音だけ。BGMスロットは音楽が来たら足す） ============
 // ponytail: BGMは未実装, パパの曲が「陸上戦のぶん」として来たら v6のplayBgm一式を移植する
@@ -905,7 +1151,7 @@ function buildPicks() {
   mk('rowFoe', NATIONS, () => pickFoe, i => { if (i !== pickMe) pickFoe = i; }, n => n.flag + ' ' + n.name);
   paintModes();
   mk('rowCls', CLASSES, () => pickCls, i => { pickCls = i; }, c => c.icon + ' ' + c.name);
-  $('clsDesc').textContent = CLASSES[pickCls].desc;
+  $('clsDesc').innerHTML = mdBold(CLASSES[pickCls].desc);   // ⚠ ここも **記号のまま** 出ていた
 }
 buildPicks();
 
@@ -925,19 +1171,29 @@ function startGame() {
   projs.length = 0;
   for (const b of sandbags) scene.remove(b.mesh);
   sandbags.length = 0;
-  for (const f of fortresses) { /* 旗と柵は残す（作りなおさない） */ }
+  // 🏯 城は4つ（監督9/12「城はいくもあって」）。⚠ 城・柵・衝車は **1回しか作らない**
+  //    （毎回作ると 積み上がって 画面が重くなる。陸上戦で踏んだ）
   if (fortresses.length === 0) {
-    makeFortress(FORT_ALLY, 'ally', G.myNation.color);
-    makeFortress(FORT_FOE,  'foe',  G.foeNation.color);
-    // 監督 9/5「あと障害物もほしい」。⚠ ここは1回しか通らない（要塞と同じ）＝積み上がらない
+    for (const c of CASTLE_SPECS) makeFortress(c, c.side === 'ally' ? G.myNation.color : G.foeNation.color);
+    makeRams();
+    // 監督 9/5「あと障害物もほしい」
     scatterRocks();
   } else {
-    fortresses[0].color = G.myNation.color; fortresses[0].flag.material.color.set(G.myNation.color); fortresses[0].side = 'ally'; fortresses[0].capT = 0;
-    fortresses[1].color = G.foeNation.color; fortresses[1].flag.material.color.set(G.foeNation.color); fortresses[1].side = 'foe'; fortresses[1].capT = 0;
+    // 2回目からは 持ち主・色・門を もとにもどすだけ
+    for (let i = 0; i < fortresses.length; i++) {
+      const F = fortresses[i], c = CASTLE_SPECS[i];
+      F.side = c.side; F.capT = 0; F.warned = false;
+      F.color = c.side === 'ally' ? G.myNation.color : G.foeNation.color;
+      F.flag.material.color.set(F.color);
+      for (const d of F.doors) { d.hp = d.maxHp; d.broken = false; }
+      setDoors(F);
+    }
+    resetRams();
   }
   // 自分
   if (player.group) scene.remove(player.group);
-  player.group = makeSoldier(G.myNation.color, false, true, OUTFIT[G.cls.id], G.cls.id === 'saber');
+  player.group = makeSoldier(G.myNation.color, false, true, OUTFIT[G.cls.id], G.cls.id === 'saber',
+    !!G.cls.horse);   // 🐴 監督9/12「軍馬」
   scene.add(player.group);
   // 前を向く向き fwd は (-sin(yaw), 0, -cos(yaw))。敵要塞は +x にあるので yaw = -π/2。
   // ⚠ +π/2 にすると fwd が -x になり、「まえ」を押すと敵から遠ざかる（最初これで間違えた）
@@ -970,6 +1226,30 @@ function startGame() {
     }
   };
   mkAI('ally', 8); mkAI('foe', 10);
+  // 🏯 城の守り（監督9/12「城に入ったら民家もあるし兵士も多い」）。
+  // ⚠ 守備兵は **動かない**。持ち場に立って 撃つだけ＝「城に兵が詰めている」が画面で分かる。
+  //    動かすと 全員が野原に出ていって、城がからっぽになる（それでは監督の言葉と逆になる）
+  // ⚠ 数は 全部で11人。合計29人。これ以上ふやすと スマホで重くなる可能性がある
+  //    （⚠ 実機で測っていない。監督が「重い」と言ったら ここを減らす）
+  for (const F of fortresses) {
+    for (let i = 0; i < F.garrison; i++) {
+      const faction = F.side;
+      const aiSaber = (i % 4) === 3;
+      const g = makeSoldier(faction === 'ally' ? G.myNation.color : G.foeNation.color,
+        faction === 'foe', false, ['coat', 'pack', 'camo'][i % 3], aiSaber);
+      // 半分は 壁の上（弓を射る場所）、半分は 城の中
+      const onWall = (i % 2) === 0;
+      const px = F.x + (onWall ? ((i % 4) === 0 ? -F.hx : F.hx) : (Math.random() - 0.5) * F.hx * 1.2);
+      const pz = F.z + (onWall ? (Math.random() - 0.5) * F.hz * 1.2 : (Math.random() - 0.5) * F.hz * 1.2);
+      g.position.set(px, standH(px, pz), pz);
+      scene.add(g);
+      const s = { group: g, faction, hp: 90, maxHp: 90, state: 'fight', downT: 0, revT: 0, saber: aiSaber,
+        cd: 1 + Math.random() * 2, mission: 'garrison', yaw: 0, post: { x: px, z: pz },
+        lane: 0, pushT: 99, pushing: false };
+      attachHpBar(s, 3.1);
+      soldiers.push(s);
+    }
+  }
   G.running = true;
   $('titleScreen').style.display = 'none';
   $('endScreen').style.display = 'none';
@@ -979,18 +1259,35 @@ function startGame() {
   $('controlsHint').style.display = 'block';
   $('clsName').textContent = G.cls.icon + ' ' + G.cls.name + '（' + G.myNation.name + '）';
   setupControlsUI();
-  showMessage('🚩 敵の城の 旗の下に立て！', 4);
+  showMessage('🚩 敵の**本城**の旗の下に立て！ とちゅうの支城は 取ると そこから出なおせる', 5);
 }
 function respawn() {
-  const x = FORT_ALLY.x + 6, z = 6;
-  player.group.position.set(x, H(x, z), z);
+  // 🏯 味方の城のうち **いちばん前（+x がわ）**から 出なおす
+  //    ＝支城を取ると 前から出られる。これが「支城を取る意味」（監督9/12「城はいくもあって」）
+  let home = null;
+  for (const F of fortresses) if (F.side === 'ally' && (!home || F.x > home.x)) home = F;
+  // ⚠⚠ 城の **外がわ**、門のすぐ前に出す。
+  //   中に出すと 民家や内がわの壁にぶつかって 歩き出せない
+  //   （probe：1.2秒で 8.4m 進むはずが **3.5m しか進めていなかった**）
+  //   敵は +x のほうにいるので、門が2つある城では **+x がわの門**を選ぶ
+  let x = FORT_ALLY.x + 6, z = 0;
+  if (home && home.doors.length) {
+    let best = null;
+    for (const d of home.doors) {
+      const dx = d.x + (d.ax === 'x' ? d.sgn * 9 : 0);
+      const dz = d.z + (d.ax === 'z' ? d.sgn * 9 : 0);
+      if (!best || dx > best.x) best = { x: dx, z: dz };
+    }
+    x = best.x; z = best.z;
+  } else if (home) { x = home.x + home.hx + 9; z = home.z; }
+  player.group.position.set(x, H(x, z) + (G.cls && G.cls.horse ? HORSE_H : 0), z);
   G.hp = G.maxHp || 100;
 }
 function setupControlsUI() {
   let hint = '↑↓←→ あるく ／ Shift はしる ／ X しゃがむ ／ スペース 矢を射る';
   if (G.cls.melee) hint = hint.replace('スペース 矢を射る', 'スペース けんを ふる');
   if (G.cls.skill !== 'none') hint += G.cls.skill === 'dash' ? ' ／ E とつげき' : ' ／ E とくぎ';
-  hint += ' ／ R 投石車（基地・塹壕のそば）';
+  hint += ' ／ R 投石車（基地・塹壕のそば）・衝車（敵の門のそば）';
   if (isTouch) hint = '左スティックであるく（大きくたおすと はしる）';
   $('controlsHint').textContent = hint;
   if (isTouch) {
@@ -1142,7 +1439,8 @@ function shoot(opt) {   // {pos, vel, owner('me'|'ally'|'foe'), dmg, gravity, bl
   m.position.copy(opt.pos);
   scene.add(m);
   projs.push({ mesh: m, vel: opt.vel.clone(), owner: opt.owner, dmg: opt.dmg,
-    gravity: opt.gravity || 0, blast: opt.blast || 0, life: opt.life || 1.8 });
+    gravity: opt.gravity || 0, blast: opt.blast || 0, life: opt.life || 1.8,
+    fire: opt.fire || false });   // 🔥 火矢（監督9/12「火矢隊も」）
 }
 function explode(pos, big) {
   const m = new THREE.Mesh(new THREE.SphereGeometry(big ? 5 : 1.4, 8, 8),
@@ -1161,6 +1459,30 @@ function blastDamage(pos, r, dmg, owner) {
     if (player.group.position.distanceTo(pos) < r) hitPlayer(dmg);
   } else if (owner === 'me' && player.group.position.distanceTo(pos) < r*0.6) {
     hitPlayer(dmg*0.5);   // 自爆はちょっとだけ手かげん
+  }
+}
+// 🔥 もえる（監督9/12「火矢隊も」）。当たってから BURN_SEC 秒 じわじわ へる。
+// ⚠ もう燃えている相手に 当て直しても **のびるだけ**（重ねがけで 一瞬で溶けないように）
+const BURN_SEC = 5, BURN_DPS = 7;
+function igniteSoldier(s) {
+  s.burn = BURN_SEC;
+  if (!s.fireMark) {
+    s.fireMark = new THREE.Mesh(new THREE.ConeGeometry(0.5, 1.3, 6),
+      new THREE.MeshBasicMaterial({ color: 0xff7043, transparent: true, opacity: 0.8 }));
+    s.fireMark.position.y = 2.5;
+    s.group.add(s.fireMark);
+  }
+  s.fireMark.visible = true;
+}
+function tickBurn(dt) {
+  for (const s of soldiers) {
+    if (!s.burn || s.burn <= 0) continue;
+    s.burn -= dt;
+    if (s.state === 'fight') hitSoldier(s, BURN_DPS * dt, 'me');
+    if (s.fireMark) {
+      s.fireMark.visible = s.burn > 0;
+      s.fireMark.scale.setScalar(0.8 + Math.sin(performance.now() * 0.02) * 0.25);
+    }
   }
 }
 function hitSoldier(s, dmg, owner) {
@@ -1197,7 +1519,7 @@ let lastT = performance.now(), fireCd = 0, grenCd = 0, skillCd = 0, knifeCd = 0;
 const DEVMODE = new URLSearchParams(location.search).get('dev') === '1';
 // ⚠ 版の印。監督がスマホで試して報告してくるので、**どの版を見ているか**が分からないと
 //    直したはずの物を「まだ直ってない」と言われる（古いキャッシュを見ているだけ、が起きる）
-const BUILD = 'sango-0912a';
+const BUILD = 'sango-0912b';
 { const e = document.getElementById('buildTag'); if (e) e.textContent = '版:' + BUILD; }
 const devPump = (() => {
   if (!DEVMODE) return null;
@@ -1240,7 +1562,8 @@ function tick() {
   // 建物にはめり込まない
   if (!hitsHouse(nx, nz, P.y) && Math.abs(nx) < 300 && Math.abs(nz) < 300) { P.x = nx; P.z = nz; }
   // 🪜 足場とはしごのぶん、高さは standH で決める（地面だけを見ると 壁の上に立てない）
-  const wantY = standH(P.x, P.z);
+  // 🐴 軍馬は はしごを使わず、馬のぶん HORSE_H だけ 上に乗る（監督9/12）
+  const wantY = standH(P.x, P.z, !!G.cls.horse) + (G.cls.horse ? HORSE_H : 0);
   P.y += (wantY - P.y) * Math.min(1, dt * 10);            // 段差はなめらかに
   if (Math.abs(wantY - P.y) < 0.05) P.y = wantY;
   player.group.rotation.y = player.yaw;
@@ -1306,8 +1629,31 @@ function tick() {
     dir.x += (Math.random()-0.5) * G.cls.spread * (G.crouch ? 0.5 : 1) * 2;
     dir.y += (Math.random()-0.5) * G.cls.spread;
     shoot({ pos: P.clone().add(new THREE.Vector3(0, 1.6, 0)).addScaledVector(fwd, 1),
-            vel: dir.multiplyScalar(spd), owner: 'me', dmg: G.cls.dmg });
+            vel: dir.multiplyScalar(spd), owner: 'me', dmg: G.cls.dmg,
+            // 🎯 連弩だけ 矢が 早く落ちる＝とどく所が みじかい（原典どおり）
+            life: G.cls.arrowLife,
+            // 🔥 火矢隊だけ 矢が もえている（色と大きさも変える＝見て分かる）
+            fire: !!G.cls.fire, color: G.cls.fire ? 0xff7043 : undefined,
+            size: G.cls.fire ? 0.24 : undefined });
     playGun();
+    // 📚 はじめの1発だけ 出どころを出す。⚠ 監督が書いた名前（連弩・火矢隊）は **変えない**。
+    //    ほんとうの話を そえるだけ（投石車＝發石車 と 同じやり方）
+    if (!G.toldCls) {
+      G.toldCls = true;
+      if (G.cls.id === 'crossbow')
+        showMessage('🎯 連弩！ 📚 諸葛亮は 連弩を **発明した**のではなく「損益」＝**なおした**人' +
+          '（三国志 巻三十五）。連弩そのものは 500年も前からあって、秦の始皇帝も撃っている。' +
+          'それに 三国志の記録で じっさいに連弩を撃っているのは **魏**のほう（巻八）', 8);
+      else if (G.cls.id === 'firearrow')
+        showMessage('🔥 火矢！ 📚 ほんとうの名前は「火箭（かせん）」。「火矢」は 日本のことば。' +
+          '記録に出てくる2回とも **相手の木の道具（雲梯・攻具）を焼く**ために使われている。' +
+          'だから このゲームでも **門と衝車に よく効く**', 8);
+      else if (G.cls.id === 'horse')
+        showMessage('🐴 軍馬！ 📚 三国志のころの馬には、**あぶみが 片っぽしか なかった**。' +
+          'しかも それは 乗るときの ふみ台で、乗ったら 足はかけない。' +
+          '両足を かける あぶみが 出てくるのは 322年ごろ＝三国志が おわった あと。' +
+          'それでも 丁奉は「馬にまたがり 矛を持って 敵の中へ 突っこんだ」と 記録にある', 9);
+    }
     logEvent('fire', { cls: G.cls.id });
   }
   if ((keys['KeyB'] || grenPressed) && grenCd <= 0 && G.gren > 0) {
@@ -1340,7 +1686,40 @@ function tick() {
     nmD = d; nearMortar = m;
   }
   G.nearMortar = nearMortar;
-  if (nearMortar && (keys['KeyR'] || mortarPressed) && G.mortarCd <= 0) {
+  // 🪵 衝車（監督9/12）。⚠ 投石車と **同じ R ボタン**にした。
+  //    ボタンを1つ足すと 画面の左下が さらに混む（監督9/8「ボタンの場所」の話があった）。
+  //    近くにあるほうが 出る＝どちらか一方しか 近くに無い置き方にしてある
+  let nearRam = null, nrD = RAM_RANGE;
+  for (const R of RAMS) {
+    if (R.burn > 0 || R.door.broken) continue;
+    if (R.F.side === 'ally') continue;                 // 自分の城の門は もう あいている
+    const d = Math.hypot(P.x - R.x, P.z - R.z);
+    if (d < nrD) { nrD = d; nearRam = R; }
+  }
+  G.nearRam = nearRam;
+  for (const R of RAMS) {
+    if (R.burn > 0) { R.burn -= dt; R.mesh.visible = Math.floor(R.burn * 6) % 2 === 0; }
+    else R.mesh.visible = true;
+    if (R.anim > 0) {
+      R.anim -= dt;
+      const push = Math.sin(Math.max(0, R.anim) / RAM_CD * Math.PI) * 6;
+      R.mesh.position.set(R.home.x - (R.door.ax === 'x' ? R.door.sgn * push : 0), R.home.y,
+                          R.home.z - (R.door.ax === 'z' ? R.door.sgn * push : 0));
+    }
+  }
+  if (nearRam && (keys['KeyR'] || mortarPressed) && G.mortarCd <= 0) {
+    G.mortarCd = RAM_CD; nearRam.anim = RAM_CD;
+    damageDoor(nearRam.door, nearRam.F, RAM_DMG, 'ram');
+    playBoom();
+    G.ramHit = (G.ramHit || 0) + 1;
+    if (!nearRam.door.broken) {
+      showMessage(G.ramHit === 1
+        ? '🪵 衝車で 門を ついた！ もういちど！（ゆうじんの「丸太で門を叩いてい」＝これが「とう車」の正体。' +
+          'ほんとうの名前は 衝車（しょうしゃ）。三国志の記録にある道具）'
+        : '🪵 ドン！ 門が きしんでいる…', G.ramHit === 1 ? 6 : 1.4);
+    }
+    logEvent('ram', { key: nearRam.F.key, hp: nearRam.door.hp });
+  } else if (nearMortar && (keys['KeyR'] || mortarPressed) && G.mortarCd <= 0) {
     G.mortarCd = MORTAR_CD;
     shoot({ pos: new THREE.Vector3(nearMortar.x, H(nearMortar.x, nearMortar.z) + 2.2, nearMortar.z),
             vel: fwd.clone().multiplyScalar(30).add(new THREE.Vector3(0, 26, 0)),
@@ -1428,13 +1807,18 @@ function tick() {
   // ⚠ tick は毎フレーム走る。display を毎回書くと 無駄に レイアウトを触る。
   //   **前と同じなら書かない**を1か所に置いて、出し入れは全部ここを通す
   setDisp('trainEndBtn', G.training);
-  setDisp('mortarBtn', G.nearMortar);
+  // 🪵 衝車が近くにある時は 同じボタンの 顔を変える（監督9/12「丸太で門を叩いてい」）
+  setDisp('mortarBtn', G.nearMortar || G.nearRam);
+  {
+    const want = G.nearRam ? '🪵<br>衝車' : '🪨<br>投石車';
+    if ($('mortarBtn').innerHTML !== want) $('mortarBtn').innerHTML = want;
+  }
   // 💥 大砲は 1人1回。0になったら **押しても何も起きないボタン**が残るので消す
   //   （つぎの試合で startGame が G.cannon=1 に戻す）
   if (isTouch) setDisp('cannonBtn', false);     // ponytail: 三国志では出さない, 投げる武器を足すなら ここ
   // 💣 手榴弾は 0でも 基地にもどれば 3本にもどる＝**消さずに うすく**する
   if (isTouch) setDisp('grenBtn', false);       // ponytail: 同上
-  if (G.nearMortar && G.mortarCd <= 0) $('mortarBtn').classList.add('on');
+  if ((G.nearMortar || G.nearRam) && G.mortarCd <= 0) $('mortarBtn').classList.add('on');
   else $('mortarBtn').classList.remove('on');
   setDisp('reviveBtn', !!revTarget);
   if (revTarget) $('reviveBtn').classList.add('on'); else $('reviveBtn').classList.remove('on');
@@ -1460,15 +1844,19 @@ function tick() {
     if (s.state !== 'dead') continue;
     s.deadT -= dt;
     if (s.deadT <= 0) {
-      const home = s.faction === 'ally' ? FORT_ALLY : FORT_FOE;
-      s.group.position.set(home.x + (Math.random()-0.5)*20, 0, home.z + (Math.random()-0.5)*20);
-      s.group.position.y = H(s.group.position.x, s.group.position.z);
+      // 🏯 守備兵は 持ち場にもどる（城の外には わかない）
+      const home = s.post || (s.faction === 'ally' ? FORT_ALLY : FORT_FOE);
+      const spread = s.post ? 2 : 20;
+      s.group.position.set(home.x + (Math.random()-0.5)*spread, 0, home.z + (Math.random()-0.5)*spread);
+      s.group.position.y = standH(s.group.position.x, s.group.position.z);
       s.group.rotation.z = 0;
       s.hp = s.maxHp; s.state = 'fight';
       updateHpBar(s);
       scene.add(s.group);
     }
   }
+
+  tickBurn(dt);   // 🔥 火矢で もえている兵（監督9/12）
 
   // ---- AI兵 ----
   // ⚠ 監督報告 9/5「敵が前をとおってもうたなかっか」（3回）。原因は射程だった。
@@ -1506,7 +1894,8 @@ function tick() {
         if (d < bd) { bd = d; baseGoal = bs; }
       }
     }
-    const base = baseGoal ? { x: baseGoal.x, z: baseGoal.z }
+    const base = s.mission === 'garrison' ? s.post           // 🏯 守備兵は 持ち場に居つづける
+      : baseGoal ? { x: baseGoal.x, z: baseGoal.z }
       : s.mission === 'capture'
       ? (s.faction === 'ally' ? FORT_FOE : FORT_ALLY)
       : (tgt ? { x: tgt.x, z: tgt.z } : (s.faction === 'ally' ? FORT_FOE : FORT_ALLY));
@@ -1522,7 +1911,8 @@ function tick() {
     }
     const engaged = tgt && best < AI_RANGE;
     // 🏕 基地係は 近づいたら 止まる（そこに立っていないと 取れない）
-    if ((!engaged || s.pushing) && gd > (s.mission === 'capture' ? 6 : baseGoal ? 4 : 22)) {
+    if ((!engaged || s.pushing) &&
+        gd > (s.mission === 'garrison' ? 2 : s.mission === 'capture' ? 6 : baseGoal ? 4 : 22)) {
       const dx = (goal.x-sp2.x)/gd, dz = (goal.z-sp2.z)/gd;
       sp2.x += dx * 6.5 * dt; sp2.z += dz * 6.5 * dt;
       sp2.y = H(sp2.x, sp2.z);
@@ -1578,6 +1968,37 @@ function tick() {
       if (p.blast) { explode(pp.clone(), true); blastDamage(pp, p.blast, p.dmg, p.owner); }
       done = true;
     }
+    // 🚪 門にあたる（監督9/12「丸太で門を叩いてい」＝門は しまっている）。
+    // 📚 火矢（火箭）の記録は **2件とも「相手の木の攻城具を焼いた」話**。人を焼く話ではない。
+    //    だから ここでは **火矢は 門と衝車に 3倍効く**。史料の使われ方に合わせた
+    if (!done) {
+      for (const F of fortresses) {
+        for (const d of F.doors) {
+          if (d.broken || d.col.open) continue;
+          if (Math.abs(pp.x - d.x) > d.col.hx + 0.5 || Math.abs(pp.z - d.z) > d.col.hz + 0.5) continue;
+          if (pp.y > H(d.x, d.z) + WALL_H) continue;
+          // ⚠⚠ ふつうの矢では **門は こわれない**（ぶつかって 止まるだけ）。
+          //   ここを「矢も効く」にしていたら、AIの流れ矢だけで 門が落ちて
+          //   衝車の出番が 消えていた（probe が 1回で門がやぶれると言って 見つけた）。
+          //   📚 史実でも 門を破るのは 火（火箭）か 丸太（衝車）。矢ではない
+          if (p.fire) damageDoor(d, F, p.dmg * 3, 'fire_arrow');
+          done = true; break;
+        }
+        if (done) break;
+      }
+    }
+    // 🔥 火矢は 衝車も焼く（史実：衝車は こわされる道具だった）
+    if (!done && p.fire) {
+      for (const R of RAMS) {
+        if (R.burn > 0) continue;
+        if (Math.hypot(pp.x - R.x, pp.z - R.z) > 3.4) continue;
+        if (pp.y > H(R.x, R.z) + 4) continue;
+        R.burn = RAM_BURN;
+        showMessage('🔥 衝車を 焼いた！（' + RAM_BURN + '秒 つかえない）', 2.5);
+        logEvent('ram_burned', {});
+        done = true; break;
+      }
+    }
     // 兵にあたる
     if (!done) {
       if (p.owner === 'foe') {
@@ -1592,6 +2013,7 @@ function tick() {
           if (pp.distanceTo(s.group.position) < 1.5) {
             if (p.blast) { explode(pp.clone(), true); blastDamage(pp, p.blast, p.dmg, p.owner); }
             else hitSoldier(s, p.dmg, p.owner);
+            if (p.fire) igniteSoldier(s);        // 🔥 もえつづける
             done = true; break;
           }
         }
@@ -1660,10 +2082,30 @@ function tick() {
         $('capLabel').textContent = '🚩 のっとり中…！';
         $('capFill').style.width = Math.min(100, F.capT/3*100) + '%';
       }
-      if (F.side === 'ally' && F.capT > 1 && !F.warned) { F.warned = true; showMessage('⚠⚠ じぶんの城が おとされそう！！ もどれ！！', 3); }
+      if (F.side === 'ally' && F.capT > 1 && !F.warned) {
+        F.warned = true;
+        showMessage('⚠⚠ ' + F.name + 'が おとされそう！！ もどれ！！', 3);
+      }
       if (F.capT >= 3) {
-        if (F.side === 'foe') return win();
-        else return lose();
+        // 🏯 勝ち負けが決まるのは **本城だけ**。支城は 取り合い（監督9/12「城はいくもあって」）
+        if (F.main) { if (F.side === 'foe') return win(); else return lose(); }
+        F.capT = 0; F.warned = false;
+        F.side = F.side === 'ally' ? 'foe' : 'ally';
+        F.color = F.side === 'ally' ? G.myNation.color : G.foeNation.color;
+        F.flag.material.color.set(F.color);
+        // ⚠ 取りかえしたら 門も もとどおり（直る）。でないと 一度やぶれた城は ざるのまま
+        for (const d of F.doors) { d.hp = d.maxHp; d.broken = false; }
+        setDoors(F);
+        // 守備兵も 持ち主が入れかわる
+        for (const s2 of soldiers) {
+          if (s2.mission !== 'garrison' || !s2.post) continue;
+          if (Math.abs(s2.post.x - F.x) > F.hx + 4 || Math.abs(s2.post.z - F.z) > F.hz + 4) continue;
+          s2.faction = F.side;
+        }
+        showMessage(F.side === 'ally'
+          ? '🏯 ' + F.name + 'を とった！ ここから 出なおせる'
+          : '⚠ ' + F.name + 'を とりかえされた…', 3);
+        logEvent('castle_capture', { key: F.key, side: F.side });
       }
     } else { F.capT = Math.max(0, F.capT - dt*2); F.warned = false; }
   }
@@ -1719,9 +2161,10 @@ function drawMinimap() {
   const sx = x => ox + (x - P.x)*sc, sy = z => oy + (z - P.z)*sc;
   const M = 7;
   const clamp = v => Math.max(M, Math.min(140-M, v));
+  // 🏯 城は4つ。本城は 大きい丸、支城は 小さい丸（監督9/12「城はいくもあって」）
   for (const F of fortresses) {
     mm.fillStyle = F.side === 'ally' ? '#29b6f6' : '#ff1744';
-    mm.beginPath(); mm.arc(clamp(sx(F.x)), clamp(sy(F.z)), 5, 0, 7); mm.fill();
+    mm.beginPath(); mm.arc(clamp(sx(F.x)), clamp(sy(F.z)), F.main ? 5 : 3, 0, 7); mm.fill();
     mm.strokeStyle = '#fff'; mm.lineWidth = 1.2; mm.stroke();
   }
   for (const s of soldiers) {
@@ -1818,8 +2261,9 @@ paintRendo();   // ⚠ 起動したときにも 出す（呼ばないと レベ�
 $('btnGo').onclick = () => { G.training = false; startGame(); };
 // ?dev=1 のときだけ、テスト用にコンソールから中を触れる（v6と同じ流儀）
 if (DEVMODE) {
-  window.dbg = () => ({ G, player, soldiers, projs, sandbags, fortresses, startGame, keys, H, standH, LADDERS, PLATFORMS, houses, rocks, hitPlayer, hitSoldier, THREE, camera, scene,
+  window.dbg = () => ({ G, player, soldiers, projs, sandbags, fortresses, startGame, keys, H, standH, LADDERS, PLATFORMS, houses, rocks, hitPlayer, hitSoldier, THREE, camera, scene, renderer,
     BASES, MORTARS, TRENCH_ZS, TRENCH_HALF, BASE_XS, BASE_ZS, hitsHouse,   // 🏕🎯 9/8の注文ぶん
+    CASTLE_SPECS, RAMS, damageDoor, setDoors, standH, igniteSoldier,        // 🏯🪵🔥 9/12の注文ぶん
     SKILLS, REN_MAX_LV, REN_BATTLE, REN_TRAIN, addRendo, saveRendo, paintRendo, startTraining, endTraining,
     rendoHpBonus, rendoDmgMul, learned, get rendo() { return rendo; },       // 📈 練度
     DEFEND_SEC, MODES, togglePause, BASE_ZONE, BASE_CAP_SEC,                 // ⚔🛡⏸🏕 9/8〜9/9
