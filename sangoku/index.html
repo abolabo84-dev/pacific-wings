@@ -1100,6 +1100,99 @@ function makeUntei(F) {
   return U;
 }
 function makeUnteis() { for (const F of fortresses) makeUntei(F); }
+
+// 🗼 井闌（せいらん・やぐら車）＝ 監督9/10 兵器リスト → 9/26 07:37「やぐら車でいいよ」。
+// 📚 『三國志』卷三 裴注引『魏略』（陳倉 228年）：「亮乃更爲**井闌百尺**以射城中…
+//    **昭又於內築重牆**」＝ 城壁より高い やぐらを作って **城の中を 見下ろして 射た**。
+//    壁を こわす道具ではない。郝昭の対抗は 火ではなく **内がわに もう1枚 壁を作る（重牆）**。
+//    ⚠ だから 雲梯とちがって **火では 焼けない**。敵の本城の 二重の壁が その「重牆」
+// ⚠ 置き場所：西の壁から 9m はなれた所、門をはさんで 雲梯と反対がわ（z をプラスへ）。
+//   はなしておくのは **壁に のりうつる橋にしない**ため（それは 雲梯の役）
+// ponytail: 井闌は うごかせない（もう押してきてある形）, 監督が「押して近づけたい」と言ったら
+//           衝車の anim と同じ形で 前に出す
+// ponytail: 敵は 井闌を使わない（プレイヤーだけ）
+const SEIRAN = [], SEIRAN_UP = 4, SEIRAN_OFF = 9, SEIRAN_HALF = 2.2, SEIRAN_LAD = 7.5;
+function makeSeiran(F) {
+  const tx = F.x - F.hx - WALL_T / 2 - SEIRAN_OFF;         // やぐらの まんなか
+  const tz = F.z + F.hz * 0.8;
+  const topY = H(F.x, F.z) + WALL_H + SEIRAN_UP;           // 壁の上より 4m 高い
+  const baseY = H(tx, tz);
+  const h = topY - baseY;
+  const g = new THREE.Group();
+  const wood = new THREE.MeshLambertMaterial({ color: 0x6d4c2f });
+  for (const px of [-1.8, 1.8]) for (const pz of [-1.8, 1.8]) {        // 柱4本
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.4, h, 0.4), wood);
+    post.position.set(px, h / 2, pz); g.add(post);
+  }
+  for (const yy of [h * 0.33, h * 0.66]) {                              // よこ木
+    for (const pz of [-1.8, 1.8]) {
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.2, 0.2), wood);
+      bar.position.set(0, yy, pz); g.add(bar);
+    }
+  }
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(SEIRAN_HALF * 2 + 0.4, 0.3, SEIRAN_HALF * 2 + 0.4), wood);
+  floor.position.set(0, h, 0); g.add(floor);
+  // 板の囲い（矢よけ）。**城がわ（+x）と 左右だけ**。のぼってくる がわ（-x）は あけておく
+  const board = new THREE.MeshLambertMaterial({ color: 0x8d6e4f });
+  const wallE = new THREE.Mesh(new THREE.BoxGeometry(0.2, 1.1, SEIRAN_HALF * 2 + 0.4), board);
+  wallE.position.set(SEIRAN_HALF + 0.1, h + 0.7, 0); g.add(wallE);
+  for (const sz of [-1, 1]) {
+    const side = new THREE.Mesh(new THREE.BoxGeometry(SEIRAN_HALF * 2 + 0.4, 1.1, 0.2), board);
+    side.position.set(0, h + 0.7, sz * (SEIRAN_HALF + 0.1)); g.add(side);
+  }
+  for (const wx of [-1.6, 1.6]) for (const wz of [-2.3, 2.3]) {          // 車輪（移動式の やぐら）
+    const wh = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 0.3, 8), wood);
+    wh.rotation.x = Math.PI / 2; wh.position.set(wx, 0.7, wz); g.add(wh);
+  }
+  // うしろ（-x）の はしご。⚠ 上のはしは 足場に 重ねる（1.7mの穴を 作らない）
+  const x0 = tx - SEIRAN_HALF + 0.3, x1 = x0 - SEIRAN_LAD;
+  const lad = new THREE.Group();
+  const L = Math.hypot(SEIRAN_LAD, h);
+  const rail = new THREE.MeshLambertMaterial({ color: 0x8d6a3f });
+  for (const rz of [-0.9, 0.9]) {
+    const r = new THREE.Mesh(new THREE.BoxGeometry(L, 0.2, 0.2), rail);
+    r.position.set(L / 2, 0, rz); lad.add(r);
+  }
+  for (let k = 1; k <= 9; k++) {
+    const st = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.14, 2.0), rail);
+    st.position.set(L * k / 10, 0, 0); lad.add(st);
+  }
+  lad.rotation.z = Math.atan2(h, SEIRAN_LAD);
+  lad.position.set(x1 - tx, H(x1, tz) - baseY, 0);
+  g.add(lad);
+  g.position.set(tx, baseY, tz);
+  scene.add(g);
+  const S = { F, x: tx, z: tz, topY, mesh: g, on: false,
+    plat: { x: tx, z: tz, hx: SEIRAN_HALF, hz: SEIRAN_HALF, y: topY, seiran: true },
+    ladder: { x0, z0: tz, x1, z1: tz, hw: 1.2, yTop: topY, yBot: H(x1, tz), seiran: true },
+    // 柱のところは 歩いて通れない。⚠ 板のはしより 小さくする（はしごの上で ぶつからないように）
+    col: { x: tx, z: tz, hx: 1.9, hz: 1.9, top: topY, open: true } };
+  houses.push(S.col);
+  SEIRAN.push(S);
+  return S;
+}
+function makeSeirans() { for (const F of fortresses) makeSeiran(F); }
+// 🗼 敵がわの城のときだけ 出す。**出ているときだけ** 足場・はしご・当たり判定が 生きる
+//   （支城が 取り合いで 入れかわったら 出たり消えたりする）
+function syncSeiran(S) {
+  const want = S.F.side === 'foe';
+  if (S.on === want) return;
+  S.on = want;
+  S.mesh.visible = want;
+  S.col.open = !want;
+  const li = LADDERS.indexOf(S.ladder), pi = PLATFORMS.indexOf(S.plat);
+  if (want) { if (li < 0) LADDERS.push(S.ladder); if (pi < 0) PLATFORMS.push(S.plat); }
+  else { if (li >= 0) LADDERS.splice(li, 1); if (pi >= 0) PLATFORMS.splice(pi, 1); }
+}
+function resetSeirans() { for (const S of SEIRAN) { S.on = !(S.F.side === 'foe'); syncSeiran(S); } }
+// 🗼 自分が 井闌の上に 立っているか
+function onSeiran(P) {
+  for (const S of SEIRAN) {
+    if (!S.on) continue;
+    if (Math.abs(P.x - S.x) <= SEIRAN_HALF && Math.abs(P.z - S.z) <= SEIRAN_HALF && P.y > S.topY - 0.6) return S;
+  }
+  return null;
+}
 function unteiOff(U) {                      // はしごを 壁から はずす（焼けた・リセット）
   const i = LADDERS.indexOf(U.entry);
   if (i >= 0) LADDERS.splice(i, 1);
@@ -1331,6 +1424,8 @@ function startGame() {
     makeRams();
     makeMills();                                   // 🪨 監督9/13「衝車を潰すのはいいと思う」
     makeUnteis();                                  // 🪜 監督9/26「雲ていなどを入れて」
+    makeSeirans();                                 // 🗼 監督9/26「やぐら車でいいよ」
+    resetSeirans();
     // 監督 9/5「あと障害物もほしい」
     scatterRocks();
   } else {
@@ -1346,6 +1441,7 @@ function startGame() {
     resetRams();
     resetMills();
     resetUnteis();
+    resetSeirans();
   }
   // 自分
   if (player.group) scene.remove(player.group);
@@ -1448,7 +1544,7 @@ function setupControlsUI() {
   let hint = '↑↓←→ あるく ／ Shift はしる ／ X しゃがむ ／ スペース 矢を射る';
   if (G.cls.melee) hint = hint.replace('スペース 矢を射る', 'スペース けんを ふる');
   if (G.cls.skill !== 'none') hint += G.cls.skill === 'dash' ? ' ／ E とつげき' : ' ／ E とくぎ';
-  hint += ' ／ R 投石車（基地・塹壕のそば）・衝車（敵の門のそば）・🪜雲梯（敵の西の壁のそば）・🪨石臼（じぶんの門のそば）';
+  hint += ' ／ R 投石車（基地・塹壕のそば）・衝車（敵の門のそば）・🪜雲梯（敵の西の壁のそば）・🪨石臼（じぶんの門のそば）／🗼井闌は のぼるだけ';
   if (isTouch) hint = '左スティックであるく（大きくたおすと はしる）';
   $('controlsHint').textContent = hint;
   if (isTouch) {
@@ -1879,6 +1975,19 @@ function tick() {
     if (d < nmlD) { nmlD = d; nearMill = M; }
   }
   G.nearMill = nearMill;
+  // 🗼 井闌（監督9/26「やぐら車でいいよ」）。敵がわの城のときだけ 出す
+  for (const S of SEIRAN) syncSeiran(S);
+  const onS = onSeiran(P);
+  if (onS && !G.onSeiran) {
+    G.seiranUp = (G.seiranUp || 0) + 1;
+    showMessage(G.seiranUp === 1
+      ? '🗼 井闌（やぐら車）の上！ 城の中が 見える。上から ねらえ（板で 矢が それやすい）。' +
+        '📚 陳倉で 諸葛亮は「百尺の井闌」を作って 城の中を 射た。' +
+        'すると 郝昭は **城の内がわに もう1枚 壁を作って** 防いだ＝ 敵の本城の 二重の壁が それ'
+      : '🗼 井闌の上！', G.seiranUp === 1 ? 10 : 1.4);
+    logEvent('seiran_up', { key: onS.F.key });
+  }
+  G.onSeiran = !!onS;
   // 🪜 雲梯（監督9/26「雲ていなどを入れて」）。敵の城の 西の壁の外に 1台ずつ
   let nearUntei = null, nuD = UNTEI_RANGE;
   for (const U of UNTEI) {
@@ -2233,7 +2342,8 @@ function tick() {
       s.cd = 1.2 + Math.random()*0.8;
       const dir = tmpV.set(tgt.x-sp2.x, 1.4 + (tgt===P ? (G.crouch ? 0.2 : 0.5) : 0.5) - 1.5, tgt.z-sp2.z).normalize();
       // しゃがんでいる自分は ねらいがズレやすい（＝しゃがみの意味）
-      const miss = (tgt === P && G.crouch) ? 0.14 : 0.06;
+      // 🗼 井闌の上も しゃがみと同じだけ それる（やぐらの板＝矢よけ）
+      const miss = (tgt === P && (G.crouch || G.onSeiran)) ? 0.14 : 0.06;
       dir.x += (Math.random()-0.5)*miss; dir.y += (Math.random()-0.5)*miss; dir.z += (Math.random()-0.5)*miss;
       shoot({ pos: sp2.clone().add(new THREE.Vector3(0, 1.6, 0)), vel: dir.multiplyScalar(70),
               owner: s.faction, dmg: 9, color: s.faction === 'foe' ? 0xff5252 : 0xfff176 });
@@ -2696,6 +2806,7 @@ if (DEVMODE) {
     CASTLE_SPECS, RAMS, damageDoor, setDoors, standH, igniteSoldier,        // 🏯🪵🔥 9/12の注文ぶん
     MILLS, autoDoors,                                                       // 🪨🚪 9/13の注文ぶん（石臼・敵の衝車）
     UNTEI, burnUntei, UNTEI_BURN, shoot,                                    // 🪜 9/26「雲ていなどを入れて」
+    SEIRAN, onSeiran, SEIRAN_UP,                                            // 🗼 9/26「やぐら車でいいよ」
     PROV, MAP_KEY, drawMap, mapAfterBattle, get mapOwn() { return mapOwn; }, // 🗺 9/15「2 B」勢力図
     SKILLS, REN_MAX_LV, REN_BATTLE, REN_TRAIN, addRendo, saveRendo, paintRendo, startTraining, endTraining,
     rendoHpBonus, rendoDmgMul, learned, get rendo() { return rendo; },       // 📈 練度
