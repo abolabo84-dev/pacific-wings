@@ -209,6 +209,23 @@
        border:2px solid #ffd54f; background:rgba(0,0,0,.35); color:#ffd54f; text-decoration:none;
        font-weight:bold; font-size:1rem">📖 しらべたこと「三国志 ほんとうさがし」</a><br>
     <span style="font-size:.78rem; opacity:.75">兵器・城・馬を 2000年前の本で たしかめた読み物（友だちも どうぞ）</span></p>
+  <!-- 🗺 勢力図（監督9/13「今の状態ていうので地図を作って領地の地図がほしい」→ 9/15「2 B」
+       ＝魏・呉・蜀が どこを持っているかの地図。**勝つと ぬりかわる**） -->
+  <div id="mapBox" style="margin:1em auto 0; max-width:min(92vw,560px); text-align:left;
+       background:rgba(0,0,0,.3); border:2px solid #7a8b5a; border-radius:12px; padding:10px 14px">
+    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap">
+      <b style="font-size:1.1rem">🗺 勢力図</b>
+      <span id="mapCount" style="font-size:.8rem; opacity:.85"></span>
+      <button class="btn" id="btnMapReset" style="margin-left:auto; padding:6px 12px; font-size:.82rem">
+        さいしょに もどす</button>
+    </div>
+    <canvas id="mapCv" width="520" height="360"
+            style="width:100%; height:auto; display:block; margin:8px 0 4px; border-radius:8px"></canvas>
+    <div style="font-size:.8rem; opacity:.9">
+      <b>勝つと 1つ ぬりかわる。</b>負けると 1つ とられる。<br>
+      <span id="mapNote" style="opacity:.8"></span></div>
+  </div>
+
   <!-- 📈 練度（監督9/8「5C＝訓練はタイトル画面のメニュー」） -->
   <div id="rendoBox" style="margin:1em auto 0; max-width:min(92vw,560px); text-align:left;
        background:rgba(0,0,0,.3); border:2px solid #7a8b5a; border-radius:12px; padding:10px 14px">
@@ -2327,6 +2344,7 @@ function endTraining() {
 function win() {
   G.running = false;
   logEvent('win', { kills: G.kills });
+  G.mapMoved = G.training ? null : mapAfterBattle(true);   // 🗺 訓練では ぬりかわらない
   $('endTitle').textContent = G.training ? '🎯 訓練 おわり！'
     : G.mode === 'defend' ? '🛡 首都を まもりきった！！' : '🏆 敵の首都を のっとった！！';
   $('endText').textContent = G.myNation.flag + ' ' + G.myNation.name + '軍の かち！　たおした数：' + G.kills;
@@ -2335,6 +2353,7 @@ function win() {
 function lose() {
   G.running = false;
   logEvent('lose', { kills: G.kills });
+  G.mapMoved = G.training ? null : mapAfterBattle(false);
   $('endTitle').textContent = '😢 城を おとされた…';
   $('endText').textContent = 'つぎは 城を まもりながら せめよう！　たおした数：' + G.kills;
   endCommon();
@@ -2352,6 +2371,12 @@ function endCommon() {
               + (SKILLS.some(x => x.lv > before && x.lv <= rendo.lv)
                  ? '<br>🗡 おぼえた技：<b>' + SKILLS.filter(x => x.lv > before && x.lv <= rendo.lv).map(x => x.name).join('・') + '</b>'
                  : '<br>（技はふえないが 体力とけんの強さが 上がった）') : '');
+  // 🗺 ぬりかわったことを **ことばでも** 出す（地図を見に行かないと分からない、では気づけない）
+  if (G.mapMoved) {
+    $('endText').innerHTML += '<br>🗺 <b>' + G.mapMoved.label + 'の 土地が ' +
+      G.mapMoved.to.flag + G.mapMoved.to.name + ' のものになった！</b>（タイトルの 勢力図を 見てね）';
+    logEvent('map_change', { to: G.mapMoved.to.id });
+  }
   paintRendo();
   $('endScreen').style.display = 'flex';
   $('capBarWrap').style.display = 'none';
@@ -2390,13 +2415,103 @@ function startTraining() {
 }
 $('btnTrain').onclick = startTraining;
 paintRendo();   // ⚠ 起動したときにも 出す（呼ばないと レベルが1のまま止まって見える）
+// 🗺 drawMap() は ここでは呼べない。地図の表（const PROV）が **まだ下にある**＝
+//    const は 宣言より前に さわると落ちる（TDZ）。実際 window.dbg まで走らず
+//    probe が「dbg is not a function」で 全部こけた。呼び出しは 表のすぐ下に置いた
 $('btnGo').onclick = () => { G.training = false; startGame(); };
+// ============ 🗺 勢力図（監督9/13「領地の地図がほしい」→ 9/15「2 B」）============
+// ⚠⚠ ここに書く「州」の名前と 最初の持ちぬしは、**一次資料で確かめてから**入れる。
+//    確かめる前に それっぽい名前を並べると、この game の 📚 のしるしが 全部うすくなる。
+//    → 確かめが とどくまでは name を空にしておく（空なら 番号で描く）。
+//    表はここ1か所。名前が分かったら name を うめるだけでよい。
+// 位置は 6列×5行の ます目。北（上）から 南（下）へ。地図の形は だいたい
+const MAP_COLS = 6, MAP_ROWS = 5;
+const PROV = [
+  { id: 'p1',  name: '', col: 2, row: 0, w: 2, h: 1, init: 'gi'  },
+  { id: 'p2',  name: '', col: 1, row: 1, w: 1, h: 1, init: 'gi'  },
+  { id: 'p3',  name: '', col: 2, row: 1, w: 2, h: 1, init: 'gi'  },
+  { id: 'p4',  name: '', col: 4, row: 1, w: 2, h: 1, init: 'gi'  },
+  { id: 'p5',  name: '', col: 0, row: 2, w: 1, h: 1, init: 'gi'  },
+  { id: 'p6',  name: '', col: 1, row: 2, w: 1, h: 1, init: 'gi'  },
+  { id: 'p7',  name: '', col: 2, row: 2, w: 1, h: 1, init: 'gi'  },
+  { id: 'p8',  name: '', col: 3, row: 2, w: 1, h: 1, init: 'gi'  },
+  { id: 'p9',  name: '', col: 4, row: 2, w: 2, h: 1, init: 'gi'  },
+  { id: 'p10', name: '', col: 0, row: 3, w: 2, h: 2, init: 'shu' },
+  { id: 'p11', name: '', col: 2, row: 3, w: 2, h: 1, init: 'go'  },
+  { id: 'p12', name: '', col: 4, row: 3, w: 2, h: 1, init: 'go'  },
+  { id: 'p13', name: '', col: 2, row: 4, w: 4, h: 1, init: 'go'  },
+];
+const MAP_KEY = 'sangokuMap_v1';
+// ⚠ 「起動時に保存を書く」作りにしない。書くのは **変わった時だけ**
+//   （そうしないと 最初の持ちぬしを直しても 保存に食われて 一生とどかない）
+let mapOwn = {};
+function loadMap() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(MAP_KEY) || 'null'); } catch (e) {}
+  mapOwn = {};
+  // ⚠ 保存に無い州は init から入れる＝あとで州を足しても こわれない
+  for (const pv of PROV) mapOwn[pv.id] = (saved && saved[pv.id]) || pv.init;
+}
+function saveMap() { try { localStorage.setItem(MAP_KEY, JSON.stringify(mapOwn)); } catch (e) {} }
+function natById(id) { return NATIONS.find(n => n.id === id) || NATIONS[0]; }
+function drawMap() {
+  const cv = $('mapCv'); if (!cv) return;
+  const g = cv.getContext('2d');
+  const PAD = 6, CW = (cv.width - PAD) / MAP_COLS, CH = (cv.height - PAD) / MAP_ROWS;
+  g.clearRect(0, 0, cv.width, cv.height);
+  g.fillStyle = '#16202a'; g.fillRect(0, 0, cv.width, cv.height);
+  let i = 0;
+  for (const pv of PROV) {
+    i++;
+    const n = natById(mapOwn[pv.id]);
+    const x = PAD + pv.col * CW, y = PAD + pv.row * CH;
+    const w = pv.w * CW - PAD, h = pv.h * CH - PAD;
+    g.fillStyle = '#' + n.color.toString(16).padStart(6, '0');
+    g.fillRect(x, y, w, h);
+    g.strokeStyle = 'rgba(255,255,255,.75)'; g.lineWidth = 2; g.strokeRect(x, y, w, h);
+    g.fillStyle = '#fff';
+    g.font = 'bold 20px "Hiragino Maru Gothic ProN","Yu Gothic",sans-serif';
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(pv.name || String(i), x + w / 2, y + h / 2 - 9);
+    g.font = '16px "Hiragino Maru Gothic ProN","Yu Gothic",sans-serif';
+    g.fillText(n.flag + n.name, x + w / 2, y + h / 2 + 12);
+  }
+  const cnt = {};
+  for (const pv of PROV) cnt[mapOwn[pv.id]] = (cnt[mapOwn[pv.id]] || 0) + 1;
+  $('mapCount').textContent = NATIONS.map(n => n.flag + n.name + ' ' + (cnt[n.id] || 0)).join('　');
+  $('mapNote').textContent = PROV.some(pv => pv.name)
+    ? '' : '※ 州の名前は いま 本でたしかめている ところ。分かったら 入れる';
+}
+// 🏆 勝ったら 相手の土地を 1つ もらう／負けたら 1つ とられる。
+//   ⚠ 「どこが ぬりかわったか」が 分からないと ぬりかわった気がしない＝名前（番号）を返す
+function mapAfterBattle(won) {
+  const me = G.myNation.id, foe = G.foeNation.id;
+  const from = won ? foe : me, to = won ? me : foe;
+  const list = PROV.filter(pv => mapOwn[pv.id] === from);
+  if (!list.length) return null;
+  const pv = list[Math.floor(Math.random() * list.length)];
+  mapOwn[pv.id] = to;
+  saveMap();                                   // ⚠ 変わった時だけ書く
+  const i = PROV.indexOf(pv) + 1;
+  return { label: pv.name || (i + 'ばん'), to: natById(to) };
+}
+loadMap();
+drawMap();      // ⚠ 表の **すぐ下**で呼ぶ。ここで 保存は書かない（読むだけ）
+
+// ⚠⚠ 2026-09-26：この地図の一式は はじめ **if (DEVMODE) の中**に入れてしまっていた。
+//    probe は ?dev=1 で開くので **全項目OK**、しかし ふつうに開くと 地図が真っ白だった。
+//    スマホ幅のスクショを撮って はじめて分かった（数字に写らない崩れ）。
+//    ⚠ ここから下が dev 専用。**遊ぶ人に見えるものを ここに入れない**
+
 // ?dev=1 のときだけ、テスト用にコンソールから中を触れる（v6と同じ流儀）
 if (DEVMODE) {
+
+
   window.dbg = () => ({ G, player, soldiers, projs, sandbags, fortresses, startGame, keys, H, standH, LADDERS, PLATFORMS, houses, rocks, hitPlayer, hitSoldier, THREE, camera, scene, renderer,
     BASES, MORTARS, TRENCH_ZS, TRENCH_HALF, BASE_XS, BASE_ZS, hitsHouse,   // 🏕🎯 9/8の注文ぶん
     CASTLE_SPECS, RAMS, damageDoor, setDoors, standH, igniteSoldier,        // 🏯🪵🔥 9/12の注文ぶん
     MILLS, autoDoors,                                                       // 🪨🚪 9/13の注文ぶん（石臼・敵の衝車）
+    PROV, MAP_KEY, drawMap, mapAfterBattle, get mapOwn() { return mapOwn; }, // 🗺 9/15「2 B」勢力図
     SKILLS, REN_MAX_LV, REN_BATTLE, REN_TRAIN, addRendo, saveRendo, paintRendo, startTraining, endTraining,
     rendoHpBonus, rendoDmgMul, learned, get rendo() { return rendo; },       // 📈 練度
     DEFEND_SEC, MODES, togglePause, BASE_ZONE, BASE_CAP_SEC,                 // ⚔🛡⏸🏕 9/8〜9/9
@@ -2404,7 +2519,13 @@ if (DEVMODE) {
     NATIONS, CLASSES, BUILD, FORT_ALLY, FORT_FOE, CASTLE_HALF, WALL_H,       // ⚔ 三国志 9/12
     set rendo(v) { rendo = v; saveRendo(); } });
 }
-$('btnRetry').onclick = () => { $('endScreen').style.display = 'none'; $('titleScreen').style.display = 'flex'; paintRendo(); };
+$('btnRetry').onclick = () => { $('endScreen').style.display = 'none'; $('titleScreen').style.display = 'flex'; paintRendo(); drawMap(); };
+// 🗺 さいしょに もどす（監督が ぐちゃぐちゃになったら 押せる）
+$('btnMapReset').onclick = () => {
+  for (const pv of PROV) mapOwn[pv.id] = pv.init;
+  saveMap(); drawMap();
+  logEvent('map_reset', {});
+};
 
 // ⏳ ここまで来た＝Three.js も読めて 部品もそろった。よみこみ画面を閉じる（3本共通・パパ9/10）。
 //   ⚠ ここに来られない時（CDNが死んでいる等）は 共通部品が 25秒で「よみこみが おわらない」と言う
