@@ -83,6 +83,16 @@
   <li>戦争：自分が向いている方に 大砲や 鉄砲が撃たれる。<b>突撃</b>は 指したところに進んで、敵と となりあうと 交戦が始まる</li>
 </ul></div>
 
+<div class="box"><b class="t">⚒ 作る所を増やす（兵器・小兵器・家臣）</b><span class="d">9/24・9/25</span>
+<ul>
+  <li>一回新しいゲーム。<b>作る所を増やしたい</b></li>
+  <li><b>（兵器を作る）</b>は、まず <b>車輪あるない</b>を決めて。壁を作る、そして <b>小兵器をつける</b>、そして完成</li>
+  <li><b>（兵士に持たせる小兵器）</b>まず <b>火薬をつかうかつかわないか</b>きめる、そして形を作る</li>
+  <li>そして <b>名前をつける</b>。戦場では 兵器を使える</li>
+  <li><b>家臣</b>は、兵士から 家臣を何人作るかを 記入したら、<b>家臣の名前が決められる</b>（9/25）</li>
+</ul>
+<p class="d" style="margin:.4em 0 0">⚠ パパへ：これが「国づくり」の中の話か、べつのゲームかは まだ聞いていない。</p></div>
+
 <div class="box"><b class="t">🤝 みんなで ＋ 援軍</b><span class="d">9/16</span>
 <ul>
   <li>みんなで 出来るようにする</li>
@@ -121,7 +131,8 @@
 <div class="box ask"><b class="t">返事が まだのもの</b>
 <ul>
   <li>手榴弾は「1Cだけ」か「1Cと かめ の両方」か</li>
-  <li>次に作るのは どれから？（三国志合戦の約束ぶん／国づくり／みんなで＋援軍）</li>
+  <li>この 案ボードの 合言葉（すきな数字4つ）</li>
+  <li>「一回新しいゲーム 作る所を増やしたい」は、国づくりの中の話？ それとも べつのゲーム？</li>
   <li>レーダーは まんなか？ 右上？　／　みんなでルームは 何人まで？　／　「チール」の由来</li>
   <li>陸上戦は「はしご」と「工作兵の表」どっちが先？</li>
 </ul></div>
@@ -140,6 +151,51 @@
 </div>
 
 <script>
+// 📊 ログ。⚠ 開かれたかどうかが こちらから見える手段が無かった（9/26に気づいた）。
+//    しくみは sangoku/index.html と同じものを そのまま使う（tag だけ 'anboard'）
+const LOG_TAG = 'anboard';
+const LOG_KEY = 'yuujinGameLog_' + new Date().toISOString().replace(/[:.]/g, '-') + '_' + LOG_TAG;
+const CLOUD_URL = 'https://script.google.com/macros/s/AKfycbyMDP1lVKD7YRe3A0Z37qr9W6fMOcIyPiy-c_d2kZs1ywQCeeBrwLz7sm6-5tKqYomX/exec';
+const CLOUD_KEY = 'yuujin2026';
+try {
+  if (!localStorage.getItem('yuujinDevice'))
+    localStorage.setItem('yuujinDevice', 'pc-' + Math.random().toString(36).slice(2, 7));
+} catch (e) {}
+const DEVICE = (() => { try { return localStorage.getItem('yuujinDevice') || 'no-store'; } catch (e) { return 'no-store'; } })();
+const UA = navigator.userAgent;
+const TOUCH = (navigator.maxTouchPoints || 0) > 0 || 'ontouchstart' in window;
+const PLATFORM =
+  /iPhone|Windows Phone|Android.+Mobile/i.test(UA) ? 'phone' :
+  /iPad|Tablet/i.test(UA) || /Android/i.test(UA) ? 'tablet' :
+  /Macintosh/i.test(UA) && TOUCH ? 'tablet' :
+  TOUCH && Math.min(screen.width, screen.height) <= 820 ? 'phone' : 'pc';
+const anLog = [];
+function logEvent(type, data) {
+  anLog.push({ t: Math.round(performance.now()), type, data });
+  send();   // ページを すぐ閉じられても 残るように 毎回送る（数が少ないので これでよい）
+}
+let sent = 0, sending = false;
+async function send() {
+  if (sending || sent >= anLog.length) return;
+  sending = true;
+  const upto = anLog.length;
+  try {
+    await fetch(CLOUD_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ key: CLOUD_KEY, runId: LOG_KEY, device: DEVICE, ver: location.pathname,
+        tag: LOG_TAG, build: 'anboard1', events: anLog.slice(sent, upto) }) });
+    sent = upto;
+  } catch (e) { /* 次の logEvent か beforeunload で また試す */ }
+  finally { sending = false; }
+}
+addEventListener('beforeunload', () => {
+  if (sent < anLog.length) {
+    try { navigator.sendBeacon(CLOUD_URL, JSON.stringify({ key: CLOUD_KEY, runId: LOG_KEY,
+      device: DEVICE, ver: location.pathname, tag: LOG_TAG, build: 'anboard1',
+      events: anLog.slice(sent) })); } catch (e) {}
+  }
+});
+logEvent('start', { platform: PLATFORM, screen: screen.width + 'x' + screen.height });
+
 // 合言葉は sha-256 で持つ。⚠ 監督が数字を決めたら HASH を差しかえる：
 //   node -e "console.log(require('crypto').createHash('sha256').update('4桁').digest('hex'))"
 // いまは仮の「2026」
@@ -152,12 +208,14 @@ async function tryOpen(){
   let h='';
   try{ h=await sha(v); }catch(e){ document.getElementById('ng').textContent='この画面では ひらけない（https で ひらいてね）'; return; }
   if(h===HASH){ document.getElementById('gate').style.display='none'; document.getElementById('board').style.display='block';
+    logEvent('open', {});
     try{ sessionStorage.setItem('an_ok','1'); }catch(e){} }
-  else { document.getElementById('ng').textContent='ちがうみたい。もういちど'; document.getElementById('code').select(); }
+  else { logEvent('wrong', {});   // ⚠ 入れた数字そのものは送らない
+    document.getElementById('ng').textContent='ちがうみたい。もういちど'; document.getElementById('code').select(); }
 }
 document.getElementById('go').onclick=tryOpen;
 document.getElementById('code').addEventListener('keydown',e=>{ if(e.key==='Enter') tryOpen(); });
-try{ if(sessionStorage.getItem('an_ok')==='1'){ document.getElementById('gate').style.display='none'; document.getElementById('board').style.display='block'; } }catch(e){}
+try{ if(sessionStorage.getItem('an_ok')==='1'){ document.getElementById('gate').style.display='none'; document.getElementById('board').style.display='block'; logEvent('open', { resumed: true }); } }catch(e){}
 </script>
 </body>
 </html>
