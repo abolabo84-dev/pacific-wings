@@ -1817,7 +1817,10 @@ function tick() {
   //   （つぎの試合で startGame が G.cannon=1 に戻す）
   if (isTouch) setDisp('cannonBtn', false);     // ponytail: 三国志では出さない, 投げる武器を足すなら ここ
   // 💣 手榴弾は 0でも 基地にもどれば 3本にもどる＝**消さずに うすく**する
-  if (isTouch) setDisp('grenBtn', false);       // ponytail: 同上
+  // ✅ 監督 9/15「1 C」＝**自分も投げられるようにして 残す**。
+  //    それまでは スマホだけボタンを隠していた＝**敵だけが投げてくる**状態だった（9/13に見つけた）。
+  //    見た目は 今のまま（監督の 1A/1B の答えは まだ来ていないので 変えない）
+  setDisp('grenBtn', true);
   if ((G.nearMortar || G.nearRam) && G.mortarCd <= 0) $('mortarBtn').classList.add('on');
   else $('mortarBtn').classList.remove('on');
   setDisp('reviveBtn', !!revTarget);
