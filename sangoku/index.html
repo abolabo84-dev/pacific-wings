@@ -948,7 +948,12 @@ function makeRam(F, d) {
   return R;
 }
 function makeRams() { for (const F of fortresses) for (const d of F.doors) makeRam(F, d); }
-function resetRams() { for (const R of RAMS) { R.burn = 0; R.anim = 0; R.mesh.position.copy(R.home); R.mesh.visible = true; } }
+function resetRams() {
+  for (const R of RAMS) {
+    R.burn = 0; R.anim = 0; R.crushed = false;
+    R.mesh.position.copy(R.home); R.mesh.visible = true;
+  }
+}
 // 🚪 門をこわす。だれが壊しても 同じ（敵AIは まだ使わない＝下の ponytail）
 function damageDoor(d, F, dmg, why) {
   if (d.broken) return;
@@ -969,10 +974,58 @@ function damageDoor(d, F, dmg, why) {
 // ⚠ 支城は 取り合いで side が入れかわる。入れかわるたび ここを呼ぶこと
 function setDoors(F) {
   for (const d of F.doors) {
-    const open = d.broken || F.side === 'ally';
+    // ⚠ 2026-09-26 変更：前は「自分の城の門は あきっぱなし」だった。
+    //   それだと **敵の衝車に 叩く相手が無い**（監督9/13「敵もつかうでいい」）。
+    //   いまは どちらの城の門も しまっている。自分の城の門は **近づくと あく**
+    //   （tick の autoDoors）。出入りできないと 話にならない、は そのまま守る
+    const open = d.broken;
     d.mesh.visible = !open;
     d.col.open = open;
   }
+}
+// 🚪 自分の城の門は 近づくと あく。9m は 門の前に出たら もう あいている ぐらいの近さ
+const AUTO_DOOR = 9;
+function autoDoors(P) {
+  for (const F of fortresses) {
+    if (F.side !== 'ally') continue;
+    for (const d of F.doors) {
+      if (d.broken) continue;
+      const near = Math.hypot(P.x - d.x, P.z - d.z) < AUTO_DOOR;
+      if (d.col.open === near) continue;      // ⚠ 変わった時だけ触る（毎フレーム書かない）
+      d.col.open = near;
+      d.mesh.visible = !near;
+    }
+  }
+}
+
+// 🪨 石臼（いしうす）＝ 監督9/13「衝車を潰すのはいいと思う」。
+// 📚 出どころは 陳倉の郝昭（かくしょう）：「昭又以繩連石磨壓其衝車，**衝車折**」
+//    ＝縄で石臼をつないで 衝車を押しつぶしたら、衝車が **折れた**。
+//    だから ここでも 焼く（12秒つかえない）より 重い＝**こわれて その試合はもう使えない**
+const MILLS = [], MILL_RANGE = 10, MILL_CD = 20;
+function makeMill(F, d) {
+  const g = new THREE.Group();
+  // 石の円ばん（うす）と、吊っている縄
+  const stone = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 0.7, 14),
+    new THREE.MeshLambertMaterial({ color: 0x9e9e9e }));
+  stone.position.y = -0.35;
+  const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 2.2, 6),
+    new THREE.MeshLambertMaterial({ color: 0xbca47a }));
+  rope.position.y = 0.8;
+  g.add(stone, rope);
+  // 門の **内がわ** 2.5m、壁のてっぺんの高さに 吊るす
+  const ix = d.ax === 'x' ? d.x - d.sgn * 2.5 : d.x;
+  const iz = d.ax === 'z' ? d.z - d.sgn * 2.5 : d.z;
+  g.position.set(ix, H(ix, iz) + WALL_H + 1.2, iz);
+  scene.add(g);
+  const M = { x: ix, z: iz, mesh: g, door: d, F, cd: 0, drop: 0,
+              home: g.position.clone() };
+  MILLS.push(M);
+  return M;
+}
+function makeMills() { for (const F of fortresses) for (const d of F.doors) makeMill(F, d); }
+function resetMills() {
+  for (const M of MILLS) { M.cd = 0; M.drop = 0; M.mesh.position.copy(M.home); M.mesh.visible = true; }
 }
 
 // ============ 兵士のモデル（カプセル＋頭。国の色） ============
@@ -1176,6 +1229,7 @@ function startGame() {
   if (fortresses.length === 0) {
     for (const c of CASTLE_SPECS) makeFortress(c, c.side === 'ally' ? G.myNation.color : G.foeNation.color);
     makeRams();
+    makeMills();                                   // 🪨 監督9/13「衝車を潰すのはいいと思う」
     // 監督 9/5「あと障害物もほしい」
     scatterRocks();
   } else {
@@ -1189,6 +1243,7 @@ function startGame() {
       setDoors(F);
     }
     resetRams();
+    resetMills();
   }
   // 自分
   if (player.group) scene.remove(player.group);
@@ -1218,7 +1273,11 @@ function startGame() {
       scene.add(g);
       const s = { group: g, faction, hp: 90, maxHp: 90, state: 'fight', downT: 0, revT: 0, saber: aiSaber,
         // 🏕 3人は要塞のっとり係／つぎの3人は **基地をねらう係**（監督9/9）／のこりは戦う係
-        cd: 1 + Math.random()*2, mission: i < 3 ? 'capture' : i < 6 ? 'base' : 'fight', yaw: 0,
+        // 🪵 監督9/13「敵もつかうでいい」＝**敵にも 衝車係**を置く。
+        //   ⚠ 人数は増やさない（戦う係から2人まわす）。増やすとスマホが重くなる
+        cd: 1 + Math.random()*2, yaw: 0,
+        mission: i < 3 ? 'capture' : i < 6 ? 'base'
+               : (faction === 'foe' && i < 8) ? 'ram' : 'fight',
         // 🚶 横にちらす＝一列に固まって突っこまない／押しと止まりの周期
         lane: (Math.random()-0.5)*90, pushT: Math.random()*2, pushing: Math.random() < 0.5 };
       attachHpBar(s, 3.1);
@@ -1287,7 +1346,7 @@ function setupControlsUI() {
   let hint = '↑↓←→ あるく ／ Shift はしる ／ X しゃがむ ／ スペース 矢を射る';
   if (G.cls.melee) hint = hint.replace('スペース 矢を射る', 'スペース けんを ふる');
   if (G.cls.skill !== 'none') hint += G.cls.skill === 'dash' ? ' ／ E とつげき' : ' ／ E とくぎ';
-  hint += ' ／ R 投石車（基地・塹壕のそば）・衝車（敵の門のそば）';
+  hint += ' ／ R 投石車（基地・塹壕のそば）・衝車（敵の門のそば）・🪨石臼（じぶんの門のそば）';
   if (isTouch) hint = '左スティックであるく（大きくたおすと はしる）';
   $('controlsHint').textContent = hint;
   if (isTouch) {
@@ -1691,13 +1750,51 @@ function tick() {
   //    近くにあるほうが 出る＝どちらか一方しか 近くに無い置き方にしてある
   let nearRam = null, nrD = RAM_RANGE;
   for (const R of RAMS) {
-    if (R.burn > 0 || R.door.broken) continue;
-    if (R.F.side === 'ally') continue;                 // 自分の城の門は もう あいている
+    if (R.crushed || R.burn > 0 || R.door.broken) continue;
+    if (R.F.side === 'ally') continue;                 // 自分の城は 自分で破らない
     const d = Math.hypot(P.x - R.x, P.z - R.z);
     if (d < nrD) { nrD = d; nearRam = R; }
   }
   G.nearRam = nearRam;
+  // 🚪 自分の城の門は 近づくと あく（上の autoDoors）。⚠ 敵の衝車の相手になるよう ふだんは しまっている
+  autoDoors(P);
+  // 🪨 石臼（監督9/13「衝車を潰すのはいいと思う」）。
+  //   自分の城の門のそばで、その門を叩きに来ている衝車があるときだけ 落とせる
+  let nearMill = null, nmlD = MILL_RANGE;
+  for (const M of MILLS) {
+    M.cd = Math.max(0, M.cd - dt);
+    if (M.drop > 0) {                                  // 落ちている最中のアニメ
+      M.drop -= dt;
+      M.mesh.position.y = M.home.y - (1 - Math.max(0, M.drop) / 0.5) * (WALL_H + 1.2);
+      if (M.drop <= 0) { M.mesh.visible = false; }
+    } else if (M.cd <= 0 && !M.mesh.visible) {          // 巻き上げ終わった
+      M.mesh.position.copy(M.home); M.mesh.visible = true;
+    }
+    if (M.F.side !== 'ally' || M.door.broken || M.cd > 0) continue;
+    const ram = RAMS.find(R => R.door === M.door);
+    if (!ram || ram.burn > 0 || ram.crushed) continue;  // つぶす相手が いない
+    const d = Math.hypot(P.x - M.x, P.z - M.z);
+    if (d < nmlD) { nmlD = d; nearMill = M; }
+  }
+  G.nearMill = nearMill;
+  if (nearMill && (keys['KeyR'] || mortarPressed) && G.mortarCd <= 0) {
+    G.mortarCd = 1.2;
+    nearMill.cd = MILL_CD; nearMill.drop = 0.5;
+    const ram = RAMS.find(R => R.door === nearMill.door);
+    if (ram) { ram.crushed = true; ram.mesh.visible = false; }   // 📚「衝車折」＝折れた＝もう使えない
+    playBoom();
+    G.millHit = (G.millHit || 0) + 1;
+    showMessage(G.millHit === 1
+      ? '🪨 石臼を おとした！ 衝車が つぶれた！（ゆうじんの「衝車を潰すのはいいと思う」。' +
+        '📚 ほんとうにあった話：陳倉の郝昭（かくしょう）は 縄で石臼をつないで 衝車を押しつぶした。' +
+        '記録には「衝車 折れた」と書いてある）'
+      : '🪨 ドスン！ 衝車を つぶした！', G.millHit === 1 ? 8 : 2);
+    logEvent('mill_drop', { key: nearMill.F.key });
+  }
   for (const R of RAMS) {
+    // 🪨 石臼で つぶれた衝車は **その試合はもう出てこない**（📚「衝車折」）。
+    //   ⚠ 焼けた（burn）の点滅と 同じ枝に入れると 点滅して また見えてしまう
+    if (R.crushed) { R.mesh.visible = false; continue; }
     if (R.burn > 0) { R.burn -= dt; R.mesh.visible = Math.floor(R.burn * 6) % 2 === 0; }
     else R.mesh.visible = true;
     if (R.anim > 0) {
@@ -1707,7 +1804,8 @@ function tick() {
                           R.home.z - (R.door.ax === 'z' ? R.door.sgn * push : 0));
     }
   }
-  if (nearRam && (keys['KeyR'] || mortarPressed) && G.mortarCd <= 0) {
+  // ⚠ 石臼は 上で さきに見ている。ここは 衝車と投石車だけ
+  if (!nearMill && nearRam && (keys['KeyR'] || mortarPressed) && G.mortarCd <= 0) {
     G.mortarCd = RAM_CD; nearRam.anim = RAM_CD;
     damageDoor(nearRam.door, nearRam.F, RAM_DMG, 'ram');
     playBoom();
@@ -1808,9 +1906,10 @@ function tick() {
   //   **前と同じなら書かない**を1か所に置いて、出し入れは全部ここを通す
   setDisp('trainEndBtn', G.training);
   // 🪵 衝車が近くにある時は 同じボタンの 顔を変える（監督9/12「丸太で門を叩いてい」）
-  setDisp('mortarBtn', G.nearMortar || G.nearRam);
+  // 🪨 石臼 ＞ 🪵 衝車 ＞ 🪨 投石車 の順。⚠ ボタンは足さない（左下が混む＝監督9/8の話）
+  setDisp('mortarBtn', G.nearMortar || G.nearRam || G.nearMill);
   {
-    const want = G.nearRam ? '🪵<br>衝車' : '🪨<br>投石車';
+    const want = G.nearMill ? '🥌<br>石臼' : G.nearRam ? '🪵<br>衝車' : '🪨<br>投石車';
     if ($('mortarBtn').innerHTML !== want) $('mortarBtn').innerHTML = want;
   }
   // 💥 大砲は 1人1回。0になったら **押しても何も起きないボタン**が残るので消す
@@ -1821,7 +1920,7 @@ function tick() {
   //    それまでは スマホだけボタンを隠していた＝**敵だけが投げてくる**状態だった（9/13に見つけた）。
   //    見た目は 今のまま（監督の 1A/1B の答えは まだ来ていないので 変えない）
   setDisp('grenBtn', true);
-  if ((G.nearMortar || G.nearRam) && G.mortarCd <= 0) $('mortarBtn').classList.add('on');
+  if ((G.nearMortar || G.nearRam || G.nearMill) && G.mortarCd <= 0) $('mortarBtn').classList.add('on');
   else $('mortarBtn').classList.remove('on');
   setDisp('reviveBtn', !!revTarget);
   if (revTarget) $('reviveBtn').classList.add('on'); else $('reviveBtn').classList.remove('on');
@@ -1897,7 +1996,36 @@ function tick() {
         if (d < bd) { bd = d; baseGoal = bs; }
       }
     }
+    // 🪵 衝車係（監督9/13「敵もつかうでいい」）。
+    //   ねらうのは **味方がわの城の、まだ やぶれていない門の衝車**。
+    //   ⚠ 毎フレーム 選びなおす＝支城が 取り合いで入れかわったら ねらう先も変わる
+    let ramGoal = null;
+    if (s.mission === 'ram') {
+      const mine = s.faction === 'ally' ? 'foe' : 'ally';
+      let rd = 1e9;
+      for (const R of RAMS) {
+        if (R.F.side !== mine || R.door.broken || R.burn > 0 || R.crushed) continue;
+        const d = Math.hypot(R.x - sp2.x, R.z - sp2.z);
+        if (d < rd) { rd = d; ramGoal = R; }
+      }
+      s.ramTarget = ramGoal;
+      if (ramGoal && rd < 5) {
+        // 衝車まで来た＝押す。人と同じ間かく（RAM_CD）で 門をつく
+        s.ramCd = (s.ramCd || 0) - dt;
+        if (s.ramCd <= 0) {
+          s.ramCd = RAM_CD;
+          ramGoal.anim = RAM_CD;
+          damageDoor(ramGoal.door, ramGoal.F, RAM_DMG, 'ai_ram');
+          if (!ramGoal.door.broken && Math.hypot(P.x - ramGoal.x, P.z - ramGoal.z) < 60) {
+            playBoom();
+            showMessage('🪵 敵が 衝車で 門を ついている！（🪨 石臼で つぶせる）', 2);
+          }
+          logEvent('ai_ram', { key: ramGoal.F.key, hp: ramGoal.door.hp });
+        }
+      }
+    }
     const base = s.mission === 'garrison' ? s.post           // 🏯 守備兵は 持ち場に居つづける
+      : ramGoal ? { x: ramGoal.x, z: ramGoal.z }
       : baseGoal ? { x: baseGoal.x, z: baseGoal.z }
       : s.mission === 'capture'
       ? (s.faction === 'ally' ? FORT_FOE : FORT_ALLY)
@@ -1915,7 +2043,8 @@ function tick() {
     const engaged = tgt && best < AI_RANGE;
     // 🏕 基地係は 近づいたら 止まる（そこに立っていないと 取れない）
     if ((!engaged || s.pushing) &&
-        gd > (s.mission === 'garrison' ? 2 : s.mission === 'capture' ? 6 : baseGoal ? 4 : 22)) {
+        gd > (s.mission === 'garrison' ? 2 : s.mission === 'capture' ? 6
+              : s.mission === 'ram' ? 3 : baseGoal ? 4 : 22)) {
       const dx = (goal.x-sp2.x)/gd, dz = (goal.z-sp2.z)/gd;
       sp2.x += dx * 6.5 * dt; sp2.z += dz * 6.5 * dt;
       sp2.y = H(sp2.x, sp2.z);
@@ -2267,6 +2396,7 @@ if (DEVMODE) {
   window.dbg = () => ({ G, player, soldiers, projs, sandbags, fortresses, startGame, keys, H, standH, LADDERS, PLATFORMS, houses, rocks, hitPlayer, hitSoldier, THREE, camera, scene, renderer,
     BASES, MORTARS, TRENCH_ZS, TRENCH_HALF, BASE_XS, BASE_ZS, hitsHouse,   // 🏕🎯 9/8の注文ぶん
     CASTLE_SPECS, RAMS, damageDoor, setDoors, standH, igniteSoldier,        // 🏯🪵🔥 9/12の注文ぶん
+    MILLS, autoDoors,                                                       // 🪨🚪 9/13の注文ぶん（石臼・敵の衝車）
     SKILLS, REN_MAX_LV, REN_BATTLE, REN_TRAIN, addRendo, saveRendo, paintRendo, startTraining, endTraining,
     rendoHpBonus, rendoDmgMul, learned, get rendo() { return rendo; },       // 📈 練度
     DEFEND_SEC, MODES, togglePause, BASE_ZONE, BASE_CAP_SEC,                 // ⚔🛡⏸🏕 9/8〜9/9
