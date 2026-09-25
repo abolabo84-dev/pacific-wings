@@ -1048,6 +1048,86 @@ function resetMills() {
   for (const M of MILLS) { M.cd = 0; M.drop = 0; M.mesh.position.copy(M.home); M.mesh.visible = true; }
 }
 
+// 🪜 雲梯（うんてい）＝ 監督9/10「雲てい」→ 9/26「雲ていなどを入れて」。
+// 📚 『三國志』卷三 裴注引『魏略』（陳倉 228年）：「起雲梯衝車以臨城。
+//    昭於是以火箭逆射其雲梯，**梯然，梯上人皆燒死**」＝ 雲梯は **城の守備兵の 火矢で焼かれた**。
+//    だから ここでも：**外から 壁に かけられる はしご**。でも **その城の守備兵が 火矢で 焼きに来る**。
+//    ⚠ 守備兵を 先に たおせば 雲梯は のこる＝郝昭の手を こちらが やぶる形
+// ⚠ 置き場所は 西（-x）の壁の外、**門をはさんで 衝車と反対がわ**（z をマイナスへ）。
+//    同じ側に置くと 衝車と4mしか はなれず、道具がひとかたまりに見える
+const UNTEI = [], UNTEI_RANGE = 8, UNTEI_LEN = 6.0, UNTEI_FIRE_CD = 7, UNTEI_BURN = 25;
+function makeUntei(F) {
+  const zz = F.z - F.hz * 0.5;
+  // ⚠⚠ 上のはし（t=0）は **壁の上の足場（PLATFORM）と 重なる**ところまで。
+  //   足場は 壁の外面より 0.3 はみ出している。0.1 だけ外にすれば 重なる
+  //   （内がわのはしごで「のぼりきった所に 1.7mの穴」を踏んだ。同じ穴に 落ちない）
+  const x0 = F.x - F.hx - (WALL_T / 2 + 0.1);
+  const x1 = x0 - UNTEI_LEN;
+  const yTop = H(F.x, F.z) + WALL_H, yBot = H(x1, zz);
+  const entry = { x0, z0: zz, x1, z1: zz, hw: 1.5, yTop, yBot, untei: true };
+  const g = new THREE.Group();
+  const wood = new THREE.MeshLambertMaterial({ color: 0x7b5a36 });
+  // 車（台車）＝ はしごを のせて 押してくる。📚 雲梯は 車輪のついた はしご車
+  const cart = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.8, 3.0), wood);
+  cart.position.set(-1.6, 0.9, 0);
+  g.add(cart);
+  for (const wx of [-2.8, -0.4]) for (const wz of [-1.4, 1.4]) {
+    const wh = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.3, 8), wood);
+    wh.rotation.x = Math.PI / 2; wh.position.set(wx, 0.55, wz);
+    g.add(wh);
+  }
+  // はしご本体。**下のはし（x1）を 軸にして 起こす**＝ 寝ている→ 壁に かかる
+  const L = Math.hypot(UNTEI_LEN, yTop - yBot);
+  const lad = new THREE.Group();
+  const rail = new THREE.MeshLambertMaterial({ color: 0x8d6a3f });
+  for (const rz of [-1.2, 1.2]) {
+    const r = new THREE.Mesh(new THREE.BoxGeometry(L, 0.22, 0.22), rail);
+    r.position.set(L / 2, 0, rz); lad.add(r);
+  }
+  for (let k = 1; k <= 7; k++) {
+    const st = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.16, 2.6), rail);
+    st.position.set(L * k / 8, 0, 0); lad.add(st);
+  }
+  lad.position.set(0, 1.3, 0);
+  g.add(lad);
+  g.position.set(x1, yBot, zz);
+  scene.add(g);
+  const U = { F, x: (x0 + x1) / 2, z: zz, cartX: x1 - 1.6, entry, mesh: g, ladder: lad, rails: rail,
+              angleUp: Math.atan2(yTop - yBot - 1.3, UNTEI_LEN), angleDown: 0.08,
+              deployed: false, raise: 0, burn: 0, fireT: UNTEI_FIRE_CD };
+  lad.rotation.z = U.angleDown;
+  UNTEI.push(U);
+  return U;
+}
+function makeUnteis() { for (const F of fortresses) makeUntei(F); }
+function unteiOff(U) {                      // はしごを 壁から はずす（焼けた・リセット）
+  const i = LADDERS.indexOf(U.entry);
+  if (i >= 0) LADDERS.splice(i, 1);
+  U.deployed = false; U.raise = 0;
+  U.ladder.rotation.z = U.angleDown;
+}
+function resetUnteis() {
+  for (const U of UNTEI) { unteiOff(U); U.burn = 0; U.fireT = UNTEI_FIRE_CD; U.rails.color.set(0x8d6a3f); }
+}
+// 🔥 雲梯が焼ける。📚「梯然，梯上人皆燒死」＝ のっていた人は みな焼け死んだ。
+//   ⚠ ここでは 足場が消えて 地面に落ちる、まで（standH が 勝手に 地面の高さを返す）
+function burnUntei(U, why) {
+  if (!U.deployed || U.burn > 0) return;
+  unteiOff(U);
+  U.burn = UNTEI_BURN;
+  U.rails.color.set(0x3e2723);                       // こげた色
+  playBoom();
+  if (Math.hypot(player.group.position.x - U.x, player.group.position.z - U.z) < 80) {
+    G.unteiBurnt = (G.unteiBurnt || 0) + 1;
+    showMessage(G.unteiBurnt === 1
+      ? '🔥 雲梯が 火矢で 焼かれた！ 📚 ほんとうにあった話：陳倉で 郝昭（かくしょう）は ' +
+        '諸葛亮の雲梯を 火矢で 焼いた。記録には「はしごが燃えて、のっていた人は みな焼け死んだ」と ある。' +
+        '👉 **壁の上の 守備兵を 先に たおせば** 雲梯は 焼かれない'
+      : '🔥 雲梯が 焼かれた…（' + UNTEI_BURN + '秒で 新しいのが とどく）', G.unteiBurnt === 1 ? 9 : 2.5);
+  }
+  logEvent('untei_burned', { key: U.F.key, why });
+}
+
 // ============ 兵士のモデル（カプセル＋頭。国の色） ============
 // 服（監督 9/5）。⚠ 兵科ごとに かたちを変える＝画面で「だれが何の兵か」が見て分かる。
 //    3種類：コート（長い上着）／背のう（リュック）／ヘルメットに草（偵察）
@@ -1250,6 +1330,7 @@ function startGame() {
     for (const c of CASTLE_SPECS) makeFortress(c, c.side === 'ally' ? G.myNation.color : G.foeNation.color);
     makeRams();
     makeMills();                                   // 🪨 監督9/13「衝車を潰すのはいいと思う」
+    makeUnteis();                                  // 🪜 監督9/26「雲ていなどを入れて」
     // 監督 9/5「あと障害物もほしい」
     scatterRocks();
   } else {
@@ -1264,6 +1345,7 @@ function startGame() {
     }
     resetRams();
     resetMills();
+    resetUnteis();
   }
   // 自分
   if (player.group) scene.remove(player.group);
@@ -1366,7 +1448,7 @@ function setupControlsUI() {
   let hint = '↑↓←→ あるく ／ Shift はしる ／ X しゃがむ ／ スペース 矢を射る';
   if (G.cls.melee) hint = hint.replace('スペース 矢を射る', 'スペース けんを ふる');
   if (G.cls.skill !== 'none') hint += G.cls.skill === 'dash' ? ' ／ E とつげき' : ' ／ E とくぎ';
-  hint += ' ／ R 投石車（基地・塹壕のそば）・衝車（敵の門のそば）・🪨石臼（じぶんの門のそば）';
+  hint += ' ／ R 投石車（基地・塹壕のそば）・衝車（敵の門のそば）・🪜雲梯（敵の西の壁のそば）・🪨石臼（じぶんの門のそば）';
   if (isTouch) hint = '左スティックであるく（大きくたおすと はしる）';
   $('controlsHint').textContent = hint;
   if (isTouch) {
@@ -1797,6 +1879,60 @@ function tick() {
     if (d < nmlD) { nmlD = d; nearMill = M; }
   }
   G.nearMill = nearMill;
+  // 🪜 雲梯（監督9/26「雲ていなどを入れて」）。敵の城の 西の壁の外に 1台ずつ
+  let nearUntei = null, nuD = UNTEI_RANGE;
+  for (const U of UNTEI) {
+    // ⚠ 見えるのは 敵がわの城だけ（支城が 取り合いで 入れかわったら 出たり消えたりする）
+    const show = U.F.side === 'foe';
+    if (U.mesh.visible !== show) U.mesh.visible = show;
+    if (!show && U.deployed) unteiOff(U);
+    if (U.burn > 0) {                                     // 焼けて 使えない（新しいのが とどくまで）
+      U.burn -= dt;
+      if (U.burn <= 0) { U.burn = 0; U.rails.color.set(0x8d6a3f); }
+    }
+    if (U.deployed && U.raise < 1) {                      // 起こしている とちゅう
+      U.raise = Math.min(1, U.raise + dt / 0.8);
+      U.ladder.rotation.z = U.angleDown + (U.angleUp - U.angleDown) * U.raise;
+    }
+    // 🔥 守備兵の 火矢（郝昭の手）。⚠ かかっている時だけ・**その城の 生きている守備兵**だけが 撃つ
+    //   ＝ 壁の上の兵を 先に たおしておけば 火矢は 飛んでこない
+    if (U.deployed && U.raise >= 1 && !G.training) {
+      U.fireT -= dt;
+      if (U.fireT <= 0) {
+        U.fireT = UNTEI_FIRE_CD + Math.random() * 3;
+        let shooter = null, sd = 60;
+        for (const s of soldiers) {
+          if (s.state !== 'fight' || s.mission !== 'garrison' || s.faction !== U.F.side) continue;
+          const d = Math.hypot(s.group.position.x - U.x, s.group.position.z - U.z);
+          if (d < sd) { sd = d; shooter = s; }
+        }
+        if (shooter) {
+          const from = shooter.group.position.clone().add(new THREE.Vector3(0, 1.6, 0));
+          const to = new THREE.Vector3(U.x, (U.entry.yTop + U.entry.yBot) / 2, U.z);
+          shoot({ pos: from, vel: to.sub(from).normalize().multiplyScalar(60),
+                  owner: shooter.faction, dmg: 9, fire: true, color: 0xff7043, size: 0.24 });
+          logEvent('untei_fire_arrow', { key: U.F.key });
+        }
+      }
+    }
+    if (U.F.side !== 'foe' || U.deployed || U.burn > 0) continue;
+    const d = Math.hypot(P.x - U.cartX, P.z - U.z);
+    if (d < nuD) { nuD = d; nearUntei = U; }
+  }
+  G.nearUntei = nearUntei;
+  if (!nearMill && nearUntei && (keys['KeyR'] || mortarPressed) && G.mortarCd <= 0) {
+    G.mortarCd = 1.2;
+    nearUntei.deployed = true; nearUntei.raise = 0;
+    nearUntei.fireT = 3 + Math.random() * 2;              // かけてすぐは 撃たれない（のぼる間がある）
+    LADDERS.push(nearUntei.entry);
+    playBoom();
+    G.unteiUp = (G.unteiUp || 0) + 1;
+    showMessage(G.unteiUp === 1
+      ? '🪜 雲梯を 壁に かけた！ のぼって 壁の上へ！（ゆうじんの「雲てい」。📚 陳倉で 諸葛亮も 使った。' +
+        '⚠ でも 守備兵が 火矢で 焼きに来る——壁の上の兵を ねらえ）'
+      : '🪜 雲梯を かけた！', G.unteiUp === 1 ? 8 : 1.6);
+    logEvent('untei_deploy', { key: nearUntei.F.key });
+  }
   if (nearMill && (keys['KeyR'] || mortarPressed) && G.mortarCd <= 0) {
     G.mortarCd = 1.2;
     nearMill.cd = MILL_CD; nearMill.drop = 0.5;
@@ -1825,7 +1961,7 @@ function tick() {
     }
   }
   // ⚠ 石臼は 上で さきに見ている。ここは 衝車と投石車だけ
-  if (!nearMill && nearRam && (keys['KeyR'] || mortarPressed) && G.mortarCd <= 0) {
+  if (!nearMill && !nearUntei && nearRam && (keys['KeyR'] || mortarPressed) && G.mortarCd <= 0) {
     G.mortarCd = RAM_CD; nearRam.anim = RAM_CD;
     damageDoor(nearRam.door, nearRam.F, RAM_DMG, 'ram');
     playBoom();
@@ -1927,9 +2063,10 @@ function tick() {
   setDisp('trainEndBtn', G.training);
   // 🪵 衝車が近くにある時は 同じボタンの 顔を変える（監督9/12「丸太で門を叩いてい」）
   // 🪨 石臼 ＞ 🪵 衝車 ＞ 🪨 投石車 の順。⚠ ボタンは足さない（左下が混む＝監督9/8の話）
-  setDisp('mortarBtn', G.nearMortar || G.nearRam || G.nearMill);
+  setDisp('mortarBtn', G.nearMortar || G.nearRam || G.nearMill || G.nearUntei);
   {
-    const want = G.nearMill ? '🥌<br>石臼' : G.nearRam ? '🪵<br>衝車' : '🪨<br>投石車';
+    const want = G.nearMill ? '🥌<br>石臼' : G.nearRam ? '🪵<br>衝車'
+               : G.nearUntei ? '🪜<br>雲梯' : '🪨<br>投石車';
     if ($('mortarBtn').innerHTML !== want) $('mortarBtn').innerHTML = want;
   }
   // 💥 大砲は 1人1回。0になったら **押しても何も起きないボタン**が残るので消す
@@ -1940,7 +2077,7 @@ function tick() {
   //    それまでは スマホだけボタンを隠していた＝**敵だけが投げてくる**状態だった（9/13に見つけた）。
   //    見た目は 今のまま（監督の 1A/1B の答えは まだ来ていないので 変えない）
   setDisp('grenBtn', true);
-  if ((G.nearMortar || G.nearRam || G.nearMill) && G.mortarCd <= 0) $('mortarBtn').classList.add('on');
+  if ((G.nearMortar || G.nearRam || G.nearMill || G.nearUntei) && G.mortarCd <= 0) $('mortarBtn').classList.add('on');
   else $('mortarBtn').classList.remove('on');
   setDisp('reviveBtn', !!revTarget);
   if (revTarget) $('reviveBtn').classList.add('on'); else $('reviveBtn').classList.remove('on');
@@ -2137,6 +2274,16 @@ function tick() {
           done = true; break;
         }
         if (done) break;
+      }
+    }
+    // 🔥 火矢は 雲梯も焼く（📚「以火箭逆射其雲梯，梯然」）。⚠ だれの火矢でも 燃える（火は火）
+    if (!done && p.fire) {
+      for (const U of UNTEI) {
+        if (!U.deployed) continue;
+        if (Math.hypot(pp.x - U.x, pp.z - U.z) > 3.6) continue;
+        if (pp.y > U.entry.yTop + 1) continue;
+        burnUntei(U, 'fire_arrow');
+        done = true; break;
       }
     }
     // 🔥 火矢は 衝車も焼く（史実：衝車は こわされる道具だった）
@@ -2548,6 +2695,7 @@ if (DEVMODE) {
     BASES, MORTARS, TRENCH_ZS, TRENCH_HALF, BASE_XS, BASE_ZS, hitsHouse,   // 🏕🎯 9/8の注文ぶん
     CASTLE_SPECS, RAMS, damageDoor, setDoors, standH, igniteSoldier,        // 🏯🪵🔥 9/12の注文ぶん
     MILLS, autoDoors,                                                       // 🪨🚪 9/13の注文ぶん（石臼・敵の衝車）
+    UNTEI, burnUntei, UNTEI_BURN, shoot,                                    // 🪜 9/26「雲ていなどを入れて」
     PROV, MAP_KEY, drawMap, mapAfterBattle, get mapOwn() { return mapOwn; }, // 🗺 9/15「2 B」勢力図
     SKILLS, REN_MAX_LV, REN_BATTLE, REN_TRAIN, addRendo, saveRendo, paintRendo, startTraining, endTraining,
     rendoHpBonus, rendoDmgMul, learned, get rendo() { return rendo; },       // 📈 練度
