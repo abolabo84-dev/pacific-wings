@@ -2424,24 +2424,34 @@ $('btnGo').onclick = () => { G.training = false; startGame(); };
 //    確かめる前に それっぽい名前を並べると、この game の 📚 のしるしが 全部うすくなる。
 //    → 確かめが とどくまでは name を空にしておく（空なら 番号で描く）。
 //    表はここ1か所。名前が分かったら name を うめるだけでよい。
-// 位置は 6列×5行の ます目。北（上）から 南（下）へ。地図の形は だいたい
-const MAP_COLS = 6, MAP_ROWS = 5;
+// 位置は 7列×5行の ます目。北（上）から 南（下）へ・西（左）から 東（右）へ。地図の形は だいたい。
+// ⚠ 国境の線は 文献に「南郡以南」「合肥之北」のような 言いかたしか無く、
+//    ほんとうの線は 引けていない（研究ファイルの「未確認」に そう書いてある）
+const MAP_COLS = 7, MAP_ROWS = 5;
 const PROV = [
-  { id: 'p1',  name: '', col: 2, row: 0, w: 2, h: 1, init: 'gi'  },
-  { id: 'p2',  name: '', col: 1, row: 1, w: 1, h: 1, init: 'gi'  },
-  { id: 'p3',  name: '', col: 2, row: 1, w: 2, h: 1, init: 'gi'  },
-  { id: 'p4',  name: '', col: 4, row: 1, w: 2, h: 1, init: 'gi'  },
-  { id: 'p5',  name: '', col: 0, row: 2, w: 1, h: 1, init: 'gi'  },
-  { id: 'p6',  name: '', col: 1, row: 2, w: 1, h: 1, init: 'gi'  },
-  { id: 'p7',  name: '', col: 2, row: 2, w: 1, h: 1, init: 'gi'  },
-  { id: 'p8',  name: '', col: 3, row: 2, w: 1, h: 1, init: 'gi'  },
-  { id: 'p9',  name: '', col: 4, row: 2, w: 2, h: 1, init: 'gi'  },
-  { id: 'p10', name: '', col: 0, row: 3, w: 2, h: 2, init: 'shu' },
-  { id: 'p11', name: '', col: 2, row: 3, w: 2, h: 1, init: 'go'  },
-  { id: 'p12', name: '', col: 4, row: 3, w: 2, h: 1, init: 'go'  },
-  { id: 'p13', name: '', col: 2, row: 4, w: 4, h: 1, init: 'go'  },
+  // ---- 魏（12）----
+  { id: 'ryou', name: '涼州', sub: '',       col: 0, row: 0, w: 2, h: 2, init: 'gi'  },
+  { id: 'hei',  name: '并州', sub: '',       col: 2, row: 0, w: 1, h: 1, init: 'gi'  },
+  { id: 'ki',   name: '冀州', sub: '',       col: 3, row: 0, w: 2, h: 1, init: 'gi'  },
+  { id: 'yuu',  name: '幽州', sub: '',       col: 5, row: 0, w: 2, h: 1, init: 'gi'  },
+  { id: 'you',  name: '雍州', sub: '213年〜', col: 2, row: 1, w: 1, h: 1, init: 'gi'  },
+  { id: 'shi',  name: '司州', sub: '',       col: 3, row: 1, w: 1, h: 1, init: 'gi'  },
+  { id: 'en',   name: '兗州', sub: '',       col: 4, row: 1, w: 1, h: 1, init: 'gi'  },
+  { id: 'sei',  name: '青州', sub: '',       col: 5, row: 1, w: 2, h: 1, init: 'gi'  },
+  { id: 'keiN', name: '荊州', sub: '北・宛',  col: 2, row: 2, w: 2, h: 1, init: 'gi'  },
+  { id: 'yo',   name: '豫州', sub: '',       col: 4, row: 2, w: 1, h: 1, init: 'gi'  },
+  { id: 'jo',   name: '徐州', sub: '',       col: 5, row: 2, w: 2, h: 1, init: 'gi'  },
+  { id: 'youN', name: '揚州', sub: '北・合肥', col: 4, row: 3, w: 3, h: 1, init: 'gi'  },
+  // ---- 蜀（1）----
+  { id: 'eki',  name: '益州', sub: '',       col: 0, row: 2, w: 2, h: 3, init: 'shu' },
+  // ---- 呉（3）「據三州虎視於天下」----
+  { id: 'keiS', name: '荊州', sub: '南・江陵', col: 2, row: 3, w: 2, h: 1, init: 'go'  },
+  { id: 'youS', name: '揚州', sub: '南・江東', col: 4, row: 4, w: 3, h: 1, init: 'go'  },
+  { id: 'kou',  name: '交州', sub: '',       col: 2, row: 4, w: 2, h: 1, init: 'go'  },
 ];
-const MAP_KEY = 'sangokuMap_v1';
+// ⚠ 2026-09-26：土地の中身が 変わった（13→16・IDも全部ちがう）。
+//    キーを上げないと 古い保存が 半分だけ効く（defaults-eaten-by-saved-settings）
+const MAP_KEY = 'sangokuMap_v2';
 // ⚠ 「起動時に保存を書く」作りにしない。書くのは **変わった時だけ**
 //   （そうしないと 最初の持ちぬしを直しても 保存に食われて 一生とどかない）
 let mapOwn = {};
@@ -2470,17 +2480,39 @@ function drawMap() {
     g.fillRect(x, y, w, h);
     g.strokeStyle = 'rgba(255,255,255,.75)'; g.lineWidth = 2; g.strokeRect(x, y, w, h);
     g.fillStyle = '#fff';
-    g.font = 'bold 20px "Hiragino Maru Gothic ProN","Yu Gothic",sans-serif';
     g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText(pv.name || String(i), x + w / 2, y + h / 2 - 9);
-    g.font = '16px "Hiragino Maru Gothic ProN","Yu Gothic",sans-serif';
-    g.fillText(n.flag + n.name, x + w / 2, y + h / 2 + 12);
+    const cx = x + w / 2, cy = y + h / 2;
+    g.font = 'bold 20px "Hiragino Maru Gothic ProN","Yu Gothic",sans-serif';
+    g.fillText(pv.name || String(i), cx, cy - (pv.sub ? 16 : 9));
+    if (pv.sub) {
+      g.font = '12px "Hiragino Maru Gothic ProN","Yu Gothic",sans-serif';
+      g.fillStyle = 'rgba(255,255,255,.9)';
+      g.fillText(pv.sub, cx, cy + 2);
+      g.fillStyle = '#fff';
+    }
+    g.font = '15px "Hiragino Maru Gothic ProN","Yu Gothic",sans-serif';
+    g.fillText(n.flag + n.name, cx, cy + (pv.sub ? 19 : 12));
   }
   const cnt = {};
   for (const pv of PROV) cnt[mapOwn[pv.id]] = (cnt[mapOwn[pv.id]] || 0) + 1;
   $('mapCount').textContent = NATIONS.map(n => n.flag + n.name + ' ' + (cnt[n.id] || 0)).join('　');
-  $('mapNote').textContent = PROV.some(pv => pv.name)
-    ? '' : '※ 州の名前は いま 本でたしかめている ところ。分かったら 入れる';
+  // 📚 一次資料で 確かめた（~/.claude/research/sangokushi-provinces.md）。
+  //   ⚠ 子どもに いちばん効く一言を そのまま置く
+  // ⚠ 長い注は たたんでおく（タイトル画面が 文字だらけになると 誰も読まない）。
+  //   いちばん効く一言だけ 出しっぱなしにする
+  $('mapNote').innerHTML =
+    '📚 <b>荊州と揚州は、1つの州の中に 国境が走っている。</b>同じ名前の州が 2つあるから、' +
+    '合肥（揚州）と 江陵（荊州）で ずっと 戦っている。' +
+    '<details style="margin-top:.4em"><summary style="cursor:pointer">📚 もっと（本で たしかめたこと）</summary>' +
+    '<div style="margin-top:.3em">' +
+    '・よく言われる「三国時代も 州は13」は <b>ちがう</b>。213年に いちど「九州」に まとめられて、' +
+    '<b>雍州は そのとき 生まれた</b><br>' +
+    '・蜀は 益州だけ…では なくて、229年から <b>武都・陰平</b>も 持っている（この地図では 益州に 入れてある）<br>' +
+    '・<b>廣州は まだ 無い</b>（264年から）。この地図の ころには 出てこない<br>' +
+    '・⚠ 国境の ほんとうの線は 本に 書いていない（「合肥の北」のような 言いかたしか無い）。' +
+    'ます目の 形は だいたい<br>' +
+    '・⚠ 雍州だけ 『晉書』（648年＝ずっと あとの本）でしか 確かめられていない' +
+    '</div></details>';
 }
 // 🏆 勝ったら 相手の土地を 1つ もらう／負けたら 1つ とられる。
 //   ⚠ 「どこが ぬりかわったか」が 分からないと ぬりかわった気がしない＝名前（番号）を返す
@@ -2493,7 +2525,9 @@ function mapAfterBattle(won) {
   mapOwn[pv.id] = to;
   saveMap();                                   // ⚠ 変わった時だけ書く
   const i = PROV.indexOf(pv) + 1;
-  return { label: pv.name || (i + 'ばん'), to: natById(to) };
+  // ⚠ 荊州・揚州は 同じ名前が2つある＝注（北・宛 など）まで出さないと どっちか分からない
+  const label = pv.name ? (pv.name + (pv.sub ? '（' + pv.sub + '）' : '')) : (i + 'ばん');
+  return { label, to: natById(to) };
 }
 loadMap();
 drawMap();      // ⚠ 表の **すぐ下**で呼ぶ。ここで 保存は書かない（読むだけ）
