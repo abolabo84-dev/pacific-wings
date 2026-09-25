@@ -170,30 +170,23 @@ const PLATFORM =
   /Macintosh/i.test(UA) && TOUCH ? 'tablet' :
   TOUCH && Math.min(screen.width, screen.height) <= 820 ? 'phone' : 'pc';
 const anLog = [];
-function logEvent(type, data) {
-  anLog.push({ t: Math.round(performance.now()), type, data });
-  send();   // ページを すぐ閉じられても 残るように 毎回送る（数が少ないので これでよい）
-}
-let sent = 0, sending = false;
-async function send() {
-  if (sending || sent >= anLog.length) return;
-  sending = true;
-  const upto = anLog.length;
+let sent = 0;
+// ⚠ fetch はやめた。GASは302を返すので 追いかけるのに数秒かかり、その間に来たイベントが
+//    落ちていた（9/26実測：start だけ届いて open と wrong が消えた＝「開いてない」と
+//    まちがって読むところだった）。sendBeacon は投げっぱなしで ページを閉じても残る。
+//    ⚠ 凝った解（送信中フラグ＋再送）を入れる前に 単純な解を測る、の回。
+function flush() {
+  if (sent >= anLog.length) return;
+  const body = JSON.stringify({ key: CLOUD_KEY, runId: LOG_KEY, device: DEVICE,
+    ver: location.pathname, tag: LOG_TAG, build: 'anboard1', events: anLog.slice(sent) });
   try {
-    await fetch(CLOUD_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ key: CLOUD_KEY, runId: LOG_KEY, device: DEVICE, ver: location.pathname,
-        tag: LOG_TAG, build: 'anboard1', events: anLog.slice(sent, upto) }) });
-    sent = upto;
-  } catch (e) { /* 次の logEvent か beforeunload で また試す */ }
-  finally { sending = false; }
+    if (navigator.sendBeacon(CLOUD_URL, new Blob([body], { type: 'text/plain' }))) sent = anLog.length;
+  } catch (e) { /* つぎの logEvent で また試す */ }
 }
-addEventListener('beforeunload', () => {
-  if (sent < anLog.length) {
-    try { navigator.sendBeacon(CLOUD_URL, JSON.stringify({ key: CLOUD_KEY, runId: LOG_KEY,
-      device: DEVICE, ver: location.pathname, tag: LOG_TAG, build: 'anboard1',
-      events: anLog.slice(sent) })); } catch (e) {}
-  }
-});
+function logEvent(type, data) { anLog.push({ t: Math.round(performance.now()), type, data }); flush(); }
+addEventListener('beforeunload', flush);
+addEventListener('visibilitychange', flush);   // ⚠ スマホは閉じるより「裏に行く」が多い
+
 logEvent('start', { platform: PLATFORM, screen: screen.width + 'x' + screen.height });
 
 // 合言葉は sha-256 で持つ。⚠ 監督が数字を決めたら HASH を差しかえる：
