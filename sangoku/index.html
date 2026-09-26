@@ -1193,6 +1193,90 @@ function onSeiran(P) {
   }
   return null;
 }
+
+// 🛡 幔（まん）＝ 監督9/10 兵器リスト → 9/26「基地の回りに配置して（攻められてるがわ）」「けど入れたい」→ 09:40「1」。
+//   読みは「まん」（監督が決めた）。**守る側が 基地のまわりに ならべて 矢をふせぐ 幕**。
+// 📚 三国時代に「幔」で 矢を ふせいだ記録：195年、董承（とうじょう）が 李傕の兵に 射られるのを おそれて
+//    **ふとんを幔にした**（『後漢紀』卷28／『資治通鑑』卷061「董承懼射之，以被為幔」）。⚠『三國志』には無い。
+// ⚠ **基地のまわりに ならべた記録は 見つかっていない**＝ そこは **ゆうじんの設計**。
+//    （本の「木幔」は 攻める側の道具・410年ごろ〜。研究 ~/.claude/research/sangokushi-defense.md）
+// ⚠ ゲームのきまり（歴史ではない）：
+//   ・幔が止めるのは **敵の矢だけ**。こちらから 射る矢は 通る（守る側の 矢よけ だから）
+//   ・**投げもの（手榴弾など）は 止められない**（ふとんは 矢は止めるが 投げものは 止められない）
+//   ・**20本 受けると やぶれる**＝ ふせいだことが 目に見える
+//   ・城の中の 地面にいる人を 外からの矢から守る。**壁の上の守備兵は 守れない**（幔は 3mの高さまで）
+// ponytail: 幔は 火で焼けない, 敵に 火矢隊が 出たら 焼けるようにする
+// ponytail: 石の壁は 矢を通すのに 幔は止める, 監督が「壁を通るのはおかしい」と言ったら houses の top で止める
+const MANS = [], MAN_LEN = 8, MAN_OUT = 5, MAN_HP = 20, MAN_GAP = 6, MAN_H = 2.6;
+const manGeo = new THREE.BoxGeometry(MAN_LEN, MAN_H, 0.12);
+const manPostGeo = new THREE.BoxGeometry(0.25, MAN_H + 0.5, 0.25);
+const manMat = new THREE.MeshLambertMaterial({ color: 0xb85c4a });      // 色あせた赤の布
+const manPostMat = new THREE.MeshLambertMaterial({ color: 0x5d4037 });
+function makeMans(F) {
+  const RX = F.hx + MAN_OUT, RZ = F.hz + MAN_OUT;
+  // 4つの辺。門のある辺は 門の前を あけておく（出入り口と 出なおす場所）
+  const sides = [
+    { run: 'x', fixed: F.z - RZ, from: F.x - RX, to: F.x + RX, gate: F.gates.find(g => g.ax === 'z' && g.sgn === -1) },
+    { run: 'x', fixed: F.z + RZ, from: F.x - RX, to: F.x + RX, gate: F.gates.find(g => g.ax === 'z' && g.sgn === 1) },
+    { run: 'z', fixed: F.x - RX, from: F.z - RZ, to: F.z + RZ, gate: F.gates.find(g => g.ax === 'x' && g.sgn === -1) },
+    { run: 'z', fixed: F.x + RX, from: F.z - RZ, to: F.z + RZ, gate: F.gates.find(g => g.ax === 'x' && g.sgn === 1) },
+  ];
+  for (const sd of sides) {
+    const gapC = sd.run === 'x' ? F.x : F.z;
+    for (let c = sd.from + MAN_LEN / 2; c <= sd.to - MAN_LEN / 2 + 0.01; c += MAN_LEN) {
+      if (sd.gate && Math.abs(c - gapC) < MAN_GAP + MAN_LEN / 2) continue;     // 門の前は あける
+      const x = sd.run === 'x' ? c : sd.fixed, z = sd.run === 'x' ? sd.fixed : c;
+      const y = H(x, z);
+      const g = new THREE.Group();
+      const cloth = new THREE.Mesh(manGeo, manMat);
+      cloth.position.y = MAN_H / 2 + 0.3;
+      const post = new THREE.Mesh(manPostGeo, manPostMat);
+      post.position.set(-MAN_LEN / 2, (MAN_H + 0.5) / 2, 0);
+      g.add(cloth, post);
+      if (sd.run === 'z') g.rotation.y = Math.PI / 2;
+      g.position.set(x, y, z);
+      scene.add(g);
+      MANS.push({ F, x, z, y, run: sd.run, mesh: g, hits: 0, torn: false, on: true });
+    }
+  }
+}
+function makeAllMans() { for (const F of fortresses) makeMans(F); }
+// 🛡 味方がわの城のときだけ 出す（支城を とったら その城にも 幔が出る）
+function syncMans() {
+  for (const M of MANS) {
+    const want = M.F.side === 'ally' && !M.torn;
+    if (M.on === want) continue;
+    M.on = want; M.mesh.visible = want;
+  }
+}
+function resetMans() { for (const M of MANS) { M.hits = 0; M.torn = false; M.on = !M.on; } syncMans(); }
+// 🛡 この弾は 幔に止められるか。⚠ 矢は 1フレームに 1.2m ほど進む＝ **厚みを 1.8m とる**
+//   （うすいと すりぬける。はしごの「1.7mの穴」と 同じ種類の まちがい）
+function manBlocks(p, pp) {
+  if (p.owner !== 'foe' || p.blast) return null;
+  for (const M of MANS) {
+    if (!M.on) continue;
+    if (pp.y > M.y + MAN_H + 0.3) continue;
+    const along = M.run === 'x' ? Math.abs(pp.x - M.x) : Math.abs(pp.z - M.z);
+    const across = M.run === 'x' ? Math.abs(pp.z - M.z) : Math.abs(pp.x - M.x);
+    if (along < MAN_LEN / 2 && across < 0.9) return M;
+  }
+  return null;
+}
+function manHit(M) {
+  M.hits++;
+  logEvent('man_block', { key: M.F.key, hits: M.hits });
+  if (!G.manTold) {
+    G.manTold = true;
+    showMessage('🛡 幔が 敵の矢を ふせいだ！ 📚 195年、董承も ふとんを「幔」にして 矢を ふせいだ。' +
+                '基地のまわりに ならべるのは ゆうじんの考え', 6);
+  }
+  if (M.hits >= MAN_HP) {
+    M.torn = true; M.on = false; M.mesh.visible = false;
+    if (!G.manTornTold) { G.manTornTold = true; showMessage('🛡 幔が やぶれた！（矢を ' + MAN_HP + '本 うけた）', 2.5); }
+    logEvent('man_torn', { key: M.F.key });
+  }
+}
 function unteiOff(U) {                      // はしごを 壁から はずす（焼けた・リセット）
   const i = LADDERS.indexOf(U.entry);
   if (i >= 0) LADDERS.splice(i, 1);
@@ -1426,6 +1510,7 @@ function startGame() {
     makeUnteis();                                  // 🪜 監督9/26「雲ていなどを入れて」
     makeSeirans();                                 // 🗼 監督9/26「やぐら車でいいよ」
     resetSeirans();
+    makeAllMans();                                 // 🛡 監督9/26「基地の回りに配置して」→「1」
     // 監督 9/5「あと障害物もほしい」
     scatterRocks();
   } else {
@@ -1442,6 +1527,7 @@ function startGame() {
     resetMills();
     resetUnteis();
     resetSeirans();
+    resetMans();
   }
   // 自分
   if (player.group) scene.remove(player.group);
@@ -1977,6 +2063,7 @@ function tick() {
   G.nearMill = nearMill;
   // 🗼 井闌（監督9/26「やぐら車でいいよ」）。敵がわの城のときだけ 出す
   for (const S of SEIRAN) syncSeiran(S);
+  syncMans();                                     // 🛡 幔は 味方がわの城だけ
   const onS = onSeiran(P);
   if (onS && !G.onSeiran) {
     G.seiranUp = (G.seiranUp || 0) + 1;
@@ -2362,6 +2449,8 @@ function tick() {
     for (const b of sandbags) {
       if (Math.hypot(pp.x-b.x, pp.z-b.z) < 1.6 && pp.y < H(b.x, b.z)+1.6) { done = true; break; }
     }
+    // 🛡 幔が 敵の矢を ふせぐ（監督9/26）
+    if (!done) { const M = manBlocks(p, pp); if (M) { manHit(M); done = true; } }
     // 地面
     if (!done && pp.y <= H(pp.x, pp.z)) {
       if (p.blast) { explode(pp.clone(), true); blastDamage(pp, p.blast, p.dmg, p.owner); }
@@ -2807,6 +2896,7 @@ if (DEVMODE) {
     MILLS, autoDoors,                                                       // 🪨🚪 9/13の注文ぶん（石臼・敵の衝車）
     UNTEI, burnUntei, UNTEI_BURN, shoot,                                    // 🪜 9/26「雲ていなどを入れて」
     SEIRAN, onSeiran, SEIRAN_UP,                                            // 🗼 9/26「やぐら車でいいよ」
+    MANS, MAN_HP, manBlocks,                                                // 🛡 9/26「幔」→「1」
     PROV, MAP_KEY, drawMap, mapAfterBattle, get mapOwn() { return mapOwn; }, // 🗺 9/15「2 B」勢力図
     SKILLS, REN_MAX_LV, REN_BATTLE, REN_TRAIN, addRendo, saveRendo, paintRendo, startTraining, endTraining,
     rendoHpBonus, rendoDmgMul, learned, get rendo() { return rendo; },       // 📈 練度
