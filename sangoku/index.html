@@ -463,8 +463,11 @@ const FORT_FOE  = { x:  260, z: 0 };
 const CASTLE_SPECS = [
   { key: 'allyMain', x: -260, z:    0, side: 'ally', main: true,
     hx: 22, hz: 22, nx: 9, nz: 9, gates: [{ ax: 'x', sgn: 1 }, { ax: 'x', sgn: -1 }],
-    inner: false, homes: 5, garrison: 3, name: '味方の本城',
-    shape: '四角い城。門が 東と西に 2つ' },
+    // 🏯 重牆（じゅうしょう）も 入れた＝ 監督9/26「味方も」→「じゃあAだね」「うん」。
+    //   ⚠ 内がわの門は 東（敵が来る がわ＝自分が 出なおして 戻ってくる がわ）。
+    //     敵AIは 壁を すりぬけるので、門を 反対に 置いても 困るのは 自分だけ
+    inner: true, homes: 5, garrison: 3, name: '味方の本城',
+    shape: '四角い城。門が 東と西に 2つ。中に もう一枚 壁がある（重牆）' },
   { key: 'allySub',  x: -100, z: -160, side: 'ally', main: false,
     hx: 20, hz: 12, nx: 7, nz: 11, gates: [{ ax: 'z', sgn: 1 }],
     inner: false, homes: 3, garrison: 2, name: '西の支城',
