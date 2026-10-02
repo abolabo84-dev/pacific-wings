@@ -751,6 +751,21 @@ function makeBase(bx, bz) {
 }
 for (const b of BASES) makeBase(b.x, b.z);
 for (const tz of TRENCH_ZS) makeMortar(0, tz);   // 監督「塹壕に一個」
+// 🪨 城ぜめの投石車（監督9/29「投石車で中にいるひとに攻撃出きるようにして」）。
+// ⚠ 測ったら（tools/probe_mortar_reach.js）石は いつも 78〜83m 先に落ちる。
+//   敵の本城に いちばん近い投石車でも 123m ＝ **本城の中には 1つも とどいていなかった**。
+//   支城も 取ってからの基地2つからしか とどかなかった。
+// → 敵の城の **門の がわの外に 1つずつ**、石が 城のまんなかあたりに落ちる きょりに置く。
+//   だれのものでもない（塹壕のと同じ）＝ 行けば いつでも使える。向きを かえれば 城の中を ねらいわけられる
+// 📚 發石車は 官渡で 曹操が 袁紹の やぐら（楼）を こわすのに使った＝ 城や陣の **外から** 撃つ道具
+// ponytail: 飛ぶきょりは 1つだけ, 監督が「手前もねらいたい」と言ったら 長おしで きょりを かえる
+const SIEGE_D = 72;
+for (const c of CASTLE_SPECS) {
+  if (c.side !== 'foe') continue;
+  const g = c.gates[0];
+  const m = makeMortar(c.x + (g.ax === 'x' ? g.sgn * SIEGE_D : 0), c.z + (g.ax === 'z' ? g.sgn * SIEGE_D : 0));
+  m.siege = c.key;
+}
 
 // ============ 🏯 城と旗と柵（監督9/11「攻める側と守る側がいる」＝**城が要る**）============
 // ⚠ 陸上戦の「要塞」は 四すみに ブロックが4つ置いてあるだけで、あいだは すり抜けられた。
@@ -1865,7 +1880,7 @@ let lastT = performance.now(), fireCd = 0, grenCd = 0, skillCd = 0, knifeCd = 0;
 const DEVMODE = new URLSearchParams(location.search).get('dev') === '1';
 // ⚠ 版の印。監督がスマホで試して報告してくるので、**どの版を見ているか**が分からないと
 //    直したはずの物を「まだ直ってない」と言われる（古いキャッシュを見ているだけ、が起きる）
-const BUILD = 'sango-0912b';
+const BUILD = 'sango-0930a';
 { const e = document.getElementById('buildTag'); if (e) e.textContent = '版:' + BUILD; }
 const devPump = (() => {
   if (!DEVMODE) return null;
@@ -2181,11 +2196,14 @@ function tick() {
     // 📚 2026-09-12 に一次資料で確かめたこと（research/sangokushi-weapons.md）。
     //   ⚠ 監督が書いた名前（投石車）は 変えない。**ほんとうの名前を そえるだけ**にする
     G.mortarShot = (G.mortarShot || 0) + 1;
-    showMessage(G.mortarShot === 1
+    if (nearMortar.siege && !G.siegeShot) {
+      G.siegeShot = true;
+      showMessage('🪨 城ぜめの投石車！ 石は 城の中まで とどく。むきを かえると ねらう所が かわるよ', 5);
+    } else showMessage(G.mortarShot === 1
       ? '🪨 投石車 発射！ ほんとうの名前は「發石車（はっせきしゃ）」。' +
         '袁紹の兵が「霹靂車」と あだ名をつけた（三国志 巻六）'
       : '🪨 投石車 発射！（高くとんで 落ちる）', G.mortarShot === 1 ? 5.5 : 1.4);
-    logEvent('mortar', {});
+    logEvent('mortar', { siege: nearMortar.siege || null, yaw: +player.yaw.toFixed(2) });
     playBoom();
   }
 
@@ -2667,6 +2685,14 @@ function drawMinimap() {
     mm.fillStyle = F.side === 'ally' ? '#29b6f6' : '#ff1744';
     mm.beginPath(); mm.arc(clamp(sx(F.x)), clamp(sy(F.z)), F.main ? 5 : 3, 0, 7); mm.fill();
     mm.strokeStyle = '#fff'; mm.lineWidth = 1.2; mm.stroke();
+  }
+  // 🪨 城ぜめの投石車（監督9/29）。⚠ 置いただけでは 野原の中で 見つからない＝地図に 茶色の四角
+  mm.fillStyle = '#ffab40';
+  for (const m of MORTARS) {
+    if (!m.siege) continue;
+    const x = sx(m.x), y = sy(m.z);
+    if (x < M || x > 140-M || y < M || y > 140-M) continue;
+    mm.fillRect(x-3, y-3, 6, 6);
   }
   for (const s of soldiers) {
     if (s.state === 'dead') continue;
