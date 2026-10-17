@@ -885,6 +885,17 @@ function makeIsland(x, z, radius, kind) { // kind: 'base' | 'port' | 'plain'
   } else if (kind === 'plain') {
     const green = new THREE.Mesh(new THREE.CylinderGeometry(radius*0.7, radius*0.85, 5, 24), new THREE.MeshLambertMaterial({ color: 0x2e7d32 }));
     green.position.y = 5; g.add(green);
+  } else if (kind === 'mainland') {
+    // 🗾 本土：平らな緑の大地＋町（四角い建物）。⚠ 建物は 見た目だけ（工場だけが 撃てる的）
+    const green = new THREE.Mesh(new THREE.CylinderGeometry(radius*0.97, radius, 5, 48), new THREE.MeshLambertMaterial({ color: 0x558b2f }));
+    green.position.y = 5; g.add(green);
+    const town = new THREE.MeshLambertMaterial({ color: 0xbcaaa4 });
+    for (let i = 0; i < 40; i++) {
+      const a = i * 2.4, rr = radius * (0.2 + 0.6 * ((i * 37) % 100) / 100);
+      const h = 8 + (i * 13) % 22;
+      const b = new THREE.Mesh(new THREE.BoxGeometry(14, h, 14), town);
+      b.position.set(Math.cos(a) * rr, 7.5 + h / 2, Math.sin(a) * rr); g.add(b);
+    }
   }
   g.position.set(x, 0, z);
   scene.add(g);
@@ -1104,6 +1115,12 @@ const ENEMY = { base: W(1050, 200), port: W(1450, -180) };
 // 日本＝味方がわ、アメリカ＝敵がわ（いまのゲームが OUR/ENEMY の場所で決まっているのに合わせた）
 const JAPAN = W(-620, 640);
 const AMERICA = W(700, -660);
+// 🗾 本土（監督10/1「マップに赤の丸がはじこにでてきてほしい 赤がアメリカ マップに白丸がでてきたら日本」「どっちも本土」
+//   → 10/3「3そう」＝ いまの基地とは べつの 大きな陸／「2攻撃できる」「正し敵の本土だけ」）。
+// ⚠ 海は ±3500。本土は 海のはし（味方＝西・敵＝東）に置く。港（x=±2000くらい）より 外がわ
+const MAINLAND_R = 520;
+const JAPAN_MAIN = W(-1950, 0);
+const AMERICA_MAIN = W(2000, 0);
 const islandDefs = [
   { ...OUR.base, r: 65, kind: 'base', side: 'ally' },
   { ...OUR.port, r: 75, kind: 'port', side: 'ally' },
@@ -1111,6 +1128,8 @@ const islandDefs = [
   { ...ENEMY.port, r: 75, kind: 'port', side: 'enemy' },
   { ...JAPAN, r: 60, kind: 'base', side: 'ally', tag: 'japan' },
   { ...AMERICA, r: 60, kind: 'base', side: 'enemy', tag: 'america' },
+  { ...JAPAN_MAIN, r: MAINLAND_R, kind: 'mainland', side: 'ally', tag: 'japanMain' },
+  { ...AMERICA_MAIN, r: MAINLAND_R, kind: 'mainland', side: 'enemy', tag: 'americaMain' },
   { ...W(0, -500), r: 45, kind: 'plain' }, { ...W(150, 450), r: 35, kind: 'plain' },
   { ...W(-400, 350), r: 28, kind: 'plain' }, { ...W(450, -300), r: 30, kind: 'plain' },
   // v6: 広くしたぶん、海がからっぽにならないように島を足す（目じるしが無いと方角を見失う）
@@ -1152,6 +1171,7 @@ function islandTopY(x, z) {
       if (d < b) return 7.5 - (d - a)/(b - a) * 4.5;
       return 3;
     }
+    if (isl.kind === 'mainland') return 7.5;         // 🗾 本土は 平ら（緑のてっぺん）
     return 3;   // 港。⚠ ponytail: 建物の中を通りぬけられる。当たり判定を足すのは建物が固定配置になってから
   }
   return null;
@@ -1187,6 +1207,23 @@ function spawnStructure(side, kind, at, name) { // kind: 'port' | 'base'（at �
     radius: kind === 'port' ? 36 : 30, aaRange: kind === 'port' ? 260 : 220, aaTimer: 1, barH: 42, structure: true,
     // v6: 建物の名札は場所から作る＝全員の画面で同じになる（みんなでルームでHPを共有するため）
     nid: 'st_' + kind + '_' + side + '_' + Math.round(at.x) });
+}
+// 🏭 敵の本土の工場（監督10/3「2攻撃できる」「正し敵の本土だけ」）。
+// ⚠ 本土そのものに HP を持たせると 爆弾の当たり判定が「本土のまんなか」からの きょりになり、
+//   海岸に落としても当たらない。だから **海岸ぞいに 撃てる的（工場）を3つ** 置く。
+// ⚠ 味方（日本）の本土には 的を置かない＝ 敵からも こちらからも 攻撃できない（「敵の本土だけ」）
+// ponytail: 工場を こわしても 勝ち負けには つながない（撃破のチールだけ）。監督が「本土をこわしたら勝ち」と言ったら ここ
+function spawnFactory(x, z, i) {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(30, 16, 22), new THREE.MeshLambertMaterial({ color: 0x8d6e63 }));
+  body.position.y = 8; g.add(body);
+  const chim = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.6, 30, 8), new THREE.MeshLambertMaterial({ color: 0x5d4037 }));
+  chim.position.set(9, 22, 0); g.add(chim);
+  g.add(makeFlag(0xff6d00));
+  g.position.set(x, 7.5, z);
+  return addUnit({ group: g, kind: 'factory', klass: 'factory', faction: 'enemy', name: 'アメリカ本土の工場',
+    hp: 200, maxHp: 200, radius: 30, aaRange: 220, aaTimer: 1 + i, barH: 42, structure: true,
+    nid: 'st_factory_enemy_' + i });
 }
 function spawnAIShip(side, klass, x, z, mission) {
   const g = makeShipMesh(klass, side === 'enemy');
@@ -1441,6 +1478,8 @@ spawnCritters();   // 🕊 島ができたので 生き物を置く（islandTopY
 //    でも 560m の島をすり抜けるのは さすがに見た目がおかしい
 function onBigLand(x, z) {
   for (const isl of islandDefs) {
+    // 🗾 本土も のり上げない（520mの陸を 船が すり抜けるのは おかしい）
+    if (isl.kind === 'mainland' && Math.hypot(x - isl.x, z - isl.z) < isl.r) return true;
     if (isl.kind !== 'big') continue;
     if (Math.hypot(x - isl.x, z - isl.z) > isl.r) continue;
     return bigH(x - isl.x, z - isl.z, isl.r) > 0.6;
@@ -2562,6 +2601,8 @@ function startGame(faction, mode, def) {
   // v6: 増やした基地（監督8/26「基地を増やす」「日本とアメリカに作って」）
   spawnStructure('ally', 'base', JAPAN, '日本の基地');
   spawnStructure('enemy', 'base', AMERICA, 'アメリカの基地');
+  // 🏭 アメリカ本土の 海岸ぞい（西がわ＝こちらから来る がわ）に 工場3つ
+  for (let i = 0; i < 3; i++) spawnFactory(AMERICA_MAIN.x - MAINLAND_R + 70, AMERICA_MAIN.z + (i - 1) * 260, i);
   // 敵の艦隊。v6: みんなでルームでは「あずかり役（ホスト）」だけが出す。
   // それぞれが出すと、みんなの海がバラバラになるため（乱数と敵AIは必ずズレる）
   G.netFleetDone = !NET.on || G.tutorial;
@@ -3580,8 +3621,8 @@ function drawMinimap() {
   const isOut = (x, y) => x < M || x > 150 - M || y < M || y > 150 - M;
   for (const isl of islandDefs) {
     // v6: 監督8/26「白は、日本 赤は、アメリカ」
-    mm.fillStyle = isl.tag === 'japan' ? '#ffffff'
-                 : isl.tag === 'america' ? '#ff1744'
+    mm.fillStyle = isl.tag === 'japan' || isl.tag === 'japanMain' ? '#ffffff'
+                 : isl.tag === 'america' || isl.tag === 'americaMain' ? '#ff1744'
                  : isl.kind === 'big' ? '#8bc34a'
                  : isl.kind === 'plain' ? '#8d6e63' : isl.side === 'ally' ? (isl.kind === 'port' ? '#29b6f6' : '#1976d2') : (isl.kind === 'port' ? '#ff1744' : '#c62828');
     const x = sx(isl.x), y = sy(isl.z);
@@ -3591,8 +3632,10 @@ function drawMinimap() {
       continue;
     }
     const out = isOut(x, y);                          // 港と基地は、外に出てもふちに残す＝方角がわかる
-    mm.beginPath(); mm.arc(clamp(x), clamp(y), out ? 4 : Math.max(3, isl.r*sc), 0, 7); mm.fill();
-    mm.strokeStyle = out ? '#ffffff' : '#000000'; mm.lineWidth = 1.5; mm.stroke();
+    // 🗾 本土は 遠くても 大きめの丸で ふちに出す（監督10/1「赤の丸がはじこにでてきてほしい」）
+    const main = isl.kind === 'mainland';
+    mm.beginPath(); mm.arc(clamp(x), clamp(y), out ? (main ? 7 : 4) : Math.max(3, isl.r*sc), 0, 7); mm.fill();
+    mm.strokeStyle = out ? '#ffffff' : '#000000'; mm.lineWidth = main ? 2.5 : 1.5; mm.stroke();
   }
   // 敵の港に旗マーク（外に出ていても、ふちに出す）
   mm.font = '10px sans-serif'; mm.textAlign = 'center';
@@ -3694,7 +3737,7 @@ const NET = { on: false, word: '', me: '', name: localStorage.getItem('pw_name')
 // ⚠ つながらない時に「どこで止まったか」を画面に出す（パパ 9/5・PC×スマホ4Gで入れなかった）。
 // 口で往復するより、1回開けば分かる形にする。止まりうる場所は3つあって、直し方が全部ちがう：
 //   ① リレー（相手さがし）に届かない ② 相手は見つかったがNAT越えできない ③ データが来ない
-const BUILD = 'v6-1004a';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
+const BUILD = 'v6-1017a';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
 // v6.1: タイトル画面のすみに小さく出す。⚠ 版が分からないと「どの版で起きた不具合か」が言えなくなる。
 //   前は画面のどこにも無く、つながらない時の診断にしか出ていなかった
 { const bt = document.getElementById('buildTag'); if (bt) bt.textContent = BUILD; }
