@@ -746,6 +746,32 @@ function placeShelters(x, z, r, n) {
   }
   return put;
 }
+// 🗾 本土の町の建物の場所（本土の中心から見た位置）。⚠ 見た目と 防空ごうの置き場所さがしの 両方がここを読む
+const TOWN_W = 14;
+const mainlandTowns = r => Array.from({ length: 40 }, (_, i) => {
+  const a = i * 2.4, rr = r * (0.2 + 0.6 * ((i * 37) % 100) / 100);
+  return { lx: Math.cos(a) * rr, lz: Math.sin(a) * rr, h: 8 + (i * 13) % 22 };
+});
+// 🕳 本土の防空ごう（監督10/21「本土にも、防空壕が、１０個ほしい」）。本土は 平ら（高さ7.5）なので 平らな所さがしは要らない。
+// ⚠ 乱数を使わない（ひまわりの種の ならび方で 外へ広げる）。みんなでルームで 人ごとに 場所がちがうと、
+//   「そこにある」と言っても 相手の画面には無い
+function placeMainlandShelters(x, z, r, n) {
+  const towns = mainlandTowns(r);
+  const put = [];
+  for (let i = 0; i < n; i++) {
+    for (let k = 0; k < 24; k++) {                 // 建物とかさなったら 少しずつ ずらす
+      const a = i * 2.39996 + 0.7 + k * 0.13, rr = r * (0.22 + 0.6 * (i + 0.5) / n);
+      const lx = Math.cos(a) * rr, lz = Math.sin(a) * rr, sideways = (i + k) % 2 === 1;
+      const hx = sideways ? SH_IN_Z : SH_IN_X, hz = sideways ? SH_IN_X : SH_IN_Z;
+      if (towns.some(t => Math.abs(t.lx - lx) < TOWN_W/2 + hx + 4 && Math.abs(t.lz - lz) < TOWN_W/2 + hz + 4)) continue;
+      if (put.some(p => Math.hypot(p.lx - lx, p.lz - lz) < 60)) continue;
+      put.push({ lx, lz });
+      makeShelter(x + lx, z + lz, 7.5, sideways);
+      break;
+    }
+  }
+  return put;
+}
 function makeBigIsland(x, z, r) {
   const g = new THREE.Group();
   const N = 96;
@@ -890,11 +916,9 @@ function makeIsland(x, z, radius, kind) { // kind: 'base' | 'port' | 'plain'
     const green = new THREE.Mesh(new THREE.CylinderGeometry(radius*0.97, radius, 5, 48), new THREE.MeshLambertMaterial({ color: 0x558b2f }));
     green.position.y = 5; g.add(green);
     const town = new THREE.MeshLambertMaterial({ color: 0xbcaaa4 });
-    for (let i = 0; i < 40; i++) {
-      const a = i * 2.4, rr = radius * (0.2 + 0.6 * ((i * 37) % 100) / 100);
-      const h = 8 + (i * 13) % 22;
-      const b = new THREE.Mesh(new THREE.BoxGeometry(14, h, 14), town);
-      b.position.set(Math.cos(a) * rr, 7.5 + h / 2, Math.sin(a) * rr); g.add(b);
+    for (const t of mainlandTowns(radius)) {
+      const b = new THREE.Mesh(new THREE.BoxGeometry(TOWN_W, t.h, TOWN_W), town);
+      b.position.set(t.lx, 7.5 + t.h / 2, t.lz); g.add(b);
     }
   }
   g.position.set(x, 0, z);
@@ -1146,6 +1170,8 @@ const nearSupply = (P, extra = 0) => SUPPLY.some(s => Math.hypot(P.x - s.p.x, P.
 for (const d of islandDefs) d.group = d.kind === 'big'
   ? makeBigIsland(d.x, d.z, d.r)
   : makeIsland(d.x, d.z, d.r, d.kind === 'plain' ? 'plain' : d.kind);
+// 🕳 いまは 日本の本土だけ。⚠ どっちの本土かは 監督に聞いている（返信_1021 質問2）。「両方」なら AMERICA_MAIN で もう1行
+placeMainlandShelters(JAPAN_MAIN.x, JAPAN_MAIN.z, MAINLAND_R, 10);
 // 🚶 島のてっぺんの高さ。海の上なら null（＝そこに立つ地面が無い＝落ちる）。
 // ⚠ 数字は makeIsland の見た目から来ている。あちらを直したらここも直す
 //    （岩のてっぺん = -20 + 46/2 = 3／基地のパッド = 4 + 2/2 = 5／草 = 5 + 5/2 = 7.5）
@@ -3737,7 +3763,7 @@ const NET = { on: false, word: '', me: '', name: localStorage.getItem('pw_name')
 // ⚠ つながらない時に「どこで止まったか」を画面に出す（パパ 9/5・PC×スマホ4Gで入れなかった）。
 // 口で往復するより、1回開けば分かる形にする。止まりうる場所は3つあって、直し方が全部ちがう：
 //   ① リレー（相手さがし）に届かない ② 相手は見つかったがNAT越えできない ③ データが来ない
-const BUILD = 'v6-1017a';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
+const BUILD = 'v6-1024a';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
 // v6.1: タイトル画面のすみに小さく出す。⚠ 版が分からないと「どの版で起きた不具合か」が言えなくなる。
 //   前は画面のどこにも無く、つながらない時の診断にしか出ていなかった
 { const bt = document.getElementById('buildTag'); if (bt) bt.textContent = BUILD; }
