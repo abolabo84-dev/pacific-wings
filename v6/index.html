@@ -297,6 +297,8 @@
   <h2>👥 みんなで</h2>
   <p style="margin:.1em 16px">おなじ <b>あいことば</b>（数字だけ）を打った人と、おなじ海に出られる。<br>
   <b>いちどに10人まで</b>。</p>
+  <p style="margin:.4em 16px; font-size:.9rem; color:#ffe066">👉 「🆕 ルームを作る」を押すのは <b>1人だけ</b>。<br>
+  ほかの人は その数字を打って「🚪 はいる」。だれかが来るまで そのまま待っていてね</p>
   <p style="margin:.6em 0 .1em; font-size:.95rem">なまえ（かかなくてもいい）</p>
   <input id="roomName" maxlength="8" placeholder="なまえ" style="font-size:clamp(16px,4vw,22px); padding:.4em .6em; border-radius:10px; border:2px solid #fff; background:#102b40; color:#fff; text-align:center; width:min(60vw,240px)">
   <p style="margin:.8em 0 .1em; font-size:.95rem">あいことば（数字だけ）</p>
@@ -3763,7 +3765,7 @@ const NET = { on: false, word: '', me: '', name: localStorage.getItem('pw_name')
 // ⚠ つながらない時に「どこで止まったか」を画面に出す（パパ 9/5・PC×スマホ4Gで入れなかった）。
 // 口で往復するより、1回開けば分かる形にする。止まりうる場所は3つあって、直し方が全部ちがう：
 //   ① リレー（相手さがし）に届かない ② 相手は見つかったがNAT越えできない ③ データが来ない
-const BUILD = 'v6-1024a';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
+const BUILD = 'v6-1024b';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
 // v6.1: タイトル画面のすみに小さく出す。⚠ 版が分からないと「どの版で起きた不具合か」が言えなくなる。
 //   前は画面のどこにも無く、つながらない時の診断にしか出ていなかった
 { const bt = document.getElementById('buildTag'); if (bt) bt.textContent = BUILD; }
@@ -3982,6 +3984,7 @@ function gasJoinRoom(word) {
       const j = await gasCall({ action: 'poll', room: roomName, me: GAS_ME });
       if (!j || !Array.isArray(j.peers)) { NETDIAG.err = 'GASに相手さがしがまだ入っていない'; room._stop = true; return; }
       NETDIAG.joined = true;
+      NETDIAG.err = '';   // 一度つまずいても 返事が来たら 直った（残すと 下の「移らない」が効かなくなる）
       if (!NETDIAG.t0) NETDIAG.t0 = Date.now();
       for (const id of j.peers) {
         if (id === GAS_ME || room._conn[id]) continue;
@@ -3994,7 +3997,12 @@ function gasJoinRoom(word) {
       let allOpen = Object.keys(room._conn).length > 0;
       for (const id in room._conn) if (!room._conn[id].open) allOpen = false;
       wait = allOpen ? 6000 : 1500;
-    } catch (e) { NETDIAG.err = String((e && e.message) || e); wait = 4000; }
+    } catch (e) {
+      const msg = String((e && e.message) || e);
+      // ⚠ 前は ログに残していなかった＝10/11 に GAS がつまずいたかどうか あとから分からなかった
+      if (msg !== NETDIAG.err) logEvent('net_gas_err', { msg });
+      NETDIAG.err = msg; wait = 4000;
+    }
     if (!room._stop) setTimeout(loop, wait);
   }
   loop();
@@ -4419,14 +4427,30 @@ $('btnRoomBack').onclick = () => {
   $('roomScreen').style.display = 'none';
   $('titleScreen').style.display = 'flex';
 };
+// ⚠ 10/11 1Fで4台がつながらなかった（クラウドのログ）。そのうち2つが ボタンのせいだった：
+//   ・「作る」を何人もが押して、それぞれ別の番号の部屋に入っていた
+//   ・つながったあとに「はいる」を押し直して 切れた／0.2秒おきに十数回 連打して、毎回やり直しになっていた
+//   → もう部屋にいる時は 何もしないで「もう入っている」と言う。出たい時は「ルームを出る」
+const netAlready = () => {
+  if (!NET.on) return false;
+  netStatus(`もう あいことば ${NET.word} に 入っているよ。べつの部屋にしたい時は「🚪 ルームを出る」を押してから`);
+  setTimeout(netStatus, 3500);
+  return true;
+};
 $('btnRoomMake').onclick = () => {
   // 監督の設計：「ルームを作成という所を押したら作成される、そして合言葉を決める」
   // ⚠ 数字だけ（監督指定）。4けたなら電話のテンキーで打てる＝書くのが少なくて済む
+  if (netAlready()) return;
   const w = String(1000 + Math.floor(Math.random()*9000));
   $('roomWord').value = w;
+  NETDIAG.tries = 0; netWayIdx = 0;
   netJoin(w);
 };
-$('btnRoomJoin').onclick = () => { NETDIAG.tries = 0; netWayIdx = 0; netJoin($('roomWord').value); };   // 手で押した時は最初から
+$('btnRoomJoin').onclick = () => {
+  const w = String($('roomWord').value || '').trim();
+  if (NET.on && w === NET.word && netAlready()) return;   // 同じ番号は 押し直さない（つながっている道を切らない）
+  NETDIAG.tries = 0; netWayIdx = 0; netJoin(w);           // 手で押した時は最初から
+};
 $('btnRoomLeave').onclick = () => { netLeave(); logEvent('room_leave', {}); };
 // スマホから状態を貼って送れるように（口で往復するより速い）
 $('btnDiagCopy').onclick = async () => {
@@ -4452,6 +4476,11 @@ setInterval(() => {
   if (!NETDIAG.t0 && !(NETDIAG.err && NETDIAG.err.indexOf('まだ入っていない') > -1)) return;
   const iceOk = NETDIAG.ice === 'connected' || NETDIAG.ice === 'completed';
   if (iceOk || NETDIAG.packets > 0) return;
+  // ⚠ GAS（自前）の部屋に入れているなら 移らない。だれも来ないのは「まだ来ていない」だけ。
+  //   前は15秒で だまって次の中継所へ移っていた → あとから同じ番号で来た人と 別の場所になって 一生会えない
+  //   （10/11 1F：9151 で待っていた人が mqtt へ移った 4.5秒後に、別の人が gas の 9151 に入ってきた）。
+  //   公開の中継所の「つながる時とダメな時がある」（9/5）は GAS には当てはまらない
+  if (netWay() === 'gas' && NETDIAG.joined && !NETDIAG.err) return;
   const secs = (Date.now() - (NETDIAG.t0 || Date.now())) / 1000;
   // GASが未対応と分かった時は待たずに次へ。ふつうは ②待ち15秒／③待ち20秒
   const gasDead = NETDIAG.err && NETDIAG.err.indexOf('まだ入っていない') > -1;
