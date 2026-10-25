@@ -3890,7 +3890,7 @@ const NET = { on: false, word: '', me: '', name: localStorage.getItem('pw_name')
 // ⚠ つながらない時に「どこで止まったか」を画面に出す（パパ 9/5・PC×スマホ4Gで入れなかった）。
 // 口で往復するより、1回開けば分かる形にする。止まりうる場所は3つあって、直し方が全部ちがう：
 //   ① リレー（相手さがし）に届かない ② 相手は見つかったがNAT越えできない ③ データが来ない
-const BUILD = 'v6-1025c';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
+const BUILD = 'v6-1025d';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
 // v6.1: タイトル画面のすみに小さく出す。⚠ 版が分からないと「どの版で起きた不具合か」が言えなくなる。
 //   前は画面のどこにも無く、つながらない時の診断にしか出ていなかった
 { const bt = document.getElementById('buildTag'); if (bt) bt.textContent = BUILD; }
@@ -4000,9 +4000,12 @@ function netStatus(msg) {
   if (msg != null) { e.textContent = msg; }
   else if (NET.on) {
     // 監督ルール（9/6）最大10人。⚠ つながっている数と、遊べている数は べつ。両方まぜない
-    const seated = Math.min(NET.peers.size + 1, MAX_PLAYERS);
+    // ⚠ 前は NET.peers（＝位置が届いた人＝出撃している人）で数えていた。ルームで待っている間は だれも出撃していないので、
+    //   4人つながっても「1/10人」と出た（10/25 実測）。人数は つながっている数で出し、海にいる数は べつに書く
+    const linked = Math.min(netPeerCount() + 1, MAX_PLAYERS), atSea = NET.peers.size;
     const full = netPeerCount() + 1 > MAX_PLAYERS;
-    e.textContent = `✅ あいことば ${NET.word} でつながった／いま ${seated}/${MAX_PLAYERS}人`
+    e.textContent = `✅ あいことば ${NET.word} でつながった／いま ${linked}/${MAX_PLAYERS}人`
+      + (atSea ? `（海に出ている なかま ${atSea}人）` : '')
       + (full ? '（満員。これ以上は入れないよ）' : '')
       // 👉 監督10/25「入ってからどうするのかわからない」＝つながったあとの 次の一歩が どこにも書いていなかった
       + '\n👉 つぎは 下の「← もどる」→ 国をえらんで 出撃。なかまと おなじ海に 出られる';
