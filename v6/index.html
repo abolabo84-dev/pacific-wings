@@ -290,6 +290,7 @@
   <p id="yamatoRow" style="margin:.35em 0 .1em; font-size:1rem; font-weight:bold; color:#ffd54f"></p>
   <p style="margin:.6em 0 .1em; font-size:.95rem">もってるもの（<span id="gachaCount">0</span>／<span id="gachaAll">0</span>）</p>
   <div id="gachaList" style="max-height:34vh; overflow-y:auto; width:min(92vw,520px)"></div>
+  <div id="giftBox" style="width:min(92vw,520px); margin-top:.4em"></div>
   <button class="btn" id="btnGachaBack" style="font-size:.95rem; padding:.45em 1.2em">← もどる</button>
 </div>
 
@@ -554,16 +555,23 @@ const GACHA = [
 ];
 
 // チールと「もってるもの」はこの機械におぼえさせる（音楽のON/OFFと同じやり方）
-let cheer = 0, owned = [];
+// 🎁 ダブり（監督10/3「おんなじのが出る確率10% 最大とすると4%の確率で、出てくる。同じのが出たとき他のひとにあげるなどが出きる。ただし持ってないもの」
+//   ・10/25「4B」＝同じのが出る確率は いちばん多くても4%）。ダブったものは「あげられるもの」に たまる＝なかまに あげられる
+// ponytail: 4%は 4B の読み, 監督の答え（返信_1025d 3.「10回ひいたら 何回」）で 直す
+const DUP_RATE = 0.04;
+let cheer = 0, owned = [], dupes = [];
 try {
   cheer = parseInt(localStorage.getItem('pw_cheer') || '0', 10) || 0;
   const raw = JSON.parse(localStorage.getItem('pw_own') || '[]');
-  if (Array.isArray(raw)) owned = raw.filter(id => GACHA.some(g => g.id === id));   // 知らないIDは捨てる
+  if (Array.isArray(raw)) owned = [...new Set(raw.filter(id => GACHA.some(g => g.id === id)))];   // 知らないIDは捨てる
+  const rd = JSON.parse(localStorage.getItem('pw_dup') || '[]');
+  if (Array.isArray(rd)) dupes = rd.filter(id => GACHA.some(g => g.id === id));
 } catch (e) { console.warn('⚠ チールを読めなかった。0からはじめる', e); }
 function saveGacha() {
   try {
     localStorage.setItem('pw_cheer', String(cheer));
     localStorage.setItem('pw_own', JSON.stringify(owned));
+    localStorage.setItem('pw_dup', JSON.stringify(dupes));
   } catch (e) { console.warn('⚠ チールを保存できなかった。容量オーバーかも', e); }
 }
 // 監督9/7「せめてひと試合二十チール」（パパ「112チールだとひと試合でガチャが7回まわるけど
@@ -2496,9 +2504,76 @@ $('btnGachaOpen').onclick = () => {
   $('titleScreen').style.display = 'none';
   $('gachaScreen').style.display = 'flex';
   $('gachaResult').textContent = '';
-  updateCheerLabels(); buildGachaList();
-  logEvent('gacha_open', { cheer, owned: owned.length });
+  updateCheerLabels(); buildGachaList(); buildGiftBox();
+  if (NET.on && NET.act.gf) try { NET.act.gf(['hi', NET.name || '']); } catch (e) {}
+  logEvent('gacha_open', { cheer, owned: owned.length, dupes: dupes.length });
 };
+// 🎁 あげられるもの（ダブり）。みんなでルームで つながっている なかまに あげる
+// ⚠ 「もってないもの」かどうかは **もらう側の 機械が 決める**（もっていたら 返ってくる）。もちものの表を 送りあわない
+// ponytail: 返事が 来ないまま 15秒たつと 手元に もどす＝そのあとで 相手に とどいていたら 2つに なりうる, 遅れて「もらった」が 来たら 1つ けす
+const giftPend = new Map(), giftSeen = new Set();
+const peerLabel = id => (NET.names && NET.names[id]) || 'なかま';
+function buildGiftBox() {
+  const box = $('giftBox'); if (!box) return;
+  if (!dupes.length) { box.innerHTML = ''; return; }
+  const peers = NET.on && NET.room && NET.room.getPeers ? Object.keys(NET.room.getPeers()) : [];
+  const count = {}; for (const id of dupes) count[id] = (count[id] || 0) + 1;
+  let h = `<p style="margin:.4em 0 .2em; font-size:.95rem">🎁 あげられるもの（${dupes.length}）</p>`;
+  for (const id of Object.keys(count)) {
+    const g = GACHA.find(x => x.id === id);
+    h += `<div class="typeBtn" style="cursor:default"><b>${g.name}</b>${count[id] > 1 ? ' ×' + count[id] : ''}<br>` +
+      (peers.length ? peers.map(pid => `<button class="btn mini giftTo" data-g="${id}" data-to="${pid}" style="font-size:.85rem; padding:.3em .7em; margin:.2em">→ ${escHtml(peerLabel(pid))} に あげる</button>`).join('')
+                    : '<small>👥 みんなでルームで つながると、なかまに あげられる</small>') + '</div>';
+  }
+  box.innerHTML = h;
+  for (const b of box.querySelectorAll('.giftTo')) b.onclick = () => giveGift(b.dataset.g, b.dataset.to);
+}
+const escHtml = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function giveGift(id, to) {
+  const i = dupes.indexOf(id);
+  if (i < 0 || !NET.on || !NET.act.gf) return;
+  dupes.splice(i, 1); saveGacha();
+  const nonce = Math.random().toString(36).slice(2, 10);
+  giftPend.set(nonce, { id, to, timer: setTimeout(() => {
+    const p = giftPend.get(nonce); if (!p || p.done) return;
+    p.timedOut = true; dupes.push(id); saveGacha(); buildGiftBox();
+    giftNote(`📭 ${peerLabel(to)} に とどかなかった。手元に もどした`);
+    logEvent('gacha_give_timeout', { id, to });
+  }, 15000) });
+  try { NET.act.gf(['give', to, id, nonce]); } catch (e) {}
+  logEvent('gacha_give', { id, to, nonce });
+  giftNote(`📨 ${peerLabel(to)} に おくった…`); buildGiftBox();
+}
+function giftNote(text) {
+  if ($('gachaScreen').style.display === 'flex') $('gachaResult').innerHTML = `<span style="font-size:.8em">${escHtml(text)}</span>`;
+  else if (G.running) showMessage(text, 3);
+}
+function netOnGift(d, from) {
+  if (!Array.isArray(d)) return;
+  const [t, to] = d;
+  if (t === 'hi') { NET.names[from] = String(d[1] || '').slice(0, 8); buildGiftBox(); return; }
+  if (to !== NET.me) return;   // ⚠ 中継所（GAS）は みんなに 送る＝あて先は 中身で 見る
+  if (t === 'give') {
+    const [, , id, nonce] = d, g = GACHA.find(x => x.id === id);
+    if (!g || giftSeen.has(nonce)) return;   // ⚠ 同じ おくりものが 2回 来ても 1回だけ
+    giftSeen.add(nonce);
+    const had = owned.includes(id);
+    if (!had) { owned.push(id); saveGacha(); updateCheerLabels(); buildGachaList(); }
+    try { NET.act.gf(['re', from, id, nonce, had ? 'have' : 'got']); } catch (e) {}
+    logEvent('gacha_recv', { id, from, had });
+    giftNote(had ? `🎁 ${peerLabel(from)} から ${g.name}。でも もう もっていたので 返した` : `🎁 ${peerLabel(from)} から ${g.name} を もらった！`);
+    return;
+  }
+  if (t === 're') {
+    const [, , id, nonce, res] = d, p = giftPend.get(nonce), g = GACHA.find(x => x.id === id);
+    if (!p || p.done || !g) return;
+    p.done = true; clearTimeout(p.timer);
+    if (res === 'have') { if (!p.timedOut) dupes.push(id); giftNote(`↩ ${peerLabel(from)} は ${g.name} を もう もっていた。手元に もどした`); }
+    else { if (p.timedOut) { const k = dupes.indexOf(id); if (k >= 0) dupes.splice(k, 1); } giftNote(`🎉 ${peerLabel(from)} に ${g.name} を あげた！`); }
+    saveGacha(); buildGiftBox();
+    logEvent('gacha_give_re', { id, to: from, res, late: !!p.timedOut });
+  }
+}
 $('btnGachaBack').onclick = () => {
   $('gachaScreen').style.display = 'none';
   $('titleScreen').style.display = 'flex';
@@ -2508,21 +2583,27 @@ $('btnGacha').onclick = () => {
   const pool = GACHA.filter(g => !owned.includes(g.id));
   if (!pool.length) { $('gachaResult').textContent = '🏆 ぜんぶ そろった！'; return; }
   if (cheer < GACHA_COST) {
-    $('gachaResult').innerHTML = `チールが たりない…（あと ${GACHA_COST - cheer}）<br>` +
-      `<span style="font-size:.62em; color:#b0bec5">敵をたおすと3チール、勝つと5チール（ひと試合 ${CHEER_RUN_MAX}チールまで）</span>`;
+    $('gachaResult').innerHTML = `<div>チールが たりない…（あと ${GACHA_COST - cheer}）<br>` +
+      `<span style="font-size:.62em; color:#b0bec5">敵をたおすと3チール、勝つと5チール（ひと試合 ${CHEER_RUN_MAX}チールまで）</span></div>`;
     logEvent('gacha_short', { cheer });
     return;
   }
   cheer -= GACHA_COST;
-  // ⚠ おなじものは出さない。ダブったときの決まりを監督がまだ決めていないので、
-  //    いちばん がっかりしない形にしてある（決まったらここを直す）
-  const got = pool[Math.floor(Math.random() * pool.length)];
-  owned.push(got.id);
+  // 🎁 ダブり：DUP_RATE で もってるものから 出る（あげられるもの に たまる）。それ以外は もってないものから
+  // ⚠ ぜんぶ そろったら 上で とまる＝ダブりが コンプリート（大和）の じゃまを しない
+  const dup = owned.length > 0 && Math.random() < DUP_RATE;
+  const have = ownedDefs();
+  const got = dup ? have[Math.floor(Math.random() * have.length)] : pool[Math.floor(Math.random() * pool.length)];
+  if (dup) dupes.push(got.id); else owned.push(got.id);
   saveGacha();
-  logEvent('gacha_roll', { got: got.id, left: pool.length - 1, cheer });
-  $('gachaResult').innerHTML = `🎉 <span style="color:#fff">${got.name}</span> が でた！<br>` +
-    `<span style="font-size:.62em; color:#b0bec5">${got.desc}</span>`;
-  updateCheerLabels(); buildGachaList();
+  logEvent(dup ? 'gacha_dup' : 'gacha_roll', { got: got.id, left: pool.length - (dup ? 0 : 1), cheer, dupes: dupes.length });
+  // ⚠ #gachaResult は flex＝中身を 1つの div に まとめないと <br> が きかず 横に ならぶ（10/25 スクショで 3つに 割れていた）
+  $('gachaResult').innerHTML = '<div>' + (dup
+    ? `😮 <span style="color:#fff">${got.name}</span>… おなじのが でた！<br>` +
+      `<span style="font-size:.62em; color:#b0bec5">「あげられるもの」に 入れた。なかまに あげられる（もってない人だけ）</span>`
+    : `🎉 <span style="color:#fff">${got.name}</span> が でた！<br>` +
+      `<span style="font-size:.62em; color:#b0bec5">${got.desc}</span>`) + '</div>';
+  updateCheerLabels(); buildGachaList(); buildGiftBox();
 };
 updateCheerLabels();
 
@@ -3886,11 +3967,11 @@ const NET_HZ = 10;                      // 位置を送る回数（毎秒）。8
 const NET_TIMEOUT = 8000;               // これだけ音さたが無い相手は消す（ミリ秒）
 const NET = { on: false, word: '', me: '', name: localStorage.getItem('pw_name') || '',
               room: null, send: null, sendEv: null, act: {}, peers: new Map(),
-              isHost: true, hostId: '', t: 0, st: 0, elect: 0 };
+              isHost: true, hostId: '', t: 0, st: 0, elect: 0, names: {} };
 // ⚠ つながらない時に「どこで止まったか」を画面に出す（パパ 9/5・PC×スマホ4Gで入れなかった）。
 // 口で往復するより、1回開けば分かる形にする。止まりうる場所は3つあって、直し方が全部ちがう：
 //   ① リレー（相手さがし）に届かない ② 相手は見つかったがNAT越えできない ③ データが来ない
-const BUILD = 'v6-1025d';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
+const BUILD = 'v6-1025e';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
 // v6.1: タイトル画面のすみに小さく出す。⚠ 版が分からないと「どの版で起きた不具合か」が言えなくなる。
 //   前は画面のどこにも無く、つながらない時の診断にしか出ていなかった
 { const bt = document.getElementById('buildTag'); if (bt) bt.textContent = BUILD; }
@@ -4174,7 +4255,9 @@ async function netJoin(word) {
     st.on(netOnState); ev.on(netOnEvent);
     // 敵をみんなで同じにするための4本＋護衛機のお願い
     const es = mk('es'), eh = mk('eh'), ed = mk('ed'), ef = mk('ef'), sp = mk('sp'), tr = mk('tr');
-    NET.act = { es: es.send, eh: eh.send, ed: ed.send, ef: ef.send, sp: sp.send, tr: tr.send };
+    const gf = mk('gf');   // 🎁 ガチャの おくりもの（hi＝なまえ／give／re）
+    NET.act = { es: es.send, eh: eh.send, ed: ed.send, ef: ef.send, sp: sp.send, tr: tr.send, gf: gf.send };
+    gf.on(netOnGift);
     // なかまの「切り札を出して」のお願い（護衛機の sp とおなじ形）
     tr.on((d, id) => { if (NET.isHost && Array.isArray(d)) spawnTrump(d[0], d[1], id); });
     es.on(netApplySnapshot);
@@ -4184,8 +4267,9 @@ async function netJoin(word) {
     sp.on((d) => { if (NET.isHost && Array.isArray(d)) spawnAIPlane('ally', d[0], d[1]); });
     // イベントも版により「関数を呼ぶ」or「プロパティに代入」
     const on = (k, fn) => typeof room[k] === 'function' ? room[k](fn) : (room[k] = fn);
-    on('onPeerJoin', id => { NETDIAG.peerJoin++; logEvent('net_peer_join', { id }); netStatus(); });
-    on('onPeerLeave', id => { netDropPeer(id); logEvent('net_peer_leave', { id }); netStatus(); });
+    on('onPeerJoin', id => { NETDIAG.peerJoin++; logEvent('net_peer_join', { id }); netStatus();
+      try { NET.act.gf(['hi', NET.name || '']); } catch (e) {} buildGiftBox(); });
+    on('onPeerLeave', id => { netDropPeer(id); logEvent('net_peer_leave', { id }); netStatus(); buildGiftBox(); });
     localStorage.setItem('pw_room', word);
     logEvent('net_join', { word, me: NET.me, way: netWay() });
     netStatus();
@@ -4632,7 +4716,7 @@ setInterval(() => {
 // ⚠ 目で見て「歩けてる」と、数字が正しいは別。落ちた/止まったを数字で確かめる口を作っておく
 if (DEV) { window.dbgGachaIds = () => GACHA.map(g => g.id); window.gameLogPeek = () => gameLog; window.__pw = { FOOT, G, player, NET, footWhere, deckOf, islandTopY, islandDefs, SOLIDS, canWalk,
     AMB, bigH, critters, DRONES, sfxOut, eyePos, initAudio, spawnAIPlane, updateDrones, footHit, THREE, get projs() { return projs; },
-    SHELTERS, shelterAt, shelterRoofY, get FAC() { return FAC; }, atFactoryDoor, onBigLand, get enemyPort() { return enemyPort; }, destroyUnit, factoriesLeft, footAimAt, SH_IN_X, SH_IN_Z, SH_SIDE_H, SH_R, FOOT_GUN_DMG, FOOT_GUN_HITS, PLANE_HP, shoot,   // 🕳🔫 9/6の注文ぶん
+    SHELTERS, shelterAt, shelterRoofY, get FAC() { return FAC; }, get owned() { return owned; }, get dupes() { return dupes; }, saveGacha, buildGiftBox, giveGift, DUP_RATE, GACHA, setCheer: n => { cheer = n; updateCheerLabels(); }, atFactoryDoor, onBigLand, get enemyPort() { return enemyPort; }, destroyUnit, factoriesLeft, footAimAt, SH_IN_X, SH_IN_Z, SH_SIDE_H, SH_R, FOOT_GUN_DMG, FOOT_GUN_HITS, PLANE_HP, shoot,   // 🕳🔫 9/6の注文ぶん
     FOOT_HP, SHELTER_HEAL, SHELTER_FULL_SEC, OUR,   // 💚📊 9/6〜9/7の注文ぶん（回復20秒・左下バー・基地からやり直し）
     CHEER_RUN_MAX, CHEER_KILL, CHEER_WIN, GACHA_COST, addCheer, grantKill, get cheer() { return cheer; },   // 🎁 ひと試合20チール
     // ⚠ units は startGame で作りなおされる（units = []）。値でつかむと 古い配列を見つづけて、
