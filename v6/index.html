@@ -757,7 +757,7 @@ const mainlandTowns = r => Array.from({ length: 40 }, (_, i) => {
 // 🕳 本土の防空ごう（監督10/21「本土にも、防空壕が、１０個ほしい」）。本土は 平ら（高さ7.5）なので 平らな所さがしは要らない。
 // ⚠ 乱数を使わない（ひまわりの種の ならび方で 外へ広げる）。みんなでルームで 人ごとに 場所がちがうと、
 //   「そこにある」と言っても 相手の画面には無い
-function placeMainlandShelters(x, z, r, n) {
+function placeMainlandShelters(x, z, r, n, avoid = []) {   // avoid＝よけるもの（本土の中の位置 lx,lz）
   const towns = mainlandTowns(r);
   const put = [];
   for (let i = 0; i < n; i++) {
@@ -767,6 +767,7 @@ function placeMainlandShelters(x, z, r, n) {
       const hx = sideways ? SH_IN_Z : SH_IN_X, hz = sideways ? SH_IN_X : SH_IN_Z;
       if (towns.some(t => Math.abs(t.lx - lx) < TOWN_W/2 + hx + 4 && Math.abs(t.lz - lz) < TOWN_W/2 + hz + 4)) continue;
       if (put.some(p => Math.hypot(p.lx - lx, p.lz - lz) < 60)) continue;
+      if (avoid.some(p => Math.hypot(p.lx - lx, p.lz - lz) < 50)) continue;
       put.push({ lx, lz });
       makeShelter(x + lx, z + lz, 7.5, sideways);
       break;
@@ -1147,6 +1148,8 @@ const AMERICA = W(700, -660);
 const MAINLAND_R = 520;
 const JAPAN_MAIN = W(-1950, 0);
 const AMERICA_MAIN = W(2000, 0);
+// 🏭 アメリカ本土の工場3つ（本土の中の位置）。⚠ 防空ごうが これをよけるので、置き場所は ここ1か所だけで決める
+const AMERICA_FACTORIES = [-1, 0, 1].map(k => ({ lx: -MAINLAND_R + 70, lz: k * 260 }));
 const islandDefs = [
   { ...OUR.base, r: 65, kind: 'base', side: 'ally' },
   { ...OUR.port, r: 75, kind: 'port', side: 'ally' },
@@ -1172,8 +1175,9 @@ const nearSupply = (P, extra = 0) => SUPPLY.some(s => Math.hypot(P.x - s.p.x, P.
 for (const d of islandDefs) d.group = d.kind === 'big'
   ? makeBigIsland(d.x, d.z, d.r)
   : makeIsland(d.x, d.z, d.r, d.kind === 'plain' ? 'plain' : d.kind);
-// 🕳 いまは 日本の本土だけ。⚠ どっちの本土かは 監督に聞いている（返信_1021 質問2）。「両方」なら AMERICA_MAIN で もう1行
+// 🕳 両方の本土に10こずつ（監督10/25「2B」＝アメリカの本土にも10こ）
 placeMainlandShelters(JAPAN_MAIN.x, JAPAN_MAIN.z, MAINLAND_R, 10);
+placeMainlandShelters(AMERICA_MAIN.x, AMERICA_MAIN.z, MAINLAND_R, 10, AMERICA_FACTORIES);
 // 🚶 島のてっぺんの高さ。海の上なら null（＝そこに立つ地面が無い＝落ちる）。
 // ⚠ 数字は makeIsland の見た目から来ている。あちらを直したらここも直す
 //    （岩のてっぺん = -20 + 46/2 = 3／基地のパッド = 4 + 2/2 = 5／草 = 5 + 5/2 = 7.5）
@@ -2630,7 +2634,7 @@ function startGame(faction, mode, def) {
   spawnStructure('ally', 'base', JAPAN, '日本の基地');
   spawnStructure('enemy', 'base', AMERICA, 'アメリカの基地');
   // 🏭 アメリカ本土の 海岸ぞい（西がわ＝こちらから来る がわ）に 工場3つ
-  for (let i = 0; i < 3; i++) spawnFactory(AMERICA_MAIN.x - MAINLAND_R + 70, AMERICA_MAIN.z + (i - 1) * 260, i);
+  AMERICA_FACTORIES.forEach((f, i) => spawnFactory(AMERICA_MAIN.x + f.lx, AMERICA_MAIN.z + f.lz, i));
   // 敵の艦隊。v6: みんなでルームでは「あずかり役（ホスト）」だけが出す。
   // それぞれが出すと、みんなの海がバラバラになるため（乱数と敵AIは必ずズレる）
   G.netFleetDone = !NET.on || G.tutorial;
@@ -3765,7 +3769,7 @@ const NET = { on: false, word: '', me: '', name: localStorage.getItem('pw_name')
 // ⚠ つながらない時に「どこで止まったか」を画面に出す（パパ 9/5・PC×スマホ4Gで入れなかった）。
 // 口で往復するより、1回開けば分かる形にする。止まりうる場所は3つあって、直し方が全部ちがう：
 //   ① リレー（相手さがし）に届かない ② 相手は見つかったがNAT越えできない ③ データが来ない
-const BUILD = 'v6-1024b';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
+const BUILD = 'v6-1025a';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
 // v6.1: タイトル画面のすみに小さく出す。⚠ 版が分からないと「どの版で起きた不具合か」が言えなくなる。
 //   前は画面のどこにも無く、つながらない時の診断にしか出ていなかった
 { const bt = document.getElementById('buildTag'); if (bt) bt.textContent = BUILD; }
