@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>監督の 新しいゲーム（なまえは まだ）試作1</title>
+<!-- 🏯 監督の「新しいゲーム」（国づくり）。9/15〜10/25 の SMS で来た分だけで 一回 形にした（パパ 10/25「一回形にしてみせてみよう。タイトル決めてもらわなきゃな」）。
+     ⚠ タイトルは 監督が決める＝それまで「なまえは まだ」
+     ⚠ 監督10/25「他のひととする前提のゲーム」。この試作1は ひとり（ほかの国は コンピュータ）。みんなでは 試作2
+     ponytail: ひとりだけ, 監督が 形を見て「これでいい」と言ったら v6 の みんなでルーム（GAS中継所）を つなぐ -->
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; background: #1b1408; color: #fff; font-family: "Meiryo", "Hiragino Sans", sans-serif;
+               touch-action: manipulation; -webkit-user-select: none; user-select: none; }
+  body { overflow: hidden; }
+  .screen { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; overflow-y: auto; padding: 12px 16px 24px; }
+  .screen.on { display: flex; }
+  h1 { font-size: clamp(22px, 6vw, 36px); margin: 8px 0 2px; text-align: center; text-shadow: 2px 2px 4px #000; }
+  h2 { font-size: clamp(17px, 4.5vw, 24px); margin: 14px 0 6px; text-align: center; }
+  p.sub { font-size: 14px; opacity: .8; text-align: center; margin: 2px 0 8px; line-height: 1.6; }
+  .row { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; width: min(100%, 560px); }
+  /* ⚠ 子どもの指は 大人より大きい的が要る（research/game-ui.md：44px は大人の目安）。どのボタンも 52px 以上 */
+  button { font-family: inherit; font-weight: bold; color: #fff; cursor: pointer; border: 3px solid #fff; border-radius: 12px;
+           background: #5d4422; min-height: 52px; padding: 8px 14px; font-size: 17px; text-shadow: 1px 1px 2px #000; }
+  button:active { transform: scale(.96); }
+  button:disabled { opacity: .35; }
+  .pick { opacity: .55; border-width: 2px; }
+  .pick.on { opacity: 1; border-color: #ffe066; box-shadow: 0 0 10px #ffe066; }
+  .hint { font-size: 13px; opacity: .85; text-align: center; margin: 4px 0; line-height: 1.5; max-width: 560px; }
+  input[type=text], input[type=number], textarea { font-family: inherit; font-size: 18px; padding: 8px 10px; border-radius: 8px; border: 2px solid #c9a86a;
+           background: #fff8e8; color: #222; width: min(100%, 520px); -webkit-user-select: text; user-select: text; }
+  textarea { height: 70px; resize: vertical; }
+  #go { background: #8a2f1b; font-size: 22px; padding: 12px 34px; margin-top: 16px; }
+
+  /* ---- あそぶ画面 ---- */
+  #game { padding: 0; }
+  #top { width: 100%; display: flex; flex-wrap: wrap; gap: 4px 12px; justify-content: center; align-items: center; padding: 6px 8px;
+         background: #2e2210; font-size: 16px; font-weight: bold; }
+  #top .me { color: #ffe066; }
+  #top button { min-height: 40px; padding: 2px 10px; font-size: 15px; }
+  #mapWrap { width: 100%; flex: 0 0 auto; display: flex; justify-content: center; background: #0d2a44; }
+  #map { display: block; touch-action: none; }
+  #news { width: 100%; flex: 1 1 auto; min-height: 70px; overflow-y: auto; background: #120e06; padding: 6px 10px; font-size: 15px; line-height: 1.55; }
+  #news div { border-bottom: 1px solid #2c2414; padding: 2px 0; }
+  #news .k { color: #ffe066; }
+  #news .bad { color: #ff8a80; }
+  #news .good { color: #b9f6ca; }
+  #cmd { width: 100%; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 8px; background: #2e2210; }
+  #cmd button { padding: 6px 2px; font-size: 16px; min-height: 60px; }
+  #tapHint { position: absolute; left: 0; right: 0; top: 52px; text-align: center; font-weight: bold; color: #ffe066; text-shadow: 1px 1px 3px #000; pointer-events: none; display: none; }
+
+  /* ---- 下から出る ふだ（つくる・家臣・部隊） ---- */
+  #sheet { position: absolute; inset: 0; background: rgba(0,0,0,.55); display: none; z-index: 30; }
+  #sheet.on { display: flex; align-items: flex-end; justify-content: center; }
+  #sheetBox { width: min(100%, 620px); max-height: 88%; overflow-y: auto; background: #3a2b14; border: 3px solid #c9a86a; border-bottom: 0;
+              border-radius: 16px 16px 0 0; padding: 12px 14px 20px; }
+  #sheetBox h2 { margin-top: 2px; }
+  #sheetBox .row { width: 100%; margin: 6px 0; }
+  #sheetBox label { display: block; margin: 10px 0 4px; font-weight: bold; }
+  .cost { color: #ffe066; font-weight: bold; text-align: center; margin: 8px 0; }
+  .item { background: #261c0c; border: 2px solid #6b5228; border-radius: 10px; padding: 8px 10px; margin: 6px 0; font-size: 15px; line-height: 1.5; }
+  .item b { color: #ffe066; }
+  .say { background: #fff8e8; color: #222; border-radius: 12px; padding: 10px 12px; margin: 8px 0; font-size: 17px; line-height: 1.6; }
+
+  /* ---- 暗殺（連打） ---- */
+  #duel { position: absolute; inset: 0; background: rgba(10,0,0,.92); display: none; z-index: 40; flex-direction: column; align-items: center; justify-content: center; padding: 16px; }
+  #duel.on { display: flex; }
+  #duelTitle { font-size: 22px; font-weight: bold; text-align: center; margin-bottom: 10px; line-height: 1.5; }
+  #duelNums { display: flex; gap: 28px; font-size: 20px; font-weight: bold; text-align: center; }
+  #duelNums b { display: block; font-size: 52px; }
+  #duelTime { font-size: 40px; font-weight: bold; color: #ffe066; margin: 10px 0; min-height: 1.3em; }
+  #mash { width: min(80vw, 320px); height: min(80vw, 220px); font-size: 34px; background: #b71c1c; border-width: 5px; border-radius: 24px; }
+  #duelNote { font-size: 14px; opacity: .85; margin-top: 10px; text-align: center; }
+</style>
+</head>
+<body>
+
+<!-- ============ はじめの画面 ============ -->
+<div class="screen on" id="start">
+  <h1>🏯 （なまえは まだ）</h1>
+  <p class="sub">ゆうじん監督の 新しいゲーム・試作1<br>⚠ タイトルは 監督が きめる。いまは ひとりで あそぶ形（ほかの国は コンピュータ）</p>
+
+  <h2>あなたの 国の なまえ</h2>
+  <input type="text" id="myName" maxlength="10" value="わたしの国">
+
+  <!-- 監督10/25「ワールドの形に日本、世界、じぶんで作る」 -->
+  <h2>🗺 ワールドの 形</h2>
+  <div class="row" id="shapeRow"></div>
+
+  <!-- 監督10/25「世界大戦型政治型がある」（13:37「5A」＝2つ） -->
+  <h2>⚔ あそびかたの 型</h2>
+  <div class="row" id="kindRow"></div>
+  <p class="hint" id="kindHint"></p>
+
+  <!-- 監督9/15「まず何ヵ国作るかをきめて始まる」 -->
+  <h2>🚩 何ヵ国で はじめる？</h2>
+  <div class="row" id="nRow"></div>
+
+  <button id="go">▶ はじめる</button>
+</div>
+
+<!-- ============ じぶんで作る（ワールドの形） ============ -->
+<div class="screen" id="draw">
+  <h1>✏ じぶんで 作る</h1>
+  <p class="sub">さわった所が 陸になる。もう一回 さわると 海にもどる。</p>
+  <canvas id="drawMap"></canvas>
+  <div class="row" style="margin-top:10px">
+    <button id="drawClear">🌊 ぜんぶ 海に</button>
+    <button id="drawGo" style="background:#8a2f1b">▶ この形で はじめる</button>
+  </div>
+  <p class="hint" id="drawHint"></p>
+</div>
+
+<!-- ============ あそぶ画面 ============ -->
+<div class="screen" id="game">
+  <div id="top">
+    <span class="me" id="tName"></span>
+    <span>💰<span id="tMoney"></span></span>
+    <span>🪖<span id="tSol"></span></span>
+    <span>❤<span id="tHeart"></span></span>
+    <span id="tMonth"></span>
+    <button id="btnPause">⏸</button>
+  </div>
+  <div id="mapWrap"><canvas id="map"></canvas></div>
+  <div id="tapHint"></div>
+  <div id="news"></div>
+  <div id="cmd">
+    <button id="cBuild">🔨<br>つくる</button>
+    <button id="cKashin">👤<br>家臣</button>
+    <button id="cUnit">🪖<br>部隊</button>
+    <button id="cLook">📜<br>国の ようす</button>
+  </div>
+</div>
+
+<div id="sheet"><div id="sheetBox"></div></div>
+
+<div id="duel">
+  <div id="duelTitle"></div>
+  <div id="duelNums"><div>あなた<b id="dMe">0</b></div><div>あいて<b id="dThem">0</b></div></div>
+  <div id="duelTime"></div>
+  <button id="mash">れんだ！</button>
+  <div id="duelNote">ケータイ・タブレットは ボタンを つつきまくる／パソコンは <b>R</b> を連打</div>
+</div>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const URLQ = new URLSearchParams(location.search);
+const DEV = URLQ.get('dev') === '1';
+const BUILD = 'kuni-1025a';   // ⚠ 版の印。古い版で測ったデータを 新しい版と読み違えないために出す
+
+// ============ ゲームログ（v6・三国志と同じ・常時ON。テストプレイは全部データ） ============
+const LOG_TAG = URLQ.get('tag') || 'kuni';
+const STARTED = new Date().toISOString();
+const LOG_KEY = 'yuujinGameLog_' + STARTED.replace(/[:.]/g, '-') + '_' + LOG_TAG;
+const gameLog = [];
+function logEvent(type, data) { gameLog.push({ t: Math.round(performance.now()), type, data }); }
+function saveLog() {
+  try { localStorage.setItem(LOG_KEY, JSON.stringify({ ver: location.pathname, tag: LOG_TAG, build: BUILD, started: STARTED, events: gameLog.slice(-3000) })); }
+  catch (e) { console.warn('⚠ ログを保存できなかった', e); }
+}
+window.gameLogPeek = () => gameLog;
+setInterval(saveLog, 10000);
+addEventListener('beforeunload', saveLog);
+// ログの自動アップロード（v6と同じ しくみ・tag で ほかのゲームと分かれる）
+const CLOUD_URL = 'https://script.google.com/macros/s/AKfycbyMDP1lVKD7YRe3A0Z37qr9W6fMOcIyPiy-c_d2kZs1ywQCeeBrwLz7sm6-5tKqYomX/exec';
+const CLOUD_KEY = 'yuujin2026';
+try { if (!localStorage.getItem('yuujinDevice')) localStorage.setItem('yuujinDevice', 'pc-' + Math.random().toString(36).slice(2, 7)); } catch (e) {}
+let DEVICE = 'unknown'; try { DEVICE = localStorage.getItem('yuujinDevice') || 'unknown'; } catch (e) {}
+let sentCount = 0, sending = false;
+const cloudBody = events => JSON.stringify({ key: CLOUD_KEY, runId: LOG_KEY, device: DEVICE, ver: location.pathname, tag: LOG_TAG, build: BUILD, events });
+async function sendLog() {
+  if (DEV || sending || sentCount >= gameLog.length) return;   // ⚠ テスト（?dev=1）のログは 送らない
+  sending = true; const upto = gameLog.length;
+  try {
+    const res = await fetch(CLOUD_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: cloudBody(gameLog.slice(sentCount, upto)) });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    sentCount = upto;
+  } catch (e) { console.warn('⚠ ログを送れなかった。次の60秒で また試す', e); }
+  finally { sending = false; }
+}
+setInterval(sendLog, 60000);
+addEventListener('beforeunload', () => { if (!DEV && sentCount < gameLog.length) try { navigator.sendBeacon(CLOUD_URL, cloudBody(gameLog.slice(sentCount))); } catch (e) {} });
+logEvent('open', { build: BUILD, w: innerWidth, h: innerHeight, touch: (navigator.maxTouchPoints || 0) > 0 });
+// ⚠ 全部の おした を とる（どこを さわったかも データ）
+addEventListener('pointerdown', e => logEvent('tap', { x: Math.round(e.clientX), y: Math.round(e.clientY), id: (e.target.closest('[id]') || {}).id || '' }), true);
+
+// ============ ワールドの形（監督10/25「日本、世界、じぶんで作る」） ============
+// ⚠ 形は こちらで ざっくり かいた（# が陸）。監督が「ちがう」と言ったら この絵だけ 直す
+const MAPS = {
+  japan: { label: '🗾 日本', rows: [
+    '....................',
+    '..............####..',
+    '.............#####..',
+    '..............###...',
+    '..............#.....',
+    '.............###....',
+    '............###.....',
+    '...........####.....',
+    '..........####......',
+    '.......######.......',
+    '.....#######........',
+    '....###..##.........',
+    '...####.............',
+    '...###..............',
+    '....#...............',
+  ] },
+  world: { label: '🌏 世界', rows: [
+    '........................',
+    '..#####.....##########..',
+    '.#######...############.',
+    '..######...###########..',
+    '...####....##.########..',
+    '....###....#####..####..',
+    '.....##.....####...##...',
+    '......###...####....#...',
+    '......####...###.....##.',
+    '.......###....#.....###.',
+    '.......##...........###.',
+    '.......#................',
+    '........................',
+  ] },
+  draw: { label: '✏ じぶんで 作る', rows: null },
+};
+const DRAW_W = 20, DRAW_H = 15;
+// 国の名前（コンピュータの国）。⚠ こちらで決めた
+const CPU_NAMES = { japan: ['尾張', '甲斐', '越後', '薩摩', '奥州', '安芸'], world: ['北の国', '西の国', '東の国', '南の国', '海の国', '山の国'],
+                    draw: ['あお国', 'みどり国', 'き国', 'むらさき国', 'だいだい国', 'しろ国'] };
+const COLORS = ['#e53935', '#1e88e5', '#43a047', '#fdd835', '#8e24aa', '#fb8c00'];
+
+// ============ 型（監督10/25「世界大戦型 政治型」） ============
+// ⚠ 2つの ちがいは まだ 監督から聞いていない。こちらの 読み：世界大戦型＝となりが 攻めてくる／政治型＝攻めてこない。国を育てる
+const KINDS = {
+  war:  { label: '⚔ 世界大戦型', hint: 'となりの国が 攻めてくる。ぜんぶの 陸を とったら 勝ち。' },
+  poli: { label: '🏛 政治型',   hint: 'ほかの国は 攻めてこない（暗殺は ある）。国を 大きく 育てる。' },
+};
+
+// ============ つくる欄（監督10/25「船を作る、部隊をつくる、兵器を作る、小兵器を作る、きまりをつくる、村を作る、町をつくる、畑をつくる」） ============
+// 監督10/25「つくるには、材料費でお金がかかる」。⚠ ねだんと 効きめは こちらで決めた＝監督が「高い」と言ったら ここだけ直す
+const COST = { 村: 30, 町: 80, 畑: 20, 船: 60, 兵器: 50, 小兵器: 15, 部隊: 10, きまり: 10, 家臣: 5 };
+const SMALL_SHAPES = { 火薬なし: { 刀: 3, やり: 4, 弓: 4 }, 火薬あり: { 鉄砲: 7, 大砲: 9, 手りゅう弾: 6 } };
+const MONTH_MS = 4000;   // ponytail: 1か月＝4秒は こちらの決め, ログの month と 押した回数を見て 監督と決める
+
+let setup = { shape: 'japan', kind: 'war', n: 4 };
+let S = null;            // いまの ゲーム
+let drawLand = new Array(DRAW_W * DRAW_H).fill(0);
+
+// ---------- はじめの画面 ----------
+function pickRow(rowId, items, key, onPick) {
+  const row = $(rowId); row.innerHTML = '';
+  for (const [k, label] of items) {
+    const b = document.createElement('button');
+    b.className = 'pick' + (setup[key] === k ? ' on' : ''); b.textContent = label;
+    b.onclick = () => { setup[key] = k; logEvent('setup', { key, v: k }); pickRow(rowId, items, key, onPick); onPick && onPick(); };
+    row.appendChild(b);
+  }
+}
+function paintSetup() {
+  pickRow('shapeRow', Object.entries(MAPS).map(([k, m]) => [k, m.label]), 'shape');
+  pickRow('kindRow', Object.entries(KINDS).map(([k, m]) => [k, m.label]), 'kind', () => $('kindHint').textContent = KINDS[setup.kind].hint);
+  pickRow('nRow', [2, 3, 4, 5, 6].map(n => [n, n + 'ヵ国']), 'n');
+  $('kindHint').textContent = KINDS[setup.kind].hint;
+}
+paintSetup();
+function show(id) { for (const s of document.querySelectorAll('.screen')) s.classList.toggle('on', s.id === id); }
+$('go').onclick = () => {
+  if (setup.shape === 'draw') { show('draw'); paintDraw(); return; }
+  const m = MAPS[setup.shape];
+  startGame(m.rows[0].length, m.rows.length, m.rows.join('').split('').map(c => c === '#' ? 1 : 0));
+};
+
+// ---------- じぶんで作る ----------
+function drawCell() { return Math.floor(Math.min((innerWidth - 32) / DRAW_W, (innerHeight * 0.6) / DRAW_H)); }
+function paintDraw() {
+  const c = $('drawMap'), cs = drawCell(); c.width = DRAW_W * cs; c.height = DRAW_H * cs;
+  const g = c.getContext('2d');
+  for (let i = 0; i < drawLand.length; i++) {
+    g.fillStyle = drawLand[i] ? '#8d6e3f' : '#0d3b66';
+    g.fillRect((i % DRAW_W) * cs, Math.floor(i / DRAW_W) * cs, cs - 1, cs - 1);
+  }
+  const n = drawLand.filter(Boolean).length, need = setup.n * 3;
+  $('drawHint').textContent = `陸 ${n}こ（${setup.n}ヵ国なら ${need}こ 以上 いる）`;
+  $('drawGo').disabled = n < need;
+}
+let drawPaint = null;
+$('drawMap').addEventListener('pointerdown', e => { const i = drawIdx(e); if (i < 0) return; drawPaint = drawLand[i] ? 0 : 1; drawLand[i] = drawPaint; paintDraw(); });
+$('drawMap').addEventListener('pointermove', e => { if (drawPaint === null) return; const i = drawIdx(e); if (i >= 0 && drawLand[i] !== drawPaint) { drawLand[i] = drawPaint; paintDraw(); } });
+addEventListener('pointerup', () => drawPaint = null);
+function drawIdx(e) {
+  const r = $('drawMap').getBoundingClientRect(), cs = drawCell();
+  const x = Math.floor((e.clientX - r.left) / cs), y = Math.floor((e.clientY - r.top) / cs);
+  return x >= 0 && y >= 0 && x < DRAW_W && y < DRAW_H ? y * DRAW_W + x : -1;
+}
+$('drawClear').onclick = () => { drawLand.fill(0); paintDraw(); };
+$('drawGo').onclick = () => { logEvent('draw_done', { land: drawLand.join('') }); startGame(DRAW_W, DRAW_H, drawLand.slice()); };
+
+// ============ ゲームを はじめる ============
+function startGame(w, h, land) {
+  const n = setup.n;
+  const landIdx = land.map((v, i) => v ? i : -1).filter(i => i >= 0);
+  const xy = i => [i % w, Math.floor(i / w)];
+  const dist = (a, b) => { const [ax, ay] = xy(a), [bx, by] = xy(b); return Math.hypot(ax - bx, ay - by); };
+  // 国の まんなかを 遠くどうしに おく（いちばん遠い所を 順に えらぶ）
+  const seeds = [landIdx[Math.floor(Math.random() * landIdx.length)]];
+  while (seeds.length < n) {
+    let best = -1, bd = -1;
+    for (const i of landIdx) { const d = Math.min(...seeds.map(s => dist(i, s))); if (d > bd) { bd = d; best = i; } }
+    seeds.push(best);
+  }
+  // 陸を つたって 近い国のものにする（はなれ島は いちばん近い国）
+  const owner = new Array(w * h).fill(-1);
+  const q = seeds.map((s, k) => (owner[s] = k, s));
+  while (q.length) {
+    const i = q.shift(), [x, y] = xy(i);
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = x + dx, ny = y + dy, j = ny * w + nx;
+      if (nx < 0 || ny < 0 || nx >= w || ny >= h || !land[j] || owner[j] >= 0) continue;
+      owner[j] = owner[i]; q.push(j);
+    }
+  }
+  for (const i of landIdx) if (owner[i] < 0) owner[i] = seeds.map((s, k) => [dist(i, s), k]).sort((a, b) => a[0] - b[0])[0][1];
+
+  const names = CPU_NAMES[setup.shape];
+  S = { w, h, land, owner, month: 0, paused: false, mode: null, over: false, kind: setup.kind, shape: setup.shape,
+        icons: {}, countries: [] };
+  for (let k = 0; k < n; k++) {
+    S.countries.push({ id: k, name: k === 0 ? ($('myName').value.trim() || 'わたしの国') : names[k - 1], color: COLORS[k], ai: k !== 0,
+      money: 120, soldiers: 40, heart: 60, chaos: 0, alive: true,
+      built: { 村: 0, 町: 0, 畑: 0, 鉱山: 0 }, ships: [], weapons: [], smalls: [], units: [], kashin: [], rules: [], places: [],
+      newsK: -1, chisui: false, guards: k === 0 ? 0 : Math.floor(Math.random() * 3), army: 30 + Math.floor(Math.random() * 20) });
+  }
+  logEvent('start', { shape: S.shape, kind: S.kind, n, w, h, land: landIdx.length, me: S.countries[0].name, build: BUILD });
+  show('game'); layoutMap(); refresh();
+  news(`🏯 ${me().name} の はじまり。まずは 「🔨 つくる」で 村や 畑を つくろう。`, 'k');
+  news(`👤 家臣を つくって「事件家臣」に すると、国で おきた 事件を 知らせてくれる。`);
+  clearInterval(S.timer); S.timer = setInterval(() => { if (!S.paused && !S.over && !sheetOpen() && !duelOn) tick(); }, MONTH_MS);
+}
+const me = () => S.countries[0];
+const tilesOf = k => S.owner.reduce((a, o, i) => (o === k ? a.concat(i) : a), []);
+const neighbors4 = i => { const x = i % S.w, y = Math.floor(i / S.w), r = [];
+  for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = x + dx, ny = y + dy; if (nx >= 0 && ny >= 0 && nx < S.w && ny < S.h) r.push(ny * S.w + nx); } return r; };
+// せめられる所：となりあう 陸。船が あれば 海を 3マスまで こえられる
+function canReach(k, target) {
+  const mine = tilesOf(k);
+  if (mine.some(i => neighbors4(i).includes(target))) return true;
+  if (!S.countries[k].ships.length && !(S.countries[k].ai && S.countries[k].army > 60)) return false;
+  const tx = target % S.w, ty = Math.floor(target / S.w);
+  return mine.some(i => Math.max(Math.abs(i % S.w - tx), Math.abs(Math.floor(i / S.w) - ty)) <= 3);
+}
+
+// ============ お金・兵士・民衆の心（毎月） ============
+// 監督9/30「鉱山を開く お金が破産すると守りにくい 民衆の心が離れる」
+function income(c) {
+  if (c.chaos > 0) return 0;
+  return tilesOf(c.id).length * 2 + c.built.村 * 3 + c.built.町 * 8 + c.built.鉱山 * 6 + c.built.畑 * 1 - Math.floor(c.soldiers / 20);
+}
+function tick() {
+  S.month++;
+  for (const c of S.countries) {
+    if (!c.alive) continue;
+    c.money += income(c);
+    if (c.chaos > 0) c.chaos--;
+    c.soldiers += c.built.村 * 2 + c.built.畑;
+    c.heart = Math.max(0, Math.min(100, c.heart + (c.built.畑 > 0 ? 1 : 0) + (c.money < 0 ? -5 : 0) - (c.soldiers > 200 ? 1 : 0)));
+    if (c.ai) cpuTurn(c);
+  }
+  // 家臣の 命令が おわる
+  for (const kk of me().kashin) if (kk.task && --kk.left <= 0) finishOrder(kk);
+  if (me().money < 0 && S.month % 3 === 0) news('💸 お金が マイナス（破産）。守りが 弱くなって、民衆の 心が はなれていく…', 'bad');
+  if (Math.random() < 0.22) myEvent();
+  // 暗殺者が くる（6か月目から）
+  if (S.month >= 6 && !duelOn && Math.random() < (S.kind === 'poli' ? 0.06 : 0.04)) {
+    const foes = S.countries.filter(c => c.ai && c.alive && c.chaos === 0);
+    if (foes.length) defendAssassin(foes[Math.floor(Math.random() * foes.length)]);
+  }
+  logEvent('month', { m: S.month, money: me().money, sol: me().soldiers, heart: me().heart, tiles: tilesOf(0).length });
+  checkEnd(); refresh();
+}
+function cpuTurn(c) {
+  c.army += 3 + Math.floor(Math.random() * 3);
+  if (Math.random() < 0.15 && c.money > 60) { c.money -= 50; c.army += 15; }
+  if (S.kind !== 'war' || c.chaos > 0 || S.month < 3 || Math.random() > 0.25) return;
+  // となりの 国の 陸を ひとつ 攻める
+  const cand = S.land.map((v, i) => i).filter(i => S.land[i] && S.owner[i] !== c.id && canReach(c.id, i));
+  if (!cand.length) return;
+  const t = cand[Math.floor(Math.random() * cand.length)], def = S.countries[S.owner[t]];
+  const a = c.army / 3 * rnd(), d = defense(def) * rnd();
+  const win = a > d;
+  logEvent('cpu_attack', { from: c.name, to: def.name, tile: t, a: Math.round(a), d: Math.round(d), win });
+  if (win) { take(t, c.id); c.army = Math.max(5, Math.floor(c.army * 0.9)); }
+  else c.army = Math.max(5, Math.floor(c.army * 0.75));
+  if (def.id === 0) news(win ? `⚔ ${c.name} が 攻めてきて、陸を 1つ とられた！` : `🛡 ${c.name} が 攻めてきたが、ふせいだ！`, win ? 'bad' : 'good');
+}
+const rnd = () => 0.8 + Math.random() * 0.45;
+function defense(c) {
+  let d;
+  if (c.ai) d = c.army / Math.sqrt(Math.max(1, tilesOf(c.id).length)) + 5;
+  else d = (c.units.filter(u => u.role === 'fight').reduce((s, u) => s + unitStr(u), 0) + c.soldiers * 0.3
+            + c.weapons.filter(w => !w.wheels).reduce((s, w) => s + w.power, 0)) / Math.sqrt(Math.max(1, tilesOf(0).length)) + 5;
+  if (c.money < 0) d *= 0.5;   // 破産すると 守りにくい
+  if (c.chaos > 0) d *= 0.7;
+  return d;
+}
+function take(tile, k) {
+  const was = S.countries[S.owner[tile]];
+  S.owner[tile] = k;
+  if (S.icons[tile] && S.icons[tile].k !== k) { const ic = S.icons[tile]; if (was.built[ic.what] > 0) was.built[ic.what]--; delete S.icons[tile]; }
+  if (!tilesOf(was.id).length) { was.alive = false; news(`🏳 ${was.name} が ほろびた。`, was.id === 0 ? 'bad' : 'k'); logEvent('fall', { who: was.name }); }
+}
+function checkEnd() {
+  if (S.over) return;
+  if (!me().alive) { S.over = true; news('😢 あなたの 国は ほろびた…。もういちど あそぶなら ページを 開きなおしてね。', 'bad'); logEvent('lose', { m: S.month }); }
+  else if (S.kind === 'war' && S.countries.every(c => c.id === 0 || !c.alive)) { S.over = true; news('🎉 ぜんぶの 陸を とった！ あなたの 国の 勝ち！', 'good'); logEvent('win', { m: S.month }); }
+}
+
+// ============ 事件（監督10/25「じぶんの領土にかんけいある事件は、事件家臣が伝える」） ============
+// ⚠ 事件家臣が いないと、事件は おきるが 中身が 分からない（だから 事件家臣が 大事）。この決めは こちらの 読み
+function myEvent() {
+  const c = me(), list = [];
+  list.push(['flood', 3]); list.push(['matsuri', 2]);
+  if (c.built.畑) list.push(['hosaku', 3]);
+  if (c.built.鉱山) list.push(['gold', 3]);
+  if (c.heart < 35) list.push(['ikki', 4]);
+  let r = Math.random() * list.reduce((s, x) => s + x[1], 0), ev = list[0][0];
+  for (const [k, wgt] of list) { if ((r -= wgt) < 0) { ev = k; break; } }
+  let text, cls;
+  if (ev === 'flood') { if (c.chisui) { text = '大雨が ふりましたが、治水の おかげで 村は ぶじです。'; cls = 'good'; } else { c.money -= 20; c.heart -= 5; text = '大雨で 川が あふれました！ 💰-20 ❤-5'; cls = 'bad'; } }
+  if (ev === 'matsuri') { c.heart = Math.min(100, c.heart + 5); text = '村で お祭りが ありました。民衆は 楽しそうです。 ❤+5'; cls = 'good'; }
+  if (ev === 'hosaku') { const g = c.built.畑 * 10; c.money += g; text = `畑が 豊作です！ 💰+${g}`; cls = 'good'; }
+  if (ev === 'gold') { c.money += 40; text = '鉱山で 金が 見つかりました！ 💰+40'; cls = 'good'; }
+  if (ev === 'ikki') { c.soldiers = Math.max(0, c.soldiers - 10); c.heart = Math.max(0, c.heart - 5); text = '民衆が 一揆を おこしました！ 🪖-10 ❤-5'; cls = 'bad'; }
+  const nk = c.kashin[c.newsK];
+  logEvent('event', { ev, told: !!nk, m: S.month });
+  if (nk) news(`📣 ${nk.name}（事件家臣）「殿！ ${text}」`, cls);
+  else news('…国の どこかで 何かが あったらしい。（事件家臣が いれば 分かるのに）');
+}
+
+// ============ 画面 ============
+let cell = 20;
+function layoutMap() {
+  const topH = $('top').offsetHeight, cmdH = $('cmd').offsetHeight;
+  const maxH = Math.max(160, (innerHeight - topH - cmdH) * 0.66);
+  cell = Math.floor(Math.min(innerWidth / S.w, maxH / S.h));
+  $('map').width = S.w * cell; $('map').height = S.h * cell;
+}
+addEventListener('resize', () => { if (S) { layoutMap(); drawMap(); } });
+function drawMap() {
+  const g = $('map').getContext('2d'), sel = S.mode ? S.mode.cand : null;
+  g.fillStyle = '#0d3b66'; g.fillRect(0, 0, S.w * cell, S.h * cell);
+  for (let i = 0; i < S.land.length; i++) {
+    if (!S.land[i]) continue;
+    const x = (i % S.w) * cell, y = Math.floor(i / S.w) * cell;
+    g.fillStyle = S.countries[S.owner[i]].color; g.globalAlpha = S.owner[i] === 0 ? 1 : 0.72;
+    g.fillRect(x, y, cell - 1, cell - 1); g.globalAlpha = 1;
+    if (sel && sel.includes(i)) { g.strokeStyle = '#fff'; g.lineWidth = 3; g.strokeRect(x + 2, y + 2, cell - 5, cell - 5); }
+  }
+  // 国の さかい目（ちがう国となりあう所に 黒い線）
+  g.strokeStyle = 'rgba(0,0,0,.55)'; g.lineWidth = 2;
+  for (let i = 0; i < S.land.length; i++) {
+    if (!S.land[i]) continue;
+    const x = (i % S.w) * cell, y = Math.floor(i / S.w) * cell;
+    if (i % S.w < S.w - 1 && S.land[i + 1] && S.owner[i + 1] !== S.owner[i]) { g.beginPath(); g.moveTo(x + cell, y); g.lineTo(x + cell, y + cell); g.stroke(); }
+    if (i + S.w < S.land.length && S.land[i + S.w] && S.owner[i + S.w] !== S.owner[i]) { g.beginPath(); g.moveTo(x, y + cell); g.lineTo(x + cell, y + cell); g.stroke(); }
+  }
+  g.font = `${Math.floor(cell * 0.62)}px sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+  for (const [i, ic] of Object.entries(S.icons)) g.fillText(ICON[ic.what] || '', (i % S.w + 0.5) * cell, (Math.floor(i / S.w) + 0.5) * cell);
+  // 国の なまえ（いちばん まんなかの 陸に）
+  g.font = `bold ${Math.max(11, Math.floor(cell * 0.5))}px sans-serif`;
+  for (const c of S.countries) {
+    if (!c.alive) continue;
+    const t = tilesOf(c.id); const cx = t.reduce((s, i) => s + i % S.w, 0) / t.length, cy = t.reduce((s, i) => s + Math.floor(i / S.w), 0) / t.length;
+    g.fillStyle = '#000'; g.fillText(c.name, (cx + 0.5) * cell + 1, (cy + 0.5) * cell + 1);
+    g.fillStyle = '#fff'; g.fillText(c.name, (cx + 0.5) * cell, (cy + 0.5) * cell);
+  }
+}
+const ICON = { 村: '🏠', 町: '🏯', 畑: '🌾', 鉱山: '⛏' };
+function refresh() {
+  const c = me();
+  $('tName').textContent = c.name; $('tMoney').textContent = c.money; $('tSol').textContent = c.soldiers;
+  $('tHeart').textContent = c.heart; $('tMonth').textContent = `${1 + Math.floor(S.month / 12)}年目 ${1 + S.month % 12}月`;
+  $('btnPause').textContent = S.paused ? '▶' : '⏸';
+  drawMap();
+}
+function news(text, cls) {
+  const d = document.createElement('div'); d.textContent = text; if (cls) d.className = cls;
+  $('news').prepend(d);
+  while ($('news').children.length > 60) $('news').lastChild.remove();
+}
+$('btnPause').onclick = () => { S.paused = !S.paused; logEvent('pause', { on: S.paused }); refresh(); };
+
+// ---------- ふだ（下から出る画面） ----------
+const sheetOpen = () => $('sheet').classList.contains('on');
+function sheet(html) { $('sheetBox').innerHTML = html; $('sheet').classList.add('on'); $('sheetBox').scrollTop = 0; }
+function closeSheet() { $('sheet').classList.remove('on'); refresh(); }
+$('sheet').addEventListener('pointerdown', e => { if (e.target.id === 'sheet') closeSheet(); });
+// ⚠ ふだが 開いていると 下の お知らせは 見えない＝ふだの 上にも 出す
+function warn(text) {
+  news(text, 'bad'); logEvent('warn', { text });
+  if (!sheetOpen()) return;
+  let w = $('sheetWarn'); if (!w) { w = document.createElement('p'); w.id = 'sheetWarn'; w.className = 'cost'; w.style.color = '#ff8a80'; $('sheetBox').prepend(w); }
+  w.textContent = '⚠ ' + text;
+}
+const esc = s => String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+const back = '<div class="row"><button onclick="closeSheet()">← とじる</button></div>';
+function pay(what, n) {
+  const c = me();
+  if (c.money < n) { warn(`💰 お金が たりない（${what}は ${n}、いま ${c.money}）`); return false; }
+  c.money -= n; return true;
+}
+// 村・町・畑・鉱山の 絵を 自分の陸の どこかに おく
+function placeIcon(what) {
+  const free = tilesOf(0).filter(i => !S.icons[i]);
+  if (free.length) S.icons[free[Math.floor(Math.random() * free.length)]] = { k: 0, what };
+}
+
+// ============ 🔨 つくる ============
+$('cBuild').onclick = () => {
+  logEvent('menu', { m: 'build' });
+  const items = ['船', '部隊', '兵器', '小兵器', 'きまり', '村', '町', '畑'];
+  sheet(`<h2>🔨 つくる</h2><p class="hint">つくるには 材料費で お金が かかる。いま 💰${me().money}</p>
+    <div class="row">${items.map(k => `<button onclick="buildForm('${k}')">${k}<br><small>💰${COST[k]}${k === '部隊' ? '〜' : ''}</small></button>`).join('')}</div>${back}`);
+};
+// 名前と 設定（監督10/25「作ったものの設定なども書ける」）
+const nameSet = (def) => `<label>なまえ</label><input type="text" id="fName" maxlength="12" value="${esc(def)}">
+  <label>設定（すきに 書ける）</label><textarea id="fSet" maxlength="200" placeholder="どんな ものか 書いてね"></textarea>`;
+const fval = id => ($(id) ? $(id).value.trim() : '');
+let F = {};   // 作っている とちゅうの もの
+function buildForm(k) {
+  F = { k }; logEvent('build_form', { k });
+  const c = me();
+  if (k === '村' || k === '町' || k === '畑') {
+    const eff = { 村: '毎月 💰+3・兵士+2', 町: '毎月 💰+8', 畑: '毎月 兵士+1・❤が すこしずつ 上がる・豊作が ある' }[k];
+    sheet(`<h2>${k}を つくる</h2><p class="hint">${eff}</p>${nameSet(c.name + 'の' + k + (c.built[k] + 1))}
+      <p class="cost">💰${COST[k]}</p><div class="row"><button onclick="doBuild()">つくる</button><button onclick="closeSheet()">やめる</button></div>`);
+  } else if (k === '船') {
+    sheet(`<h2>⛵ 船を つくる</h2><p class="hint">船が あると 海を こえて 攻められる（3マスまで）</p>${nameSet('丸' + (c.ships.length + 1))}
+      <p class="cost">💰${COST.船}</p><div class="row"><button onclick="doBuild()">つくる</button><button onclick="closeSheet()">やめる</button></div>`);
+  } else if (k === 'きまり') {
+    sheet(`<h2>📜 きまりを つくる</h2><p class="hint">国の きまり（憲法も 作れる）。中身は すきに 書ける</p>
+      <label>なまえ</label><input type="text" id="fName" maxlength="12" value="${c.rules.length ? 'きまり' + (c.rules.length + 1) : '憲法'}">
+      <label>中身</label><textarea id="fSet" maxlength="300" placeholder="れい：みんな 仲よく する"></textarea>
+      <p class="cost">💰${COST.きまり}</p><div class="row"><button onclick="doBuild()">つくる</button><button onclick="closeSheet()">やめる</button></div>`);
+  } else if (k === '小兵器') smallStep1();
+  else if (k === '兵器') weaponStep1();
+  else if (k === '部隊') unitForm();
+}
+function doBuild() {
+  const c = me(), k = F.k, name = fval('fName') || k, set = fval('fSet');
+  if (!pay(k, COST[k])) return;
+  if (k === '村' || k === '町' || k === '畑') { c.built[k]++; c.places.push({ k, name, set }); placeIcon(k); }
+  if (k === '船') c.ships.push({ name, set });
+  if (k === 'きまり') c.rules.push({ name, set });
+  logEvent('build', { k, name, set, money: c.money });
+  news(`🔨 ${k}「${name}」を つくった。`, 'k'); closeSheet();
+}
+// 小兵器（監督9/24「まず火薬をつかうかつかわないかきめる、そして形を作る」「そして名前をつける」）
+function smallStep1() {
+  sheet(`<h2>🗡 小兵器を つくる（1/3）</h2><p class="hint">兵士に 持たせる 武器。まず 火薬を つかうか きめる</p>
+    <div class="row"><button onclick="smallStep2('火薬なし')">火薬を つかわない<br><small>💰${COST.小兵器}</small></button>
+    <button onclick="smallStep2('火薬あり')">🔥 火薬を つかう<br><small>💰${COST.小兵器 + 15}・強い</small></button></div>${back}`);
+}
+function smallStep2(g) {
+  F.gun = g;
+  sheet(`<h2>🗡 小兵器を つくる（2/3）</h2><p class="hint">${g === '火薬あり' ? '🔥 火薬を つかう' : '火薬を つかわない'}。つぎは 形</p>
+    <div class="row">${Object.entries(SMALL_SHAPES[g]).map(([s, p]) => `<button onclick="smallStep3('${s}')">${s}<br><small>つよさ ${p}</small></button>`).join('')}</div>${back}`);
+}
+function smallStep3(shape) {
+  F.shape = shape;
+  sheet(`<h2>🗡 小兵器を つくる（3/3）</h2><p class="hint">${F.gun}・${shape}。さいごに なまえ</p>${nameSet(shape + (me().smalls.length + 1) + '号')}
+    <p class="cost">💰${COST.小兵器 + (F.gun === '火薬あり' ? 15 : 0)}</p><div class="row"><button onclick="smallDone()">完成！</button><button onclick="closeSheet()">やめる</button></div>`);
+}
+function smallDone() {
+  const c = me(), cost = COST.小兵器 + (F.gun === '火薬あり' ? 15 : 0);
+  if (!pay('小兵器', cost)) return;
+  const s = { name: fval('fName') || F.shape, set: fval('fSet'), gun: F.gun === '火薬あり', shape: F.shape, power: SMALL_SHAPES[F.gun][F.shape] };
+  c.smalls.push(s); logEvent('build', { k: '小兵器', ...s, money: c.money });
+  news(`🗡 小兵器「${s.name}」（${s.shape}）が 完成した。部隊に 持たせられる。`, 'k'); closeSheet();
+}
+// 兵器（監督9/24「まず車輪あるないを決めて。壁を作る、そして小兵器をつける、そして完成」）
+function weaponStep1() {
+  sheet(`<h2>🛞 兵器を つくる（1/4）</h2><p class="hint">まず 車輪が あるか ないか</p>
+    <div class="row"><button onclick="weaponStep2(true)">🛞 車輪 ある<br><small>部隊と いっしょに 攻めに 行ける</small></button>
+    <button onclick="weaponStep2(false)">車輪 ない<br><small>国を 守る</small></button></div>${back}`);
+}
+function weaponStep2(wheels) {
+  F.wheels = wheels;
+  sheet(`<h2>🛞 兵器を つくる（2/4）</h2><p class="hint">壁を 作る</p>
+    <div class="row">${[['うすい', 1], ['ふつう', 2], ['あつい', 3]].map(([n, v]) => `<button onclick="weaponStep3(${v})">壁 ${n}<br><small>つよさ +${v * 3}</small></button>`).join('')}</div>${back}`);
+}
+function weaponStep3(wall) {
+  F.wall = wall;
+  const sm = me().smalls;
+  sheet(`<h2>🛞 兵器を つくる（3/4）</h2><p class="hint">小兵器を つける</p>
+    <div class="row">${sm.map((s, i) => `<button onclick="weaponStep4(${i})">${esc(s.name)}<br><small>${s.shape}・つよさ ${s.power}</small></button>`).join('')}
+    <button onclick="weaponStep4(-1)">つけない</button></div>
+    ${sm.length ? '' : '<p class="hint">⚠ 小兵器が まだ ない。先に「小兵器」を つくると つけられる</p>'}${back}`);
+}
+function weaponStep4(si) {
+  F.small = si;
+  sheet(`<h2>🛞 兵器を つくる（4/4）</h2><p class="hint">さいごに なまえ</p>${nameSet('兵器' + (me().weapons.length + 1) + '号')}
+    <p class="cost">💰${COST.兵器}</p><div class="row"><button onclick="weaponDone()">完成！</button><button onclick="closeSheet()">やめる</button></div>`);
+}
+function weaponDone() {
+  const c = me(); if (!pay('兵器', COST.兵器)) return;
+  const sm = c.smalls[F.small];
+  const w = { name: fval('fName') || '兵器', set: fval('fSet'), wheels: F.wheels, wall: F.wall, small: sm ? sm.name : null, power: 8 + F.wall * 3 + (sm ? sm.power * 2 : 0) };
+  c.weapons.push(w); logEvent('build', { k: '兵器', ...w, money: c.money });
+  news(`🛞 兵器「${w.name}」が 完成した（つよさ ${w.power}・${w.wheels ? '車輪あり＝攻めに 使える' : '車輪なし＝国を 守る'}）。`, 'k'); closeSheet();
+}
+// ============ 🪖 部隊（監督10/25「ぶたいのそうびも決められる」「暗殺は…部隊をつくってからその設定で出来る」「護衛…それも部隊を作らなきゃ」） ============
+const ROLE = { fight: '⚔ たたかう', assassin: '🗡 暗殺', guard: '🛡 護衛' };
+function unitStr(u) {
+  const c = me(), sm = c.smalls.find(s => s.name === u.small), w = c.weapons.find(x => x.name === u.weapon);
+  return Math.round(u.soldiers * (1 + (sm ? sm.power : 0) / 5) + (w && w.wheels ? w.power : 0));
+}
+const equipCost = (n, small, weapon) => (small ? n : 0) + (weapon ? 20 : 0);
+function unitForm() {
+  const c = me();
+  sheet(`<h2>🪖 部隊を つくる</h2><p class="hint">兵士を あつめて 部隊に する。暗殺や 護衛は 部隊を つくってから「設定」で できる</p>
+    <label>なまえ</label><input type="text" id="fName" maxlength="12" value="第${c.units.length + 1}部隊">
+    <label>兵士の 数（いま ${c.soldiers}人）</label><input type="number" id="uN" min="1" max="${c.soldiers}" value="${Math.min(20, c.soldiers)}" oninput="unitCost()">
+    ${equipPick('', '')}
+    <label>設定（すきに 書ける）</label><textarea id="fSet" maxlength="200"></textarea>
+    <p class="cost" id="uCost"></p><div class="row"><button onclick="unitDone()">つくる</button><button onclick="closeSheet()">やめる</button></div>`);
+  unitCost();
+}
+function equipPick(small, weapon) {
+  const c = me();
+  return `<label>そうび：小兵器（兵士 1人 💰1）</label><select id="uSmall" onchange="unitCost()" style="font-size:18px;padding:8px;width:100%">
+      <option value="">なし</option>${c.smalls.map(s => `<option ${s.name === small ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>
+    <label>そうび：兵器（💰20）</label><select id="uWeapon" onchange="unitCost()" style="font-size:18px;padding:8px;width:100%">
+      <option value="">なし</option>${c.weapons.map(w => `<option ${w.name === weapon ? 'selected' : ''}>${esc(w.name)}</option>`).join('')}</select>
+    ${c.smalls.length || c.weapons.length ? '' : '<p class="hint">⚠ 小兵器・兵器が まだ ない。「つくる」で 作ると 持たせられる</p>'}`;
+}
+function unitCost() {
+  const n = Math.max(1, Math.min(me().soldiers, +$('uN').value || 1));
+  $('uCost').textContent = `💰${COST.部隊 + equipCost(n, $('uSmall').value, $('uWeapon').value)}（部隊 ${COST.部隊}＋そうび）`;
+}
+function unitDone() {
+  const c = me(), n = Math.floor(+$('uN').value || 0);
+  if (n < 1 || n > c.soldiers) { warn(`🪖 兵士は 1〜${c.soldiers}人で`); return; }
+  const small = $('uSmall').value, weapon = $('uWeapon').value;
+  if (!pay('部隊', COST.部隊 + equipCost(n, small, weapon))) return;
+  c.soldiers -= n;
+  const u = { name: fval('fName') || '部隊', set: fval('fSet'), soldiers: n, small, weapon, role: 'fight', killers: 0 };
+  c.units.push(u); logEvent('build', { k: '部隊', ...u, money: c.money });
+  news(`🪖 「${u.name}」（${n}人）を つくった。`, 'k'); closeSheet();
+}
+$('cUnit').onclick = () => unitList();
+function unitList() {
+  logEvent('menu', { m: 'unit' });
+  const c = me();
+  sheet(`<h2>🪖 部隊</h2>${c.units.length ? '' : '<p class="hint">まだ 部隊が ない。「🔨 つくる」→「部隊」で つくれる</p>'}
+    ${c.units.map((u, i) => `<div class="item"><b>${esc(u.name)}</b>　${ROLE[u.role]}　兵士 ${u.soldiers}人　つよさ ${unitStr(u)}<br>
+      そうび：${esc(u.small || 'なし')}／${esc(u.weapon || 'なし')}${u.role === 'assassin' ? `<br>暗殺させる 人数：${u.killers}人` : ''}${u.set ? `<br><small>${esc(u.set)}</small>` : ''}
+      <div class="row">${u.role === 'fight' ? `<button onclick="charge(${i})">⚔ 突撃</button>` : ''}${u.role === 'assassin' ? `<button onclick="assassinPick(${i})">🗡 暗殺に 行く</button>` : ''}
+      <button onclick="unitSet(${i})">⚙ 設定</button></div></div>`).join('')}
+    <div class="row"><button onclick="buildForm('部隊')">＋ 部隊を つくる</button><button onclick="closeSheet()">← とじる</button></div>`);
+}
+// 部隊の 設定（役目・暗殺させる人数・そうび）
+function unitSet(i) {
+  const u = me().units[i]; F = { i };
+  sheet(`<h2>⚙ ${esc(u.name)} の 設定</h2>
+    <label>役目</label><div class="row" id="roleRow">${Object.entries(ROLE).map(([k, l]) => `<button class="pick ${u.role === k ? 'on' : ''}" onclick="F.role='${k}';[...document.querySelectorAll('#roleRow button')].forEach(b=>b.classList.toggle('on',b===this));roleNote()">${l}</button>`).join('')}</div>
+    <p class="hint" id="roleNote"></p>
+    <div id="killRow"><label>暗殺させる 人数（この部隊 ${u.soldiers}人の 中から）</label><input type="number" id="uK" min="1" max="${Math.min(10, u.soldiers)}" value="${u.killers || 1}"></div>
+    ${equipPick(u.small, u.weapon)}<p class="hint">⚠ そうびを かえると、ふえた分の お金が かかる</p>
+    <p class="cost" id="uCost" style="display:none"></p><input type="hidden" id="uN" value="${u.soldiers}">
+    <div class="row"><button onclick="unitSetDone()">これで きめる</button><button onclick="unitList()">← もどる</button></div>`);
+  F.role = u.role; roleNote();
+}
+function roleNote() {
+  $('roleNote').textContent = { fight: '敵の 陸に 突撃して とる。国を 守る 力にも なる。', assassin: 'ほかの国の 殿を ねらう。連打の 数が 相手より 多いと 勝ち、少ないと 負け。',
+    guard: '暗殺を ふせぐ。暗殺者が 来たとき、護衛の 人数ぶん 連打の数に 足される。' }[F.role];
+  $('killRow').style.display = F.role === 'assassin' ? '' : 'none';
+}
+function unitSetDone() {
+  const c = me(), u = c.units[F.i], small = $('uSmall').value, weapon = $('uWeapon').value;
+  const extra = Math.max(0, equipCost(u.soldiers, small, weapon) - equipCost(u.soldiers, u.small, u.weapon));
+  if (extra && !pay('そうび', extra)) return;
+  u.role = F.role; u.small = small; u.weapon = weapon;
+  if (u.role === 'assassin') u.killers = Math.max(1, Math.min(10, u.soldiers, Math.floor(+$('uK').value || 1)));
+  logEvent('unit_set', { name: u.name, role: u.role, killers: u.killers, small, weapon });
+  news(`⚙ 「${u.name}」は ${ROLE[u.role]}${u.role === 'assassin' ? `（${u.killers}人）` : ''}。`, 'k'); unitList();
+}
+const guardCount = () => Math.min(15, me().units.filter(u => u.role === 'guard').reduce((s, u) => s + u.soldiers, 0));
+
+// ---------- ⚔ 突撃（監督9/15「突撃は指したところに進んで、敵ととなりあうと交戦が始まる」） ----------
+// ⚠ ほんとうは 部隊が 進んで行って 交戦する形。試作1は「攻める陸を さす → すぐ 交戦」に ちぢめた
+function charge(i) {
+  const cand = S.land.map((v, t) => t).filter(t => S.land[t] && S.owner[t] !== 0 && canReach(0, t));
+  if (!cand.length) { warn('⚔ 攻められる 陸が ない（船が あれば 海を こえられる）'); return; }
+  closeSheet(); S.mode = { kind: 'charge', unit: i, cand };
+  $('tapHint').style.display = 'block'; $('tapHint').textContent = '⚔ 攻める 陸を さわってね（白い わく）';
+  drawMap(); logEvent('charge_pick', { unit: me().units[i].name, cand: cand.length });
+}
+$('map').addEventListener('pointerdown', e => {
+  if (!S || !S.mode) return;
+  const r = $('map').getBoundingClientRect(), t = Math.floor((e.clientY - r.top) / cell) * S.w + Math.floor((e.clientX - r.left) / cell);
+  const m = S.mode; S.mode = null; $('tapHint').style.display = 'none';
+  if (!m.cand.includes(t)) { news('（攻めるのを やめた）'); drawMap(); return; }
+  battle(m.unit, t);
+});
+function battle(i, t) {
+  const c = me(), u = c.units[i], def = S.countries[S.owner[t]];
+  const a = unitStr(u) * rnd(), d = defense(def) * rnd(), win = a > d;
+  logEvent('attack', { unit: u.name, to: def.name, tile: t, a: Math.round(a), d: Math.round(d), win });
+  const lost = Math.ceil(u.soldiers * (win ? 0.1 : 0.3));
+  u.soldiers -= lost;
+  if (win) { take(t, 0); def.army = Math.max(5, Math.floor(def.army * 0.85)); }
+  news(win ? `⚔ 「${u.name}」が ${def.name} と 交戦して 勝った！ 陸を 1つ とった（兵士 -${lost}）` : `⚔ 「${u.name}」は ${def.name} に 負けた…（兵士 -${lost}）`, win ? 'good' : 'bad');
+  if (u.soldiers <= 0) { c.units.splice(i, 1); news(`🪖 「${u.name}」は いなくなった。`, 'bad'); }
+  checkEnd(); refresh();
+}
+
+// ============ 🗡 暗殺（連打） ============
+// 監督10/25「AIが結果を決めるんじゃなくて…ボタンをつつきまくる(ケータイ) パソコンだとRを連打」
+//          「Rの連打の数が相手よりも多いとかち相手よりも少ないと負け」「暗殺させる人数を選べる」（＝暗殺に行く人の数・19:31「2A」）
+// ⚠ 人数が 多いと 何が かわるかは まだ 聞いていない。試作1：**1人ずつ 連打で 勝負。負けた人は つかまる。だれか 1人 勝てば 成功**
+// ponytail: 相手は コンピュータ（1秒に CPU_RATE 回）, みんなでに したら 相手の国の 人が 連打する
+const DUEL_SEC = 5, CPU_RATE = 5.2, GUARD_RATE = 0.5;
+function assassinPick(i) {
+  const foes = S.countries.filter(c => c.ai && c.alive);
+  sheet(`<h2>🗡 だれの 国を ねらう？</h2><p class="hint">「${esc(me().units[i].name)}」から ${me().units[i].killers}人が 行く。1人ずつ 連打で 勝負</p>
+    <div class="row">${foes.map(c => `<button onclick="assassinGo(${i},${c.id})" style="border-color:${c.color}">${esc(c.name)}<br><small>護衛 ${c.guards}人</small></button>`).join('')}</div>
+    <div class="row"><button onclick="unitList()">← もどる</button></div>`);
+}
+async function assassinGo(i, k) {
+  closeSheet();
+  const c = me(), u = c.units[i], foe = S.countries[k];
+  let n = u.killers, won = false, tries = 0;
+  logEvent('assassin_go', { unit: u.name, to: foe.name, killers: n, guards: foe.guards });
+  while (n > 0 && !won) {
+    tries++;
+    const r = await duel(`🗡 ${foe.name} の 殿を ねらう！（${tries}人目／のこり ${n}人）`, CPU_RATE + foe.guards * GUARD_RATE, 0, 'attack');
+    if (r.win) won = true; else { n--; u.soldiers--; news(`🗡 ${tries}人目は つかまった…（${r.me} 対 ${r.them}）`, 'bad'); }
+  }
+  u.killers = Math.min(u.killers, Math.max(0, u.soldiers));
+  if (won) { foe.chaos = 6; foe.army = Math.floor(foe.army * 0.7); news(`🗡 暗殺 成功！ ${foe.name} は 6か月 大さわぎ（お金が 入らない・攻めてこない）`, 'good'); }
+  else news(`🗡 暗殺は しっぱい。${foe.name} の 殿は ぶじだった。`, 'bad');
+  logEvent('assassin_end', { to: foe.name, won, tries, left: n });
+  if (u.soldiers <= 0) c.units.splice(i, 1);
+  refresh();
+}
+// 暗殺者が 来た（守る側）。監督10/25「暗殺予防に護衛をつくることができる」
+async function defendAssassin(foe) {
+  const g = guardCount();
+  news(`⚠ ${foe.name} の 暗殺者が 来た！`, 'bad');
+  const r = await duel(`⚠ ${foe.name} の 暗殺者が 来た！ 連打で ふせげ！` + (g ? `<br><small>🛡 護衛 ${g}人が いるので +${g}</small>` : '<br><small>（護衛が いない…「部隊」の 設定で 護衛を つくれる）</small>'), CPU_RATE, g, 'defend');
+  if (r.win) news(`🛡 暗殺者を ふせいだ！（${r.me} 対 ${r.them}）`, 'good');
+  else { me().money = Math.floor(me().money / 2); me().heart = Math.max(0, me().heart - 20); me().chaos = 3; news(`💥 殿が けがを した…（${r.me} 対 ${r.them}）お金が 半分・❤-20・3か月 お金が 入らない`, 'bad'); }
+  refresh();
+}
+let duelOn = false, duelTap = null;
+function duel(title, rate, bonus, role) {
+  return new Promise(resolve => {
+    duelOn = true; $('duel').classList.add('on'); $('duelTitle').innerHTML = title;
+    let mine = bonus, them = 0, live = false; const taps = [];
+    $('dMe').textContent = mine; $('dThem').textContent = 0; $('mash').disabled = true;
+    duelTap = () => { if (!live) return; mine++; taps.push(Math.round(performance.now() - t0)); $('dMe').textContent = mine; };
+    let t0 = 0, count = 3;
+    $('duelTime').textContent = count;
+    const cd = setInterval(() => {
+      count--;
+      if (count > 0) { $('duelTime').textContent = count; return; }
+      clearInterval(cd); live = true; $('mash').disabled = false; t0 = performance.now();
+      const bot = setInterval(() => { if (Math.random() < rate / 10) { them++; $('dThem').textContent = them; } }, 100);
+      const tm = setInterval(() => {
+        const left = DUEL_SEC - (performance.now() - t0) / 1000;
+        $('duelTime').textContent = left > 0 ? `のこり ${left.toFixed(1)}秒` : 'おわり！';
+        if (left > 0) return;
+        clearInterval(tm); clearInterval(bot); live = false; $('mash').disabled = true;
+        const win = mine > them;   // ⚠ 同じ数は 負け（監督は「多いと勝ち」と言った＝同じは 勝ちではない）
+        $('duelTime').textContent = win ? '🎉 かち！' : '😣 まけ…';
+        logEvent('duel', { role, me: mine, them, bonus, rate, taps: taps.length, perSec: +(taps.length / DUEL_SEC).toFixed(1), tapMs: taps, win });
+        setTimeout(() => { $('duel').classList.remove('on'); duelOn = false; duelTap = null; resolve({ win, me: mine, them }); }, 1300);
+      }, 100);
+    }, 700);
+  });
+}
+// ⚠ pointerdown で 数える（click だと 速い連打を とりこぼす）。R は おしっぱなしの 自動くりかえしを 数えない
+$('mash').addEventListener('pointerdown', e => { e.preventDefault(); duelTap && duelTap(); });
+addEventListener('keydown', e => { if ((e.key === 'r' || e.key === 'R') && !e.repeat && duelTap) { e.preventDefault(); duelTap(); } });
+
+// ============ 👤 家臣（監督9/25「兵士から家臣を何人作るかを記入したら、家臣の名前が決められる」・10/25「家臣に話しかけることができて命令できる」） ============
+const ORDERS = {
+  tonden: { label: '🌾 屯田（畑を ひらく）', months: 3, say: '畑を ひらいて まいります。' },
+  chisui: { label: '🌊 治水（川を なおす）', months: 3, say: '川の 堤を なおして まいります。' },
+  mine:   { label: '⛏ 鉱山を 開く', months: 4, say: '山を ほって 鉱山を 開きます。' },
+  heishi: { label: '🪖 兵を あつめる', months: 2, say: '村を まわって 兵を あつめます。' },
+  news:   { label: '📣 事件家臣に する', months: 0, say: 'おまかせを。国で おきた 事件は 私が お知らせします。' },
+};
+$('cKashin').onclick = () => kashinList();
+function kashinList() {
+  logEvent('menu', { m: 'kashin' });
+  const c = me();
+  sheet(`<h2>👤 家臣</h2>${c.kashin.length ? '<p class="hint">さわると 話しかけられる</p>' : '<p class="hint">まだ 家臣が いない。兵士から 家臣を つくれる</p>'}
+    ${c.kashin.map((k, i) => `<div class="item" onclick="talk(${i})" style="cursor:pointer"><b>${esc(k.name)}</b>${i === c.newsK ? '　📣事件家臣' : ''}<br>
+      ${k.task ? `いま：${ORDERS[k.task].label}（あと ${k.left}か月）` : 'いま：ひま'}</div>`).join('')}
+    <div class="row"><button onclick="kashinMake()">＋ 家臣を つくる</button><button onclick="closeSheet()">← とじる</button></div>`);
+}
+function kashinMake() {
+  const c = me();
+  sheet(`<h2>👤 家臣を つくる</h2><p class="hint">兵士の 中から 家臣に する。1人 💰${COST.家臣}</p>
+    <label>何人 つくる？（兵士 ${c.soldiers}人）</label><input type="number" id="kN" min="1" max="5" value="1" oninput="kashinNames()">
+    <div id="kNames"></div><div class="row"><button onclick="kashinDone()">これで つくる</button><button onclick="kashinList()">← もどる</button></div>`);
+  kashinNames();
+}
+function kashinNames() {
+  const n = Math.max(1, Math.min(5, Math.floor(+$('kN').value || 1))), old = [...document.querySelectorAll('.kName')].map(x => x.value);
+  $('kNames').innerHTML = Array.from({ length: n }, (_, i) => `<label>${i + 1}人目の なまえ</label><input type="text" class="kName" maxlength="10" value="${esc(old[i] || '')}" placeholder="れい：${['秀吉', '光秀', '勝家', '利家', '長秀'][i]}">`).join('');
+}
+function kashinDone() {
+  const c = me(), names = [...document.querySelectorAll('.kName')].map((x, i) => x.value.trim() || ['秀吉', '光秀', '勝家', '利家', '長秀'][i]);
+  if (c.soldiers < names.length) { warn('🪖 兵士が たりない'); return; }
+  if (!pay('家臣', COST.家臣 * names.length)) return;
+  c.soldiers -= names.length;
+  for (const name of names) c.kashin.push({ name, task: null, left: 0 });
+  logEvent('kashin_make', { names });
+  news(`👤 家臣が ふえた：${names.join('・')}`, 'k'); kashinList();
+}
+function talk(i) {
+  const k = me().kashin[i]; logEvent('talk', { name: k.name });
+  const busy = k.task ? `<div class="say">${esc(k.name)}「殿、いまは ${ORDERS[k.task].label.slice(2)} の とちゅうで ございます。あと ${k.left}か月 です。」</div>` : '';
+  sheet(`<h2>👤 ${esc(k.name)}</h2>${busy || `<div class="say">${esc(k.name)}「殿、なにを いたしましょう？」</div>`}
+    <div class="row">${busy ? '' : Object.entries(ORDERS).filter(([o]) => !(o === 'news' && i === me().newsK)).map(([o, d]) => `<button onclick="order(${i},'${o}')">${d.label}${d.months ? `<br><small>${d.months}か月</small>` : ''}</button>`).join('')}</div>
+    <div class="row"><button onclick="kashinList()">← もどる</button></div>`);
+}
+function order(i, o) {
+  const c = me(), k = c.kashin[i], d = ORDERS[o];
+  logEvent('order', { name: k.name, order: o });
+  if (o === 'news') { c.newsK = i; news(`📣 ${k.name}「${d.say}」`, 'k'); kashinList(); return; }
+  k.task = o; k.left = d.months;
+  news(`👤 ${k.name}「ははっ。${d.say}」`, 'k'); kashinList();
+}
+function finishOrder(k) {
+  const c = me(), o = k.task; k.task = null;
+  if (o === 'tonden') { c.built.畑++; placeIcon('畑'); news(`🌾 ${k.name}「殿！ 屯田で 畑が 1つ ふえました。」`, 'good'); }
+  if (o === 'chisui') { c.chisui = true; c.heart = Math.min(100, c.heart + 5); news(`🌊 ${k.name}「殿！ 治水が おわりました。大雨でも あんしんです。」❤+5`, 'good'); }
+  if (o === 'mine') { c.built.鉱山++; placeIcon('鉱山'); news(`⛏ ${k.name}「殿！ 鉱山を 開きました。お金が 入ります。」`, 'good'); }
+  if (o === 'heishi') { const n = 8 + Math.floor(Math.random() * 8); c.soldiers += n; news(`🪖 ${k.name}「殿！ 兵が ${n}人 あつまりました。」`, 'good'); }
+  logEvent('order_done', { name: k.name, order: o });
+}
+
+// ============ 📜 国の ようす ============
+$('cLook').onclick = () => {
+  logEvent('menu', { m: 'look' });
+  const c = me(), list = (t, a, f) => a.length ? `<div class="item"><b>${t}</b><br>${a.map(f).join('<br>')}</div>` : '';
+  sheet(`<h2>📜 ${esc(c.name)}</h2>
+    <div class="item">陸 ${tilesOf(0).length}こ　💰${c.money}（毎月 ${income(c) >= 0 ? '+' : ''}${income(c)}）　🪖${c.soldiers}人　❤民衆の心 ${c.heart}<br>
+      🏠村 ${c.built.村}　🏯町 ${c.built.町}　🌾畑 ${c.built.畑}　⛏鉱山 ${c.built.鉱山}　🛡護衛 ${guardCount()}人${c.chisui ? '　🌊治水ずみ' : ''}${c.chaos ? `<br>⚠ 大さわぎ中（あと ${c.chaos}か月）` : ''}</div>
+    ${list('📜 きまり', c.rules, r => `${esc(r.name)}：${esc(r.set || '（中身なし）')}`)}
+    ${list('⛵ 船', c.ships, s => esc(s.name) + (s.set ? '：' + esc(s.set) : ''))}
+    ${list('🛞 兵器', c.weapons, w => `${esc(w.name)}（${w.wheels ? '車輪あり' : '車輪なし'}・壁${w.wall}・${esc(w.small || '小兵器なし')}・つよさ${w.power}）${w.set ? '：' + esc(w.set) : ''}`)}
+    ${list('🗡 小兵器', c.smalls, s => `${esc(s.name)}（${s.gun ? '火薬あり' : '火薬なし'}・${s.shape}）${s.set ? '：' + esc(s.set) : ''}`)}
+    ${list('🏠 村・町・畑', c.places, p => `${p.k}「${esc(p.name)}」${p.set ? '：' + esc(p.set) : ''}`)}
+    <h2>ほかの国</h2>${S.countries.filter(x => x.id).map(x => `<div class="item" style="border-color:${x.color}"><b>${esc(x.name)}</b>　${x.alive ? `陸 ${tilesOf(x.id).length}こ　護衛 ${x.guards}人${x.chaos ? '　⚠大さわぎ中' : ''}` : '🏳 ほろびた'}</div>`).join('')}
+    ${back}`);
+};
+
+if (DEV) window.__k = { get S() { return S; }, tick, startGame, MAPS, duel, defendAssassin, myEvent, unitStr, defense, setup, CPU_RATE };
+</script>
+</body>
+</html>
