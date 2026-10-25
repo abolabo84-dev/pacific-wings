@@ -329,10 +329,11 @@
 </div>
 
 <div class="overlay" id="unitScreen" style="display:none">
-  <h2>のりものをえらぼう</h2>
+  <h2 id="unitTitle">のりものをえらぼう</h2>
   <div id="catRow" style="display:flex; flex-wrap:wrap; justify-content:center;"></div>
   <div id="typeList"></div>
   <button class="btn" id="btnLaunch">🚀 出撃！</button>
+  <button class="btn mini" id="btnFacBack" style="display:none">← もどる（かえない）</button>
 </div>
 
 <div class="overlay" id="endScreen" style="display:none">
@@ -775,6 +776,29 @@ function placeMainlandShelters(x, z, r, n, avoid = []) {   // avoid＝よける�
   }
   return put;
 }
+// 🏭 味方の工場（日本の本土）。⚠ 敵の工場とちがって 的ではない（日本の本土は だれも攻撃できない＝10/3）
+//   中は作らない。**東の入口まで 歩いて来たら 入った** とする（監督10/25「2A」おりて歩いて入る）
+const FAC_HX = 15, FAC_HZ = 11, FAC_DOOR = 4.5;
+let FAC = null;
+function makeAllyFactory(x, z) {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(FAC_HX*2, 16, FAC_HZ*2), new THREE.MeshLambertMaterial({ color: 0x78909c }));
+  body.position.y = 8; g.add(body);
+  const door = new THREE.Mesh(new THREE.BoxGeometry(0.4, 9, FAC_DOOR*2), new THREE.MeshBasicMaterial({ color: 0x263238 }));
+  door.position.set(FAC_HX + 0.2, 4.5, 0); g.add(door);
+  const sign = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.6, FAC_DOOR*2 + 2), new THREE.MeshBasicMaterial({ color: 0xffd54f }));
+  sign.position.set(FAC_HX + 0.25, 10.2, 0); g.add(sign);   // 入口の上の 黄色い線＝ここが入口
+  const chim = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.6, 30, 8), new THREE.MeshLambertMaterial({ color: 0x455a64 }));
+  chim.position.set(-9, 22, 0); g.add(chim);
+  const flag = makeFlag(0x2962ff); flag.position.x = -FAC_HX + 2; g.add(flag);
+  g.position.set(x, 7.5, z);
+  scene.add(g);
+  SOLIDS_FIXED.push({ x, z, hx: FAC_HX, hz: FAC_HZ });   // 🚶 かべは とおれない
+  FAC = { x, z, group: g };
+  return g;
+}
+// 入口の前に立っているか（かべで止まるので、かべから 3m 以内）
+const atFactoryDoor = (x, z) => !!FAC && x > FAC.x + FAC_HX && x < FAC.x + FAC_HX + 3 && Math.abs(z - FAC.z) < FAC_DOOR;
 function makeBigIsland(x, z, r) {
   const g = new THREE.Group();
   const N = 96;
@@ -1150,6 +1174,9 @@ const JAPAN_MAIN = W(-1950, 0);
 const AMERICA_MAIN = W(2000, 0);
 // 🏭 アメリカ本土の工場3つ（本土の中の位置）。⚠ 防空ごうが これをよけるので、置き場所は ここ1か所だけで決める
 const AMERICA_FACTORIES = [-1, 0, 1].map(k => ({ lx: -MAINLAND_R + 70, lz: k * 260 }));
+// 🏭 日本の本土の 味方の工場（監督10/21「工場にはいると、乗り物が変えられる」・10/25「1B」）。
+//   東の海岸（＝戦う海の がわ）。入口も 東むき＝出てすぐ 海
+const JAPAN_FACTORY = { lx: MAINLAND_R - 60, lz: 0 };
 const islandDefs = [
   { ...OUR.base, r: 65, kind: 'base', side: 'ally' },
   { ...OUR.port, r: 75, kind: 'port', side: 'ally' },
@@ -1176,7 +1203,8 @@ for (const d of islandDefs) d.group = d.kind === 'big'
   ? makeBigIsland(d.x, d.z, d.r)
   : makeIsland(d.x, d.z, d.r, d.kind === 'plain' ? 'plain' : d.kind);
 // 🕳 両方の本土に10こずつ（監督10/25「2B」＝アメリカの本土にも10こ）
-placeMainlandShelters(JAPAN_MAIN.x, JAPAN_MAIN.z, MAINLAND_R, 10);
+placeMainlandShelters(JAPAN_MAIN.x, JAPAN_MAIN.z, MAINLAND_R, 10, [JAPAN_FACTORY]);
+makeAllyFactory(JAPAN_MAIN.x + JAPAN_FACTORY.lx, JAPAN_MAIN.z + JAPAN_FACTORY.lz);
 placeMainlandShelters(AMERICA_MAIN.x, AMERICA_MAIN.z, MAINLAND_R, 10, AMERICA_FACTORIES);
 // 🚶 島のてっぺんの高さ。海の上なら null（＝そこに立つ地面が無い＝落ちる）。
 // ⚠ 数字は makeIsland の見た目から来ている。あちらを直したらここも直す
@@ -1389,7 +1417,8 @@ function footEnter(w) {
     FOOT.pos.set(isl.x + dx*pr, 0, isl.z + dz*pr);
     FOOT.pos.y = ty === null ? 3 : ty;
     FOOT.yaw = Math.atan2(dx, dz);
-    showMessage(G.mode === 'fighter' ? '🛬 ちゃくりく！ 島に あがった' : '🚶 島に あがった！', 3.5);
+    showMessage(isl.tag === 'japanMain' ? '🗾 日本の本土！ 東の海岸の 🏭工場に 歩いて入ると、のりものを かえられる'
+              : G.mode === 'fighter' ? '🛬 ちゃくりく！ 島に あがった' : '🚶 島に あがった！', isl.tag === 'japanMain' ? 5 : 3.5);
   }
   logEvent('foot_on', { where: w.kind, mode: G.mode });
   initAudio(); ensureSfxBus(); buildAmbient(); buildDrones();   // さわった後なので iOS でも起こせる
@@ -1398,7 +1427,8 @@ function footEnter(w) {
 }
 function footExit(msg) {
   if (!FOOT.on) return;
-  FOOT.on = false; FOOT.onShip = false; FOOT.fall = 0; FOOT.inShelter = false;
+  FOOT.on = false; FOOT.onShip = false; FOOT.fall = 0; FOOT.inShelter = false; FOOT.atDoor = false;
+  if (G.facMenu) closeFactory('foot_off');   // やられた・勝ち負けが決まった時に 画面が のこらないように
   if (FOOT.group) FOOT.group.visible = false;
   if (msg) showMessage(msg, 2.5);
   logEvent('foot_off', { mode: G.mode });
@@ -1499,6 +1529,10 @@ function footTick(dt, sx, sy, run) {
         logEvent('foot_healed', {});
       }
     }
+    // 🏭 工場の入口に 来たら えらぶ画面。⚠ 一度はなれるまで もう開かない（もどるを押したあと すぐ また開くと 出られない）
+    const door = atFactoryDoor(FOOT.pos.x, FOOT.pos.z);
+    if (door && !FOOT.atDoor) openFactory();
+    FOOT.atDoor = door;
     fitShadowToGround(FOOT.group, FOOT.pos.x, FOOT.pos.z);
   }
   FOOT.group.position.copy(FOOT.pos);
@@ -2356,7 +2390,7 @@ pauseBtn.addEventListener('click', togglePause);
 pauseBtn.addEventListener('touchstart', e => { e.preventDefault(); togglePause(); }, { passive: false });
 
 function togglePause() {
-  if (!G.running) return;
+  if (!G.running || G.facMenu) return;
   PAUSED = !PAUSED;
   pausedAt = PAUSED ? performance.now() : 0;
   if (PAUSED) {
@@ -2586,6 +2620,12 @@ function pickCat(key) {
   }
 }
 $('btnLaunch').onclick = () => {
+  if (G.facMenu) {   // 🏭 工場の中：出撃しなおさず その場で のりかえ
+    if (DIFF === 'easy') { selCat = 'fighter'; selType = CATALOG.fighter.types.find(t => t.id === (selFaction === 'axis' ? 'zero' : 'b29')); }
+    if (!selType) selType = CATALOG[selCat].types.find(t => !t.faction || t.faction === selFaction);
+    swapVehicle(selType.mode || selCat, selType);
+    return;
+  }
   if (DIFF === 'easy') { selCat = 'fighter'; selType = CATALOG.fighter.types.find(t => t.id === (selFaction === 'axis' ? 'zero' : 'b29')); }
   if (!selType) { selType = CATALOG[selCat].types.find(t => !t.faction || t.faction === selFaction); }
   // v6: ガチャの のりものは「どのそうじゅう方法か」を自分で持っている（船か・潜水艦か・飛行機か）
@@ -2609,6 +2649,25 @@ function spawnInitialFleet() {
   spawnAIShip('enemy', 'carrier', 950*WORLD, -50*WORLD, 'patrol');
   spawnAISub('enemy', 400*WORLD, -200*WORLD, 'patrol');
   spawnAIPlane('enemy', 800*WORLD, 100*WORLD);
+}
+// 自分ののりものを作る。⚠ 出撃と 🏭工場の のりかえ の2か所から使う＝1つにしておく
+function buildPlayerVehicle(faction, mode, def) {
+  const color = faction === 'axis' ? 0x9e9d24 : 0x1565c0;
+  if (mode === 'fighter') { player.group = makePlaneMesh(color, faction); player.radius = 5; }
+  else if (mode === 'ship') {
+    // 🏯 大和だけ 切り札と同じ見た目にする（「あの大和だ」と分かる）
+    if (def.special) { player.group = makeTrumpMesh(faction === 'axis' ? 'axis' : 'allied'); player.radius = 34; }
+    else { player.group = makeShipMesh(def.klass, false); player.radius = def.klass === 'carrier' ? 30 : 18; }
+  }
+  else { player.group = makeSubMesh(false); player.radius = 8; }
+  // カメラの位置は、のりものの大きさに合わせる（空母は甲板が長いので、高く・うしろから見る）
+  if (mode === 'fighter') G.camOff = new THREE.Vector3(0, 8, 20);
+  else if (mode === 'ship') G.camOff = def.special ? new THREE.Vector3(0, 34, 54)
+                          : def.klass === 'carrier' ? new THREE.Vector3(0, 30, 46) : new THREE.Vector3(0, 16, 16);
+  else G.camOff = new THREE.Vector3(0, 4, 24);
+  scene.add(player.group);
+  // v5: 調整パネルの「自分のつよさ」を最大HPに反映（監督の言う「ライフ」）
+  G.maxHp = Math.max(1, Math.round(def.hp * TUNE.life)); G.hp = G.maxHp;
 }
 function startGame(faction, mode, def) {
   G.faction = faction; G.mode = mode; G.def = def;
@@ -2644,31 +2703,14 @@ function startGame(faction, mode, def) {
   //    部屋につながっている人数（getPeers）なら、出撃する前から わかる。
   G.fleetWait = (NET.on && netPeerCount() > 0) ? 2.0 : 0.3;
   if (G.netFleetDone) spawnInitialFleet();
-  // 自分ののりもの
-  const color = faction === 'axis' ? 0x9e9d24 : 0x1565c0;
-  if (mode === 'fighter') { player.group = makePlaneMesh(color, faction); player.radius = 5; }
-  else if (mode === 'ship') {
-    // 🏯 大和だけ 切り札と同じ見た目にする（「あの大和だ」と分かる）
-    if (def.special) { player.group = makeTrumpMesh(faction === 'axis' ? 'axis' : 'allied'); player.radius = 34; }
-    else { player.group = makeShipMesh(def.klass, false); player.radius = def.klass === 'carrier' ? 30 : 18; }
-  }
-  else { player.group = makeSubMesh(false); player.radius = 8; }
-  // カメラの位置は、のりものの大きさに合わせる（空母は甲板が長いので、高く・うしろから見る）
-  if (mode === 'fighter') G.camOff = new THREE.Vector3(0, 8, 20);
-  else if (mode === 'ship') G.camOff = def.special ? new THREE.Vector3(0, 34, 54)
-                          : def.klass === 'carrier' ? new THREE.Vector3(0, 30, 46) : new THREE.Vector3(0, 16, 16);
-  else G.camOff = new THREE.Vector3(0, 4, 24);
-  scene.add(player.group);
-  // v5: 調整パネルの「自分のつよさ」を最大HPに反映（監督の言う「ライフ」）
-  G.maxHp = Math.max(1, Math.round(def.hp * TUNE.life)); G.hp = G.maxHp;
+  buildPlayerVehicle(faction, mode, def);
   // ⚠ 時計は 実時間1秒で ゲーム内0.5分＝夜までふつうに24分かかる。
   //    夜の虫や蚊を確かめたい時のために ?hour=20 で開始時刻を変えられるようにした
   const startH = parseInt(new URLSearchParams(location.search).get('hour') || '', 10);
   G.fuel = 100; G.kills = 0; G.gameMin = (isNaN(startH) ? 6 : ((startH % 24) + 24) % 24) * 60; G.cheerRun = 0;
   G.footTaught = false; G.footTaughtT = 0;   // 🚶 出撃するたび、1回は教えなおす
   G.fogCycle = 0; G.fogActive = false; G.trumpSpawned = false; G.reinforceT = 0; G.reloadT = 0;
-  G.ammo2 = TUNE.bomb >= 0 ? (TUNE.bomb >= 10 ? 99 : TUNE.bomb)   // v5: 調整パネルの爆弾の数（0〜9／10＝無制限）
-          : (def.bombs || def.torpedoes || def.depthCharges || def.escorts || 0);
+  G.ammo2 = startAmmo2(def);
   respawn();
   playBgm('battle');
   G.running = true;
@@ -2680,12 +2722,62 @@ function startGame(faction, mode, def) {
   $('minimap').style.display = 'block';
   $('targetArrow').style.display = 'block';
   $('controlsHint').style.display = 'block';
-  $('fuelRow').style.display = mode === 'fighter' ? 'block' : 'none';
-  $('hpLabel').textContent = mode === 'fighter' ? 'きたい（HP）' : mode === 'ship' ? 'ふね（HP）' : 'せんすいかん（HP）';
+  vehicleHud(mode);
   setupControlsUI();
   showMessage(`${def.name} 出撃！ 🚩の方角へすすめ！`, 4);
   if (!G.tutorial) netEvent('go', def.name);   // v6: みんなでルームの なかまに「出たよ」と知らせる
 }
+const startAmmo2 = def => TUNE.bomb >= 0 ? (TUNE.bomb >= 10 ? 99 : TUNE.bomb)   // v5: 調整パネルの爆弾の数（0〜9／10＝無制限）
+          : (def.bombs || def.torpedoes || def.depthCharges || def.escorts || 0);
+function vehicleHud(mode) {
+  $('fuelRow').style.display = mode === 'fighter' ? 'block' : 'none';
+  $('hpLabel').textContent = mode === 'fighter' ? 'きたい（HP）' : mode === 'ship' ? 'ふね（HP）' : 'せんすいかん（HP）';
+}
+// ============ 🏭 工場で のりかえ（監督10/21・10/25「1A」＝出撃のときに えらべる乗り物ぜんぶ） ============
+// えらぶ画面は 出撃のものを そのまま使う（同じものが えらべる＝「ぜんぶ」が ずれない）
+// ponytail: ひとりの時だけ 止める。みんなでルームでは 止めない（止めると 位置が流れず なかまの画面から消える）。止めたいと言われたら 敵のねらいを外す形で
+function openFactory() {
+  G.facMenu = true; G.facPaused = !NET.on;
+  if (G.facPaused) { PAUSED = true; pausedAt = performance.now(); }
+  selFaction = G.faction;
+  CATALOG.gacha.types = gachaComplete() ? [YAMATO, ...ownedDefs()] : ownedDefs();
+  $('unitTitle').textContent = '🏭 工場：のりものを かえよう';
+  $('btnLaunch').textContent = '🔧 これに かえる';
+  $('btnFacBack').style.display = '';
+  $('unitScreen').style.display = 'flex';
+  buildCatRow();
+  pickCat(DIFF === 'easy' ? 'fighter' : G.mode);
+  logEvent('factory_open', { mode: G.mode, type: G.def.id });
+}
+function closeFactory(why) {
+  if (!G.facMenu) return;
+  G.facMenu = false;
+  if (G.facPaused) { PAUSED = false; lastT = performance.now(); }
+  $('unitScreen').style.display = 'none';
+  $('unitTitle').textContent = 'のりものをえらぼう';
+  $('btnLaunch').textContent = '🚀 出撃！';
+  $('btnFacBack').style.display = 'none';
+  if (why) logEvent('factory_close', { why });
+}
+function swapVehicle(mode, def) {
+  const from = G.def.id;
+  closeFactory();
+  footExit();
+  scene.remove(player.group);
+  G.mode = mode; G.def = def;
+  buildPlayerVehicle(G.faction, mode, def);
+  // 工場の前に出す。飛行機＝入口の上の空／船・潜水艦＝すぐ東の海（⚠ 本土の中に出すと 陸にのり上げて動けない）
+  const P = player.group.position, sea = JAPAN_MAIN.x + MAINLAND_R + 70;
+  G.yaw = -Math.PI/2; G.pitch = 0;   // 東むき＝戦う海のほう
+  if (mode === 'fighter') P.set(FAC.x + 40, 40, FAC.z);
+  else if (mode === 'ship') { G.shipSpeed = 0; P.set(sea, 0, FAC.z); }
+  else { G.depth = -3; P.set(sea + 20, -3, FAC.z); }
+  G.fuel = 100; G.ammo2 = startAmmo2(def);
+  vehicleHud(mode); setupControlsUI();
+  showMessage(`🏭 ${def.name} に のりかえた！`, 3.5);
+  logEvent('factory_swap', { from, to: def.id, mode });
+}
+$('btnFacBack').onclick = () => closeFactory('back');
 function setupControlsUI() {
   const m = G.mode;
   let hint, btn2label = '';
@@ -3769,7 +3861,7 @@ const NET = { on: false, word: '', me: '', name: localStorage.getItem('pw_name')
 // ⚠ つながらない時に「どこで止まったか」を画面に出す（パパ 9/5・PC×スマホ4Gで入れなかった）。
 // 口で往復するより、1回開けば分かる形にする。止まりうる場所は3つあって、直し方が全部ちがう：
 //   ① リレー（相手さがし）に届かない ② 相手は見つかったがNAT越えできない ③ データが来ない
-const BUILD = 'v6-1025a';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
+const BUILD = 'v6-1025b';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
 // v6.1: タイトル画面のすみに小さく出す。⚠ 版が分からないと「どの版で起きた不具合か」が言えなくなる。
 //   前は画面のどこにも無く、つながらない時の診断にしか出ていなかった
 { const bt = document.getElementById('buildTag'); if (bt) bt.textContent = BUILD; }
@@ -4506,7 +4598,7 @@ setInterval(() => {
 // ⚠ 目で見て「歩けてる」と、数字が正しいは別。落ちた/止まったを数字で確かめる口を作っておく
 if (DEV) { window.dbgGachaIds = () => GACHA.map(g => g.id); window.gameLogPeek = () => gameLog; window.__pw = { FOOT, G, player, NET, footWhere, deckOf, islandTopY, islandDefs, SOLIDS, canWalk,
     AMB, bigH, critters, DRONES, sfxOut, eyePos, initAudio, spawnAIPlane, updateDrones, footHit, THREE, get projs() { return projs; },
-    SHELTERS, shelterAt, shelterRoofY, footAimAt, SH_IN_X, SH_IN_Z, SH_SIDE_H, SH_R, FOOT_GUN_DMG, FOOT_GUN_HITS, PLANE_HP, shoot,   // 🕳🔫 9/6の注文ぶん
+    SHELTERS, shelterAt, shelterRoofY, get FAC() { return FAC; }, atFactoryDoor, onBigLand, footAimAt, SH_IN_X, SH_IN_Z, SH_SIDE_H, SH_R, FOOT_GUN_DMG, FOOT_GUN_HITS, PLANE_HP, shoot,   // 🕳🔫 9/6の注文ぶん
     FOOT_HP, SHELTER_HEAL, SHELTER_FULL_SEC, OUR,   // 💚📊 9/6〜9/7の注文ぶん（回復20秒・左下バー・基地からやり直し）
     CHEER_RUN_MAX, CHEER_KILL, CHEER_WIN, GACHA_COST, addCheer, grantKill, get cheer() { return cheer; },   // 🎁 ひと試合20チール
     // ⚠ units は startGame で作りなおされる（units = []）。値でつかむと 古い配列を見つづけて、
