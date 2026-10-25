@@ -201,7 +201,7 @@
 </div>
 <div id="footHp"><span id="footHpLabel">🚶 じぶんの たいりょく</span><div class="bar"><div id="footHpFill"></div></div></div>
 <canvas id="minimap" width="150" height="150" style="display:none"></canvas>
-<div id="targetArrow" style="display:none">🚩 敵の港 <span id="arrowIcon">▲</span> <span id="arrowDist"></span></div>
+<div id="targetArrow" style="display:none">🚩 <span id="arrowName">敵の港</span> <span id="arrowIcon">▲</span> <span id="arrowDist"></span></div>
 <div id="message"></div>
 <div id="fogNotice">🌫 きりが でてきた…（レーダーがきかない！）</div>
 <div id="controlsHint" style="display:none"></div>
@@ -307,7 +307,7 @@
     <button class="btn" id="btnRoomMake" style="background:#00695c; font-size:1rem; padding:.5em 1.1em">🆕 ルームを作る</button>
     <button class="btn" id="btnRoomJoin" style="background:#1565c0; font-size:1rem; padding:.5em 1.1em">🚪 はいる</button>
   </div>
-  <p id="roomStatus" style="min-height:2.6em; font-weight:bold; color:#69f0ae; margin:.2em 16px"></p>
+  <p id="roomStatus" style="min-height:2.6em; font-weight:bold; color:#69f0ae; margin:.2em 16px; white-space:pre-line"></p>
   <pre id="roomDiag" style="display:none; white-space:pre-wrap; text-align:left; font-size:.78rem; line-height:1.5;
        background:rgba(0,0,0,.35); border-radius:8px; padding:8px 10px; margin:0 16px; max-width:min(92vw,520px)"></pre>
   <button class="btn mini" id="btnDiagCopy" style="background:#37474f">📋 じょうたいをコピー</button>
@@ -332,6 +332,7 @@
   <h2 id="unitTitle">のりものをえらぼう</h2>
   <div id="catRow" style="display:flex; flex-wrap:wrap; justify-content:center;"></div>
   <div id="typeList"></div>
+  <div id="winRow" style="display:flex; flex-wrap:wrap; justify-content:center; align-items:center;"></div>
   <button class="btn" id="btnLaunch">🚀 出撃！</button>
   <button class="btn mini" id="btnFacBack" style="display:none">← もどる（かえない）</button>
 </div>
@@ -2412,6 +2413,21 @@ function showMessage(text, seconds = 2.5) { $('message').textContent = text; $('
 
 // ============ えらぶ画面 ============
 let selFaction = null, selCat = 'fighter', selType = null;
+// 🏆 勝ち方を 最初に決める（監督10/25「工場を壊したら勝ちと港を壊したら勝ちを最初に決める」）。
+// ⚠ 保存しない（起動のたびに 港 から）。保存すると 既定を変えても届かなくなる
+// ponytail: みんなでルームでは 人ごとの勝ち方（そろえない）。そろえたいと言われたら あずかり役の勝ち方を配る
+const WIN_WAYS = { port: { btn: '⚓ 敵の港を こわす', arrow: '敵の港' }, factory: { btn: '🏭 アメリカの工場3つを こわす', arrow: '敵の工場' } };
+let WIN_BY = new URLSearchParams(location.search).get('win') === 'factory' ? 'factory' : 'port';   // ?win=factory はテスト用
+function buildWinRow() {
+  const row = $('winRow'); row.innerHTML = '<span style="margin:0 6px">🏆 かちかた</span>';
+  for (const k of Object.keys(WIN_WAYS)) {
+    const b = document.createElement('button');
+    b.className = 'btn catBtn' + (k === WIN_BY ? ' sel' : '');
+    b.textContent = WIN_WAYS[k].btn;
+    b.onclick = () => { WIN_BY = k; logEvent('win_select', { by: k }); buildWinRow(); };
+    row.appendChild(b);
+  }
+}
 $('btnAllied').onclick = () => openUnitScreen('allied');
 $('btnAxis').onclick = () => openUnitScreen('axis');
 // v5: タイトル画面の音楽ON/OFFボタン
@@ -2591,6 +2607,7 @@ function openUnitScreen(f) {
   CATALOG.gacha.types = gachaComplete() ? [YAMATO, ...ownedDefs()] : ownedDefs();
   buildCatRow();
   pickCat('fighter');
+  $('winRow').style.display = 'flex'; buildWinRow();
 }
 function buildCatRow() {
   const row = $('catRow'); row.innerHTML = '';
@@ -2671,8 +2688,10 @@ function buildPlayerVehicle(faction, mode, def) {
 }
 function startGame(faction, mode, def) {
   G.faction = faction; G.mode = mode; G.def = def;
+  G.winBy = G.tutorial ? 'port' : WIN_BY;
+  $('arrowName').textContent = WIN_WAYS[G.winBy].arrow;
   logEvent('start', { faction, mode, type: def.id, ear: EAR, off: [...OFF].join(',') || 'none', bgm: bgmOn, diff: DIFF, tune: tuneStr(),
-    platform: PLATFORM, screen: SCREEN, touch: TOUCH, word: WORD, ui: UI });   // 実験の条件・遊んだ機械・あいことば・画面のこみ具合
+    platform: PLATFORM, screen: SCREEN, touch: TOUCH, word: WORD, ui: UI, winBy: G.winBy });   // 実験の条件・遊んだ機械・あいことば・画面のこみ具合
   // まえのユニットをそうじ
   for (const u of units) scene.remove(u.group);
   units = [];
@@ -2744,6 +2763,7 @@ function openFactory() {
   $('unitTitle').textContent = '🏭 工場：のりものを かえよう';
   $('btnLaunch').textContent = '🔧 これに かえる';
   $('btnFacBack').style.display = '';
+  $('winRow').style.display = 'none';
   $('unitScreen').style.display = 'flex';
   buildCatRow();
   pickCat(DIFF === 'easy' ? 'fighter' : G.mode);
@@ -2871,7 +2891,7 @@ function destroyUnit(u, attacker) {
   logEvent('destroy', { name: u.name, by: attacker || 'player-side' });
   // v6: あずかり役は「この敵が沈んだ・倒したのはこの人」をみんなに配る
   if (netSyncing() && NET.isHost && u.nid) netSend('ed', [u.nid, attacker || NET.me]);
-  if (u === enemyPort) { win(); return; }
+  if (u === enemyPort && G.winBy !== 'factory') { win(); return; }
   if (u === ourPort) { lose(); return; }
   if (u.faction === 'enemy') {
     // ひとりで遊んでいる時は attacker が null＝自分の手柄。みんなでルームでは自分が当てた時だけ
@@ -2883,6 +2903,15 @@ function destroyUnit(u, attacker) {
     if (u.klass === 'trump' && u.owner === myId()) playBgm(bgmScene());
   }
   if (u.structure) { u.group.visible = false; }
+  if (u.kind === 'factory' && G.winBy === 'factory' && !factoriesLeft().length) win();
+}
+const factoriesLeft = () => units.filter(x => x.kind === 'factory' && !x.dead);
+// 🚩 いま こわしに行くもの（勝ち方で変わる）。工場のときは いちばん近い工場
+function winTarget(E) {
+  if (G.winBy !== 'factory') return (enemyPort && !enemyPort.dead) ? enemyPort : null;
+  let best = null, bd = Infinity;
+  for (const u of factoriesLeft()) { const d = Math.hypot(u.group.position.x - E.x, u.group.position.z - E.z); if (d < bd) { bd = d; best = u; } }
+  return best;
 }
 // 切り札：5撃破で1せき目、10撃破で2せき目（同盟国は武蔵！：監督要望）
 const trumpName = (nation, n) => nation === 'axis'
@@ -2968,10 +2997,10 @@ function win() {
   G.running = false;
   playBgm('victory');
   addCheer(CHEER_WIN, 'win');   // v6: 監督「勝つと5チール」（上限は addCheer の中）
-  logEvent('win', { kills: G.kills, cheerRun: G.cheerRun });
+  logEvent('win', { kills: G.kills, cheerRun: G.cheerRun, by: G.winBy });
   netEvent('win');
   $('endTitle').textContent = '🏆 だいしょうり！！';
-  $('endText').innerHTML = `敵の港を撃破した！ ${G.faction === 'axis' ? '同盟国' : '連合国'}のかち！<br>撃破数：${G.kills}`
+  $('endText').innerHTML = `${G.winBy === 'factory' ? 'アメリカの工場を ぜんぶ こわした！' : '敵の港を撃破した！'} ${G.faction === 'axis' ? '同盟国' : '連合国'}のかち！<br>撃破数：${G.kills}`
     + `<br>🎁 このかいで <b>${G.cheerRun}</b> チール（ぜんぶで <b>${cheer}</b> チール）`;
   $('endScreen').style.display = 'flex';
   footExit(); fireBtn.style.display = fireBtn2.style.display = pauseBtn.style.display = footBtn.style.display = 'none';
@@ -3710,9 +3739,9 @@ function tick() {
   }
 
   // ---- 攻撃目標の旗矢印（監督要望） ----
-  if (enemyPort && !enemyPort.dead) {
-    const E = eyePos();
-    const dx = enemyPort.group.position.x - E.x, dz = enemyPort.group.position.z - E.z;
+  const E = eyePos(), tgt = winTarget(E);
+  if (tgt) {
+    const dx = tgt.group.position.x - E.x, dz = tgt.group.position.z - E.z;
     const angleD = Math.atan2(dx, dz);
     let rel = angleD - (eyeYaw() + Math.PI);
     const deg = -rel * 180 / Math.PI;
@@ -3861,7 +3890,7 @@ const NET = { on: false, word: '', me: '', name: localStorage.getItem('pw_name')
 // ⚠ つながらない時に「どこで止まったか」を画面に出す（パパ 9/5・PC×スマホ4Gで入れなかった）。
 // 口で往復するより、1回開けば分かる形にする。止まりうる場所は3つあって、直し方が全部ちがう：
 //   ① リレー（相手さがし）に届かない ② 相手は見つかったがNAT越えできない ③ データが来ない
-const BUILD = 'v6-1025b';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
+const BUILD = 'v6-1025c';   // ⚠ 版の印。古い版で測ったデータを新しい版と読み違えないために出す
 // v6.1: タイトル画面のすみに小さく出す。⚠ 版が分からないと「どの版で起きた不具合か」が言えなくなる。
 //   前は画面のどこにも無く、つながらない時の診断にしか出ていなかった
 { const bt = document.getElementById('buildTag'); if (bt) bt.textContent = BUILD; }
@@ -3974,7 +4003,9 @@ function netStatus(msg) {
     const seated = Math.min(NET.peers.size + 1, MAX_PLAYERS);
     const full = netPeerCount() + 1 > MAX_PLAYERS;
     e.textContent = `✅ あいことば ${NET.word} でつながった／いま ${seated}/${MAX_PLAYERS}人`
-      + (full ? '（満員。これ以上は入れないよ）' : '');
+      + (full ? '（満員。これ以上は入れないよ）' : '')
+      // 👉 監督10/25「入ってからどうするのかわからない」＝つながったあとの 次の一歩が どこにも書いていなかった
+      + '\n👉 つぎは 下の「← もどる」→ 国をえらんで 出撃。なかまと おなじ海に 出られる';
   }
   else e.textContent = '';
   const dg = $('roomDiag');
@@ -4598,7 +4629,7 @@ setInterval(() => {
 // ⚠ 目で見て「歩けてる」と、数字が正しいは別。落ちた/止まったを数字で確かめる口を作っておく
 if (DEV) { window.dbgGachaIds = () => GACHA.map(g => g.id); window.gameLogPeek = () => gameLog; window.__pw = { FOOT, G, player, NET, footWhere, deckOf, islandTopY, islandDefs, SOLIDS, canWalk,
     AMB, bigH, critters, DRONES, sfxOut, eyePos, initAudio, spawnAIPlane, updateDrones, footHit, THREE, get projs() { return projs; },
-    SHELTERS, shelterAt, shelterRoofY, get FAC() { return FAC; }, atFactoryDoor, onBigLand, footAimAt, SH_IN_X, SH_IN_Z, SH_SIDE_H, SH_R, FOOT_GUN_DMG, FOOT_GUN_HITS, PLANE_HP, shoot,   // 🕳🔫 9/6の注文ぶん
+    SHELTERS, shelterAt, shelterRoofY, get FAC() { return FAC; }, atFactoryDoor, onBigLand, get enemyPort() { return enemyPort; }, destroyUnit, factoriesLeft, footAimAt, SH_IN_X, SH_IN_Z, SH_SIDE_H, SH_R, FOOT_GUN_DMG, FOOT_GUN_HITS, PLANE_HP, shoot,   // 🕳🔫 9/6の注文ぶん
     FOOT_HP, SHELTER_HEAL, SHELTER_FULL_SEC, OUR,   // 💚📊 9/6〜9/7の注文ぶん（回復20秒・左下バー・基地からやり直し）
     CHEER_RUN_MAX, CHEER_KILL, CHEER_WIN, GACHA_COST, addCheer, grantKill, get cheer() { return cheer; },   // 🎁 ひと試合20チール
     // ⚠ units は startGame で作りなおされる（units = []）。値でつかむと 古い配列を見つづけて、
