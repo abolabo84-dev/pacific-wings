@@ -147,7 +147,7 @@
 const $ = id => document.getElementById(id);
 const URLQ = new URLSearchParams(location.search);
 const DEV = URLQ.get('dev') === '1';
-const BUILD = 'kuni-1025a';   // ⚠ 版の印。古い版で測ったデータを 新しい版と読み違えないために出す
+const BUILD = 'kuni-1029a';   // ⚠ 版の印。古い版で測ったデータを 新しい版と読み違えないために出す
 
 // ============ ゲームログ（v6・三国志と同じ・常時ON。テストプレイは全部データ） ============
 const LOG_TAG = URLQ.get('tag') || 'kuni';
@@ -229,10 +229,13 @@ const CPU_NAMES = { japan: ['尾張', '甲斐', '越後', '薩摩', '奥州', '�
 const COLORS = ['#e53935', '#1e88e5', '#43a047', '#fdd835', '#8e24aa', '#fb8c00'];
 
 // ============ 型（監督10/25「世界大戦型 政治型」） ============
-// ⚠ 2つの ちがいは まだ 監督から聞いていない。こちらの 読み：世界大戦型＝となりが 攻めてくる／政治型＝攻めてこない。国を育てる
+// 監督10/28「2B」＝世界大戦型は 戦争で 勝つ。政治型は お金や 民衆の心で 勝つ
+// ⚠ 政治型で「攻めてこない」のは こちらの 読みのまま（2B は 勝ち方だけ）
+// ponytail: 💰5000 か ❤90 は 10/28 の測り（何もしないと 60か月で 💰1700〜4700・❤25〜80／畑を毎月で ❤は 87まで）で決めた, 監督が「早い／おそい」と言ったら ここだけ直す
+const POLI_WIN = { money: 5000, heart: 90 };
 const KINDS = {
-  war:  { label: '⚔ 世界大戦型', hint: 'となりの国が 攻めてくる。ぜんぶの 陸を とったら 勝ち。' },
-  poli: { label: '🏛 政治型',   hint: 'ほかの国は 攻めてこない（暗殺は ある）。国を 大きく 育てる。' },
+  war:  { label: '⚔ 世界大戦型', hint: 'となりの国が 攻めてくる。戦争で 勝つ＝ぜんぶの 陸を とったら 勝ち。' },
+  poli: { label: '🏛 政治型',   hint: `ほかの国は 攻めてこない（暗殺は ある）。お金や 民衆の心で 勝つ＝💰${POLI_WIN.money} か ❤${POLI_WIN.heart} で 勝ち。` },
 };
 
 // ============ つくる欄（監督10/25「船を作る、部隊をつくる、兵器を作る、小兵器を作る、きまりをつくる、村を作る、町をつくる、畑をつくる」） ============
@@ -333,6 +336,7 @@ function startGame(w, h, land) {
   show('game'); layoutMap(); refresh();
   news(`🏯 ${me().name} の はじまり。まずは 「🔨 つくる」で 村や 畑を つくろう。`, 'k');
   news(`👤 家臣を つくって「事件家臣」に すると、国で おきた 事件を 知らせてくれる。`);
+  if (S.kind === 'poli') news(`🏛 政治型：💰${POLI_WIN.money} か ❤民衆の心 ${POLI_WIN.heart} に なったら 勝ち。`, 'k');
   clearInterval(S.timer); S.timer = setInterval(() => { if (!S.paused && !S.over && !sheetOpen() && !duelOn) tick(); }, MONTH_MS);
 }
 const me = () => S.countries[0];
@@ -411,6 +415,11 @@ function checkEnd() {
   if (S.over) return;
   if (!me().alive) { S.over = true; news('😢 あなたの 国は ほろびた…。もういちど あそぶなら ページを 開きなおしてね。', 'bad'); logEvent('lose', { m: S.month }); }
   else if (S.kind === 'war' && S.countries.every(c => c.id === 0 || !c.alive)) { S.over = true; news('🎉 ぜんぶの 陸を とった！ あなたの 国の 勝ち！', 'good'); logEvent('win', { m: S.month }); }
+  else if (S.kind === 'poli' && (me().money >= POLI_WIN.money || me().heart >= POLI_WIN.heart)) {
+    const by = me().heart >= POLI_WIN.heart ? 'heart' : 'money';
+    S.over = true; news(by === 'heart' ? `🎉 民衆の心が ${me().heart} に なった！ みんなに したわれる 国に なって 勝ち！` : `🎉 お金が ${me().money} に なった！ ゆたかな 国に なって 勝ち！`, 'good');
+    logEvent('win', { m: S.month, by, money: me().money, heart: me().heart });
+  }
 }
 
 // ============ 事件（監督10/25「じぶんの領土にかんけいある事件は、事件家臣が伝える」） ============
@@ -858,7 +867,7 @@ $('cLook').onclick = () => {
     ${back}`);
 };
 
-if (DEV) window.__k = { get S() { return S; }, tick, startGame, MAPS, duel, defendAssassin, myEvent, unitStr, defense, setup, CPU_RATE };
+if (DEV) window.__k = { get S() { return S; }, tick, startGame, MAPS, duel, defendAssassin, myEvent, unitStr, defense, setup, CPU_RATE, POLI_WIN, checkEnd };
 </script>
 </body>
 </html>
