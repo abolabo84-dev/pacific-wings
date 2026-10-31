@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>監督の 新しいゲーム（なまえは まだ）試作1</title>
+<title>群雄合戦（ぐんゆうがっせん）試作1</title>
 <!-- 🏯 監督の「新しいゲーム」（国づくり）。9/15〜10/25 の SMS で来た分だけで 一回 形にした（パパ 10/25「一回形にしてみせてみよう。タイトル決めてもらわなきゃな」）。
-     ⚠ タイトルは 監督が決める＝それまで「なまえは まだ」
+     ✅ タイトルは 監督10/29「1 A」＝「群雄合戦」（10/28「郡憂合戦」は 変換ちがい。字を A/B で たしかめた）
      ⚠ 監督10/25「他のひととする前提のゲーム」。この試作1は ひとり（ほかの国は コンピュータ）。みんなでは 試作2
      ponytail: ひとりだけ, 監督が 形を見て「これでいい」と言ったら v6 の みんなでルーム（GAS中継所）を つなぐ -->
 <style>
@@ -45,7 +45,7 @@
   #news .k { color: #ffe066; }
   #news .bad { color: #ff8a80; }
   #news .good { color: #b9f6ca; }
-  #cmd { width: 100%; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 8px; background: #2e2210; }
+  #cmd { width: 100%; display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; padding: 8px; background: #2e2210; }
   #cmd button { padding: 6px 2px; font-size: 16px; min-height: 60px; }
   #tapHint { position: absolute; left: 0; right: 0; top: 52px; text-align: center; font-weight: bold; color: #ffe066; text-shadow: 1px 1px 3px #000; pointer-events: none; display: none; }
 
@@ -77,8 +77,8 @@
 
 <!-- ============ はじめの画面 ============ -->
 <div class="screen on" id="start">
-  <h1>🏯 （なまえは まだ）</h1>
-  <p class="sub">ゆうじん監督の 新しいゲーム・試作1<br>⚠ タイトルは 監督が きめる。いまは ひとりで あそぶ形（ほかの国は コンピュータ）</p>
+  <h1>🏯 群雄合戦</h1>
+  <p class="sub">ゆうじん監督の 新しいゲーム・試作1<br>いまは ひとりで あそぶ形（ほかの国は コンピュータ）</p>
 
   <h2>あなたの 国の なまえ</h2>
   <input type="text" id="myName" maxlength="10" value="わたしの国">
@@ -129,6 +129,7 @@
     <button id="cKashin">👤<br>家臣</button>
     <button id="cUnit">🪖<br>部隊</button>
     <button id="cLook">📜<br>国の ようす</button>
+    <button id="cLetter">✉<br>手紙</button>
   </div>
 </div>
 
@@ -147,7 +148,7 @@
 const $ = id => document.getElementById(id);
 const URLQ = new URLSearchParams(location.search);
 const DEV = URLQ.get('dev') === '1';
-const BUILD = 'kuni-1029a';   // ⚠ 版の印。古い版で測ったデータを 新しい版と読み違えないために出す
+const BUILD = 'kuni-1031b';   // ⚠ 版の印。古い版で測ったデータを 新しい版と読み違えないために出す
 
 // ============ ゲームログ（v6・三国志と同じ・常時ON。テストプレイは全部データ） ============
 const LOG_TAG = URLQ.get('tag') || 'kuni';
@@ -325,7 +326,7 @@ function startGame(w, h, land) {
 
   const names = CPU_NAMES[setup.shape];
   S = { w, h, land, owner, month: 0, paused: false, mode: null, over: false, kind: setup.kind, shape: setup.shape,
-        icons: {}, countries: [] };
+        icons: {}, countries: [], wars: [], warOpen: false };
   for (let k = 0; k < n; k++) {
     S.countries.push({ id: k, name: k === 0 ? ($('myName').value.trim() || 'わたしの国') : names[k - 1], color: COLORS[k], ai: k !== 0,
       money: 120, soldiers: 40, heart: 60, chaos: 0, alive: true,
@@ -373,12 +374,12 @@ function tick() {
   if (me().money < 0 && S.month % 3 === 0) news('💸 お金が マイナス（破産）。守りが 弱くなって、民衆の 心が はなれていく…', 'bad');
   if (Math.random() < 0.22) myEvent();
   // 暗殺者が くる（6か月目から）
-  if (S.month >= 6 && !duelOn && Math.random() < (S.kind === 'poli' ? 0.06 : 0.04)) {
+  if (S.month >= 6 && !duelOn && !S.wars.length && Math.random() < (S.kind === 'poli' ? 0.06 : 0.04)) {
     const foes = S.countries.filter(c => c.ai && c.alive && c.chaos === 0);
     if (foes.length) defendAssassin(foes[Math.floor(Math.random() * foes.length)]);
   }
   logEvent('month', { m: S.month, money: me().money, sol: me().soldiers, heart: me().heart, tiles: tilesOf(0).length });
-  checkEnd(); refresh();
+  checkEnd(); refresh(); if (!S.over) warAsk();
 }
 function cpuTurn(c) {
   c.army += 3 + Math.floor(Math.random() * 3);
@@ -388,28 +389,33 @@ function cpuTurn(c) {
   const cand = S.land.map((v, i) => i).filter(i => S.land[i] && S.owner[i] !== c.id && canReach(c.id, i));
   if (!cand.length) return;
   const t = cand[Math.floor(Math.random() * cand.length)], def = S.countries[S.owner[t]];
+  if (def.id === 0) {   // 自分の国が 攻められる → えらぶ（下の warAsk）
+    if (!S.wars.some(w => w.from === c.id)) S.wars.push({ from: c.id, tile: t, sea: !tilesOf(c.id).some(i => neighbors4(i).includes(t)) });
+    logEvent('cpu_attack', { from: c.name, to: def.name, tile: t, ask: true });
+    return;
+  }
   const a = c.army / 3 * rnd(), d = defense(def) * rnd();
   const win = a > d;
   logEvent('cpu_attack', { from: c.name, to: def.name, tile: t, a: Math.round(a), d: Math.round(d), win });
   if (win) { take(t, c.id); c.army = Math.max(5, Math.floor(c.army * 0.9)); }
   else c.army = Math.max(5, Math.floor(c.army * 0.75));
-  if (def.id === 0) news(win ? `⚔ ${c.name} が 攻めてきて、陸を 1つ とられた！` : `🛡 ${c.name} が 攻めてきたが、ふせいだ！`, win ? 'bad' : 'good');
 }
 const rnd = () => 0.8 + Math.random() * 0.45;
+const landPower = c => c.units.filter(u => u.role === 'fight').reduce((s, u) => s + unitStr(u), 0) + c.soldiers * 0.3
+  + c.weapons.filter(w => !w.wheels).reduce((s, w) => s + w.power, 0);
 function defense(c) {
   let d;
   if (c.ai) d = c.army / Math.sqrt(Math.max(1, tilesOf(c.id).length)) + 5;
-  else d = (c.units.filter(u => u.role === 'fight').reduce((s, u) => s + unitStr(u), 0) + c.soldiers * 0.3
-            + c.weapons.filter(w => !w.wheels).reduce((s, w) => s + w.power, 0)) / Math.sqrt(Math.max(1, tilesOf(0).length)) + 5;
+  else d = landPower(c) / Math.sqrt(Math.max(1, tilesOf(0).length)) + 5;
   if (c.money < 0) d *= 0.5;   // 破産すると 守りにくい
   if (c.chaos > 0) d *= 0.7;
   return d;
 }
-function take(tile, k) {
+function take(tile, k, joined) {   // joined：外交で 国ごと 自分の国に なった（ほろびた とは 言わない）
   const was = S.countries[S.owner[tile]];
   S.owner[tile] = k;
   if (S.icons[tile] && S.icons[tile].k !== k) { const ic = S.icons[tile]; if (was.built[ic.what] > 0) was.built[ic.what]--; delete S.icons[tile]; }
-  if (!tilesOf(was.id).length) { was.alive = false; news(`🏳 ${was.name} が ほろびた。`, was.id === 0 ? 'bad' : 'k'); logEvent('fall', { who: was.name }); }
+  if (!tilesOf(was.id).length) { was.alive = false; if (!joined) news(`🏳 ${was.name} が ほろびた。`, was.id === 0 ? 'bad' : 'k'); logEvent('fall', { who: was.name, joined: !!joined }); }
 }
 function checkEnd() {
   if (S.over) return;
@@ -501,7 +507,7 @@ $('btnPause').onclick = () => { S.paused = !S.paused; logEvent('pause', { on: S.
 const sheetOpen = () => $('sheet').classList.contains('on');
 function sheet(html) { $('sheetBox').innerHTML = html; $('sheet').classList.add('on'); $('sheetBox').scrollTop = 0; }
 function closeSheet() { $('sheet').classList.remove('on'); refresh(); }
-$('sheet').addEventListener('pointerdown', e => { if (e.target.id === 'sheet') closeSheet(); });
+$('sheet').addEventListener('pointerdown', e => { if (e.target.id === 'sheet' && !(S && S.warOpen)) closeSheet(); });   // 攻められた ふだは えらぶまで とじない
 // ⚠ ふだが 開いていると 下の お知らせは 見えない＝ふだの 上にも 出す
 function warn(text) {
   news(text, 'bad'); logEvent('warn', { text });
@@ -722,6 +728,77 @@ function battle(i, t) {
   checkEnd(); refresh();
 }
 
+// ============ ⚔ 攻められたとき ============
+// 監督10/28「戦争を仕掛けられると選択肢がある陸上戦、海戦、陸海戦。無視する。だけどもし敵が敵の領土に兵を送れと命令されたら必ず戦争になる」
+//   10/29「2A」＝陸上戦は 部隊で、海戦は 船で、陸海戦は 部隊と 船の 両方で 戦う。10/29「船も一種の兵器」
+// ⚠ 無視の 読み：無視すると 半分は あきらめて 帰る。半分は 敵の 殿が「兵を送れ」と 命令して かならず 戦争（もう 無視は できない）
+// ⚠ 海戦・陸海戦は 海を こえて 来たときだけ（陸から 来た 敵と 船では 戦えない）＝こちらの 読み。負けると 船が 1そう しずむ
+// ponytail: CPUは 船を 持たない（army で 海も こえる）・船の つよさは みな 8, 監督が「敵も 船を」「船の 形を 決めたい」と 言ったら 足す
+const SHIP_POWER = 8;
+const navy = c => c.ships.length * SHIP_POWER;
+const WAR_KIND = { land: '🪖 陸上戦', sea: '⛵ 海戦', both: '⚔ 陸海戦', ignore: '🙈 無視する' };
+function warAsk() {
+  const w = S.wars[0]; if (!w || S.over || S.warOpen || sheetOpen() || duelOn) return;
+  const foe = S.countries[w.from], c = me();
+  if (!foe.alive || S.owner[w.tile] !== 0) { S.wars.shift(); return warAsk(); }
+  const why = !w.sea ? '陸から 来たので できない' : !c.ships.length ? '船が ない' : '';
+  const btn = (k, sub) => `<button ${k !== 'land' && k !== 'ignore' && why ? 'disabled' : `onclick="warGo('${k}')"`}>${WAR_KIND[k]}<br><small>${sub}</small></button>`;
+  S.warOpen = true;
+  sheet(`<h2>⚔ ${esc(foe.name)} が ${w.forced ? '兵を 送ってきた！' : '戦争を しかけてきた！'}</h2>
+    <p class="hint">${w.sea ? '⛵ 海を こえて 来た' : '🏞 陸から 来た'}。どう する？${w.forced ? '<br>⚠ 敵の 殿が「兵を送れ」と 命令した＝かならず 戦争' : ''}</p>
+    <div class="row">${btn('land', `部隊で 戦う（守り ${Math.round(defense(c))}）`)}${btn('sea', why || `船 ${c.ships.length}そうで 戦う`)}${btn('both', why || '部隊と 船の 両方')}${w.forced ? '' : btn('ignore', '戦わない')}</div>`);
+  logEvent('war_come', { from: foe.name, tile: w.tile, sea: w.sea, forced: !!w.forced, ships: c.ships.length });
+}
+function warGo(k) {
+  const w = S.wars.shift(), foe = S.countries[w.from], c = me();
+  S.warOpen = false; closeSheet();
+  if (k === 'ignore') {
+    const forced = Math.random() < 0.5;
+    logEvent('war_choice', { from: foe.name, kind: k, sea: w.sea, forced });
+    if (forced) { S.wars.unshift({ ...w, forced: true }); news(`🙈 無視した…。でも ${foe.name} の 殿が「兵を送れ」と 命令した！`, 'bad'); }
+    else news(`🙈 無視した。${foe.name} は あきらめて 帰っていった。`, 'k');
+    return warAsk();
+  }
+  const d0 = k === 'land' ? defense(c) : k === 'sea' ? navy(c) + 5 : defense(c) + navy(c);
+  const a = foe.army / 3 * rnd(), d = d0 * rnd(), win = d >= a;
+  const sunk = !win && k !== 'land' && c.ships.length ? c.ships.pop() : null;
+  logEvent('war_choice', { from: foe.name, kind: k, sea: w.sea, forced: !!w.forced, a: Math.round(a), d: Math.round(d), win, sunk: sunk ? sunk.name : null });
+  if (win) { foe.army = Math.max(5, Math.floor(foe.army * 0.75)); news(`🛡 ${WAR_KIND[k]}で ${foe.name} を ふせいだ！`, 'good'); }
+  else { foe.army = Math.max(5, Math.floor(foe.army * 0.9)); take(w.tile, foe.id); news(`⚔ ${WAR_KIND[k]}で ${foe.name} に 負けた…。陸を 1つ とられた${sunk ? `・船「${sunk.name}」が しずんだ` : ''}`, 'bad'); }
+  checkEnd(); refresh(); warAsk();
+}
+
+// ============ ✉ 手紙・外交 ============
+// 監督10/28「手紙を他の大名に送れる」「外交で従わせられる(あいてがしょうちすれば)」10/29「3B」＝従わせた 国は 自分の国に なる（陸が 自分の色に）
+// ⚠ しょうちするかは こちらで 決めた：自分が 強いほど・相手が 大さわぎ中ほど・民衆の心が 高いほど しょうちしやすい（5%〜85%）。ことわられたら 6か月は 外交できない
+// ponytail: 手紙の 中身は ログに のこるだけ（返事は 決まった 文）, みんなでに したら 相手の 人が 読んで 答える
+function acceptP(foe) {
+  const mine = landPower(me()) + navy(me());
+  const p = mine / (mine + foe.army) - 0.2 + (foe.chaos > 0 ? 0.25 : 0) + (me().heart - 50) / 200;
+  return Math.max(0.05, Math.min(0.85, p));
+}
+const odds = foe => foe.noLetter > S.month ? `ことわられて あと${foe.noLetter - S.month}か月` : `しょうちしそう：${acceptP(foe) < 0.25 ? '低い' : acceptP(foe) < 0.55 ? 'ふつう' : '高い'}`;
+$('cLetter').onclick = () => {
+  logEvent('menu', { m: 'letter' });
+  const foes = S.countries.filter(c => c.ai && c.alive);
+  if (!foes.length) { warn('✉ 手紙を 送る 大名が いない'); return; }
+  sheet(`<h2>✉ 手紙を 送る</h2><p class="hint">ほかの 大名に 手紙を 送れる。「従ってくれ」と 外交も できる（あいてが しょうちすれば、その国は あなたの国に なる）</p>
+    <label>だれに</label><select id="lTo" style="font-size:18px;padding:8px;width:100%">${foes.map(c => `<option value="${c.id}">${esc(c.name)}（${odds(c)}）</option>`).join('')}</select>
+    <label>手紙（すきに 書ける）</label><textarea id="lText" maxlength="200" placeholder="れい：わが国に 従えば、民を 大事に します"></textarea>
+    <div class="row"><button onclick="sendLetter(true)">📜 従ってくれ<br><small>外交</small></button><button onclick="sendLetter(false)">✉ 手紙だけ</button></div>${back}`);
+};
+function sendLetter(dip) {
+  const foe = S.countries[+$('lTo').value], text = fval('lText');
+  if (dip && foe.noLetter > S.month) { warn(`${foe.name} は いま 外交を ことわっている（あと ${foe.noLetter - S.month}か月）`); return; }
+  const p = acceptP(foe), ok = dip && Math.random() < p;
+  logEvent('letter', { to: foe.name, dip, text, p: +p.toFixed(2), ok });
+  closeSheet();
+  if (!dip) news(`✉ ${foe.name} より「${['お手紙 ありがとう ございます。', 'なるほど。よく 考えて おきましょう。', 'ふん、わが国は 負けぬぞ。'][Math.floor(Math.random() * 3)]}」`, 'k');
+  else if (ok) { news(`📜 ${foe.name} が しょうちした！ ${foe.name} は あなたの国に なった。`, 'good'); for (const t of tilesOf(foe.id)) take(t, 0, true); checkEnd(); }
+  else { foe.noLetter = S.month + 6; news(`📜 ${foe.name} は ことわった…（6か月は 外交できない）`, 'bad'); }
+  refresh();
+}
+
 // ============ 🗡 暗殺（連打） ============
 // 監督10/25「AIが結果を決めるんじゃなくて…ボタンをつつきまくる(ケータイ) パソコンだとRを連打」
 //          「Rの連打の数が相手よりも多いとかち相手よりも少ないと負け」「暗殺させる人数を選べる」（＝暗殺に行く人の数・19:31「2A」）
@@ -867,7 +944,7 @@ $('cLook').onclick = () => {
     ${back}`);
 };
 
-if (DEV) window.__k = { get S() { return S; }, tick, startGame, MAPS, duel, defendAssassin, myEvent, unitStr, defense, setup, CPU_RATE, POLI_WIN, checkEnd };
+if (DEV) window.__k = { get S() { return S; }, tick, startGame, MAPS, duel, defendAssassin, myEvent, unitStr, defense, setup, CPU_RATE, POLI_WIN, checkEnd, warAsk, warGo, sendLetter, acceptP, navy, SHIP_POWER };
 </script>
 </body>
 </html>
