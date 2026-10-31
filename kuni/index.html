@@ -148,7 +148,7 @@
 const $ = id => document.getElementById(id);
 const URLQ = new URLSearchParams(location.search);
 const DEV = URLQ.get('dev') === '1';
-const BUILD = 'kuni-1031b';   // ⚠ 版の印。古い版で測ったデータを 新しい版と読み違えないために出す
+const BUILD = 'kuni-1031c';   // ⚠ 版の印。古い版で測ったデータを 新しい版と読み違えないために出す
 
 // ============ ゲームログ（v6・三国志と同じ・常時ON。テストプレイは全部データ） ============
 const LOG_TAG = URLQ.get('tag') || 'kuni';
@@ -188,37 +188,39 @@ addEventListener('pointerdown', e => logEvent('tap', { x: Math.round(e.clientX),
 
 // ============ ワールドの形（監督10/25「日本、世界、じぶんで作る」） ============
 // ⚠ 形は こちらで ざっくり かいた（# が陸）。監督が「ちがう」と言ったら この絵だけ 直す
+// 監督10/29「もうちょっと陸地を広くして」（10/31「3B」）→ 地図の 大きさ（マスの 数）は そのまま、陸を ふやした（日本 53→70マス・世界 115→139マス）
+// ⚠ マスの 数を ふやすと スマホで 1マスが 小さく なりすぎる（いま 日本 19px・世界 16px）＝陸を 太らせる 形に した（こちらの 決め）
 const MAPS = {
   japan: { label: '🗾 日本', rows: [
     '....................',
-    '..............####..',
     '.............#####..',
-    '..............###...',
-    '..............#.....',
-    '.............###....',
-    '............###.....',
+    '............######..',
+    '.............####...',
+    '.............##.....',
+    '............####....',
     '...........####.....',
-    '..........####......',
-    '.......######.......',
-    '.....#######........',
-    '....###..##.........',
-    '...####.............',
-    '...###..............',
-    '....#...............',
+    '..........#####.....',
+    '.........#####......',
+    '.....########.......',
+    '...#########........',
+    '...####.###.........',
+    '..#####.............',
+    '..####..............',
+    '...##...............',
   ] },
   world: { label: '🌏 世界', rows: [
     '........................',
-    '..#####.....##########..',
-    '.#######...############.',
-    '..######...###########..',
-    '...####....##.########..',
-    '....###....#####..####..',
-    '.....##.....####...##...',
-    '......###...####....#...',
-    '......####...###.....##.',
-    '.......###....#.....###.',
-    '.......##...........###.',
-    '.......#................',
+    '.######....###########..',
+    '.########..############.',
+    '..#######..############.',
+    '..######...###.########.',
+    '...####....######.#####.',
+    '....###.....#####..###..',
+    '.....####...#####...##..',
+    '......####...####....##.',
+    '......####....##....###.',
+    '.......###..........###.',
+    '.......##...........##..',
     '........................',
   ] },
   draw: { label: '✏ じぶんで 作る', rows: null },
@@ -242,7 +244,11 @@ const KINDS = {
 // ============ つくる欄（監督10/25「船を作る、部隊をつくる、兵器を作る、小兵器を作る、きまりをつくる、村を作る、町をつくる、畑をつくる」） ============
 // 監督10/25「つくるには、材料費でお金がかかる」。⚠ ねだんと 効きめは こちらで決めた＝監督が「高い」と言ったら ここだけ直す
 const COST = { 村: 30, 町: 80, 畑: 20, 船: 60, 兵器: 50, 小兵器: 15, 部隊: 10, きまり: 10, 家臣: 5 };
-const SMALL_SHAPES = { 火薬なし: { 刀: 3, やり: 4, 弓: 4 }, 火薬あり: { 鉄砲: 7, 大砲: 9, 手りゅう弾: 6 } };
+// 監督10/29「小兵器が選択肢になってたから自分で決められない」→ 10/31「2B」＝形の 名前を 自分で 打つ
+// ⚠ つよさは 形では なく 火薬で きまる（なし 4・あり 7）＝こちらの 決め
+// ponytail: つよさは 2しゅるい だけ, 監督が「形で つよさを かえたい」と 言ったら 決め方を 聞く
+const SMALL_POWER = { 火薬なし: 4, 火薬あり: 7 };
+const SMALL_EX = { 火薬なし: '刀・やり・弓 など', 火薬あり: '鉄砲・大砲・手りゅう弾 など' };
 const MONTH_MS = 4000;   // ponytail: 1か月＝4秒は こちらの決め, ログの month と 押した回数を見て 監督と決める
 
 let setup = { shape: 'japan', kind: 'war', n: 4 };
@@ -548,7 +554,7 @@ function buildForm(k) {
     sheet(`<h2>${k}を つくる</h2><p class="hint">${eff}</p>${nameSet(c.name + 'の' + k + (c.built[k] + 1))}
       <p class="cost">💰${COST[k]}</p><div class="row"><button onclick="doBuild()">つくる</button><button onclick="closeSheet()">やめる</button></div>`);
   } else if (k === '船') {
-    sheet(`<h2>⛵ 船を つくる</h2><p class="hint">船が あると 海を こえて 攻められる（3マスまで）</p>${nameSet('丸' + (c.ships.length + 1))}
+    sheet(`<h2>⛵ 船を つくる</h2><p class="hint">船が あると 海を こえて 攻められる（3マスまで）。船も いっしょに 戦う（1そう つよさ ${SHIP_POWER}）</p>${nameSet('丸' + (c.ships.length + 1))}
       <p class="cost">💰${COST.船}</p><div class="row"><button onclick="doBuild()">つくる</button><button onclick="closeSheet()">やめる</button></div>`);
   } else if (k === 'きまり') {
     sheet(`<h2>📜 きまりを つくる</h2><p class="hint">国の きまり（憲法も 作れる）。中身は すきに 書ける</p>
@@ -576,20 +582,22 @@ function smallStep1() {
 }
 function smallStep2(g) {
   F.gun = g;
-  sheet(`<h2>🗡 小兵器を つくる（2/3）</h2><p class="hint">${g === '火薬あり' ? '🔥 火薬を つかう' : '火薬を つかわない'}。つぎは 形</p>
-    <div class="row">${Object.entries(SMALL_SHAPES[g]).map(([s, p]) => `<button onclick="smallStep3('${s}')">${s}<br><small>つよさ ${p}</small></button>`).join('')}</div>${back}`);
+  sheet(`<h2>🗡 小兵器を つくる（2/3）</h2><p class="hint">${g === '火薬あり' ? '🔥 火薬を つかう' : '火薬を つかわない'}（つよさ ${SMALL_POWER[g]}）。つぎは 形</p>
+    <label>形の なまえ（すきに 打つ）</label><input type="text" id="fShape" maxlength="12" placeholder="れい：${SMALL_EX[g]}">
+    <div class="row"><button onclick="smallStep3(fval('fShape'))">つぎへ</button></div>${back}`);
 }
 function smallStep3(shape) {
-  F.shape = shape;
-  sheet(`<h2>🗡 小兵器を つくる（3/3）</h2><p class="hint">${F.gun}・${shape}。さいごに なまえ</p>${nameSet(shape + (me().smalls.length + 1) + '号')}
+  if (!shape) { warn('形の なまえを 打ってね'); return; }
+  F.shape = shape; logEvent('small_shape', { gun: F.gun, shape });
+  sheet(`<h2>🗡 小兵器を つくる（3/3）</h2><p class="hint">${F.gun}・${esc(shape)}。さいごに なまえ</p>${nameSet(shape + (me().smalls.length + 1) + '号')}
     <p class="cost">💰${COST.小兵器 + (F.gun === '火薬あり' ? 15 : 0)}</p><div class="row"><button onclick="smallDone()">完成！</button><button onclick="closeSheet()">やめる</button></div>`);
 }
 function smallDone() {
   const c = me(), cost = COST.小兵器 + (F.gun === '火薬あり' ? 15 : 0);
   if (!pay('小兵器', cost)) return;
-  const s = { name: fval('fName') || F.shape, set: fval('fSet'), gun: F.gun === '火薬あり', shape: F.shape, power: SMALL_SHAPES[F.gun][F.shape] };
+  const s = { name: fval('fName') || F.shape, set: fval('fSet'), gun: F.gun === '火薬あり', shape: F.shape, power: SMALL_POWER[F.gun] };
   c.smalls.push(s); logEvent('build', { k: '小兵器', ...s, money: c.money });
-  news(`🗡 小兵器「${s.name}」（${s.shape}）が 完成した。部隊に 持たせられる。`, 'k'); closeSheet();
+  news(`🗡 小兵器「${esc(s.name)}」（${esc(s.shape)}）が 完成した。部隊に 持たせられる。`, 'k'); closeSheet();
 }
 // 兵器（監督9/24「まず車輪あるないを決めて。壁を作る、そして小兵器をつける、そして完成」）
 function weaponStep1() {
@@ -716,14 +724,18 @@ $('map').addEventListener('pointerdown', e => {
   if (!m.cand.includes(t)) { news('（攻めるのを やめた）'); drawMap(); return; }
   battle(m.unit, t);
 });
+// 監督10/29「これからは、船も戦争様にして（船も一種の兵器）」→ 海を こえて 攻めるときは 船も いっしょに 戦う。負けると 船が 1そう しずむ（守るときと 同じ）
 function battle(i, t) {
   const c = me(), u = c.units[i], def = S.countries[S.owner[t]];
-  const a = unitStr(u) * rnd(), d = defense(def) * rnd(), win = a > d;
-  logEvent('attack', { unit: u.name, to: def.name, tile: t, a: Math.round(a), d: Math.round(d), win });
+  const sea = !tilesOf(0).some(j => neighbors4(j).includes(t));
+  const a = (unitStr(u) + (sea ? navy(c) : 0)) * rnd(), d = defense(def) * rnd(), win = a > d;
+  const sunk = !win && sea && c.ships.length ? c.ships.pop() : null;
+  logEvent('attack', { unit: u.name, to: def.name, tile: t, sea, ships: c.ships.length + (sunk ? 1 : 0), a: Math.round(a), d: Math.round(d), win, sunk: sunk ? sunk.name : null });
   const lost = Math.ceil(u.soldiers * (win ? 0.1 : 0.3));
   u.soldiers -= lost;
   if (win) { take(t, 0); def.army = Math.max(5, Math.floor(def.army * 0.85)); }
-  news(win ? `⚔ 「${u.name}」が ${def.name} と 交戦して 勝った！ 陸を 1つ とった（兵士 -${lost}）` : `⚔ 「${u.name}」は ${def.name} に 負けた…（兵士 -${lost}）`, win ? 'good' : 'bad');
+  news(win ? `⚔ 「${u.name}」が ${sea ? '⛵ 船と いっしょに 海を こえて ' : ''}${def.name} と 交戦して 勝った！ 陸を 1つ とった（兵士 -${lost}）`
+            : `⚔ 「${u.name}」は ${def.name} に 負けた…（兵士 -${lost}${sunk ? `・船「${sunk.name}」が しずんだ` : ''}）`, win ? 'good' : 'bad');
   if (u.soldiers <= 0) { c.units.splice(i, 1); news(`🪖 「${u.name}」は いなくなった。`, 'bad'); }
   checkEnd(); refresh();
 }
@@ -731,7 +743,7 @@ function battle(i, t) {
 // ============ ⚔ 攻められたとき ============
 // 監督10/28「戦争を仕掛けられると選択肢がある陸上戦、海戦、陸海戦。無視する。だけどもし敵が敵の領土に兵を送れと命令されたら必ず戦争になる」
 //   10/29「2A」＝陸上戦は 部隊で、海戦は 船で、陸海戦は 部隊と 船の 両方で 戦う。10/29「船も一種の兵器」
-// ⚠ 無視の 読み：無視すると 半分は あきらめて 帰る。半分は 敵の 殿が「兵を送れ」と 命令して かならず 戦争（もう 無視は できない）
+// ✅ 無視：半分は あきらめて 帰る。半分は 敵の 殿が「兵を送れ」と 命令して かならず 戦争（もう 無視は できない）＝監督10/31「1 A」で このまま
 // ⚠ 海戦・陸海戦は 海を こえて 来たときだけ（陸から 来た 敵と 船では 戦えない）＝こちらの 読み。負けると 船が 1そう しずむ
 // ponytail: CPUは 船を 持たない（army で 海も こえる）・船の つよさは みな 8, 監督が「敵も 船を」「船の 形を 決めたい」と 言ったら 足す
 const SHIP_POWER = 8;
