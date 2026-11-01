@@ -97,6 +97,7 @@
   <div class="row" id="nRow"></div>
 
   <button id="go">▶ はじめる</button>
+  <button id="cont" style="display:none;margin-top:10px">📂 つづきから</button>
 </div>
 
 <!-- ============ じぶんで作る（ワールドの形） ============ -->
@@ -120,6 +121,7 @@
     <span>❤<span id="tHeart"></span></span>
     <span id="tMonth"></span>
     <button id="btnPause">⏸</button>
+    <button id="btnSave">💾 セーブ</button>
   </div>
   <div id="mapWrap"><canvas id="map"></canvas></div>
   <div id="tapHint"></div>
@@ -149,7 +151,7 @@
 const $ = id => document.getElementById(id);
 const URLQ = new URLSearchParams(location.search);
 const DEV = URLQ.get('dev') === '1';
-const BUILD = 'kuni-1101b';   // ⚠ 版の印。古い版で測ったデータを 新しい版と読み違えないために出す
+const BUILD = 'kuni-1101c';   // ⚠ 版の印。古い版で測ったデータを 新しい版と読み違えないために出す
 
 // ============ ゲームログ（v6・三国志と同じ・常時ON。テストプレイは全部データ） ============
 const LOG_TAG = URLQ.get('tag') || 'kuni';
@@ -350,7 +352,34 @@ function startGame(w, h, land) {
   news(`🏯 ${me().name} の はじまり。まずは 「🔨 つくる」で 村や 畑を つくろう。`, 'k');
   news(`👤 家臣を つくって「事件家臣」に すると、国で おきた 事件を 知らせてくれる。`);
   if (S.kind === 'poli') news(`🏛 政治型：💰${POLI_WIN.money} か ❤民衆の心 ${POLI_WIN.heart} に なったら 勝ち。`, 'k');
-  clearInterval(S.timer); S.timer = setInterval(() => { if (!S.paused && !S.over && !sheetOpen() && !duelOn) tick(); }, MONTH_MS);
+  startTimer();
+}
+function startTimer() { clearInterval(S.timer); S.timer = setInterval(() => { if (!S.paused && !S.over && !sheetOpen() && !duelOn) tick(); }, MONTH_MS); }
+
+// ============ 💾 セーブ（監督10/29「セーブ出来る様にして」・11/1「3A」） ============
+// ⚠ こちらの 決め：セーブは 1つだけ（前の セーブに 上書き）・自分で 押したときだけ（自動では しない＝いい所で 止めて やりなおせる）
+// ⚠ この 端末の ブラウザに しまう＝ほかの 端末には ない
+// ponytail: セーブは 1つ, 監督が「いくつも 取っておきたい」と 言ったら 番号を つける
+const SAVE_KEY = 'kuniSave1';
+const readSave = () => { try { return JSON.parse(localStorage.getItem(SAVE_KEY)); } catch (e) { return null; } };
+const saveLabel = d => `${esc(d.name)}・${1 + Math.floor(d.month / 12)}年目 ${1 + d.month % 12}月`;
+function saveGame() {
+  if (S.over) { warn('おわった ゲームは セーブ しない'); return; }
+  const d = { v: 1, build: BUILD, at: new Date().toISOString(), name: me().name, month: S.month,
+    S: { ...S, timer: null, mode: null, warOpen: false }, news: [...$('news').children].slice(0, 30).map(x => [x.textContent, x.className]) };
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(d)); }
+  catch (e) { warn('💾 セーブ できなかった（ブラウザが しまわせて くれない）'); logEvent('save', { ok: false, err: String(e) }); return; }
+  logEvent('save', { ok: true, month: S.month, money: me().money, tiles: tilesOf(0).length });
+  news(`💾 セーブした（${saveLabel(d)}）。つぎに 開いたとき「📂 つづきから」で ここから あそべる。`, 'good');
+}
+function loadGame() {
+  const d = readSave(); if (!d || !d.S) { warn('セーブが ない'); return; }
+  S = d.S; S.paused = false;
+  logEvent('load', { month: S.month, build: d.build, savedAt: d.at, me: me().name });
+  show('game'); layoutMap();
+  for (const [t, c] of d.news.slice().reverse()) news(t, c);
+  news(`📂 つづきから（${saveLabel(d)}）`, 'k');
+  refresh(); startTimer();
 }
 const me = () => S.countries[0];
 const tilesOf = k => S.owner.reduce((a, o, i) => (o === k ? a.concat(i) : a), []);
@@ -1005,7 +1034,11 @@ $('cLook').onclick = () => {
     ${back}`);
 };
 
-if (DEV) window.__k = { get S() { return S; }, tick, startGame, MAPS, duel, defendAssassin, myEvent, unitStr, defense, setup, CPU_RATE, POLI_WIN, checkEnd, warAsk, warGo, sendLetter, acceptP, navy, SHIP_POWER, tradeGo, TRADE_MONTHS, TRADE_PRICE };
+$('btnSave').onclick = saveGame;
+$('cont').onclick = loadGame;
+{ const d = readSave(); if (d && d.S) { $('cont').style.display = ''; $('cont').innerHTML = `📂 つづきから<br><small>${saveLabel(d)}</small>`; } }   // esc が できてから
+
+if (DEV) window.__k = { get S() { return S; }, tick, startGame, MAPS, duel, defendAssassin, myEvent, unitStr, defense, setup, CPU_RATE, POLI_WIN, checkEnd, warAsk, warGo, sendLetter, acceptP, navy, SHIP_POWER, tradeGo, TRADE_MONTHS, TRADE_PRICE, saveGame, loadGame, SAVE_KEY };
 </script>
 </body>
 </html>
