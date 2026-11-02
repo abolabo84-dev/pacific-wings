@@ -151,7 +151,7 @@
 const $ = id => document.getElementById(id);
 const URLQ = new URLSearchParams(location.search);
 const DEV = URLQ.get('dev') === '1';
-const BUILD = 'kuni-1101c';   // ⚠ 版の印。古い版で測ったデータを 新しい版と読み違えないために出す
+const BUILD = 'kuni-1101d';   // ⚠ 版の印。古い版で測ったデータを 新しい版と読み違えないために出す
 
 // ============ ゲームログ（v6・三国志と同じ・常時ON。テストプレイは全部データ） ============
 const LOG_TAG = URLQ.get('tag') || 'kuni';
@@ -478,6 +478,8 @@ function myEvent() {
   if (c.built.畑) list.push(['hosaku', 3]);
   if (c.built.鉱山) list.push(['gold', 3]);
   if (c.heart < 35) list.push(['ikki', 4]);
+  const foes = S.countries.filter(x => x.ai && x.alive && x.chaos === 0);
+  if (S.month >= 6 && foes.length) list.push(['foe', 2]);   // 監督10/29「敵が事件を起こすこともある」
   let r = Math.random() * list.reduce((s, x) => s + x[1], 0), ev = list[0][0];
   for (const [k, wgt] of list) { if ((r -= wgt) < 0) { ev = k; break; } }
   let text, cls;
@@ -485,6 +487,8 @@ function myEvent() {
   if (ev === 'matsuri') { c.heart = Math.min(100, c.heart + 5); text = '村で お祭りが ありました。民衆は 楽しそうです。 ❤+5'; cls = 'good'; }
   if (ev === 'hosaku') { const g = c.built.畑 * 10; c.money += g; text = `畑が 豊作です！ 💰+${g}`; cls = 'good'; }
   if (ev === 'gold') { c.money += 40; text = '鉱山で 金が 見つかりました！ 💰+40'; cls = 'good'; }
+  if (ev === 'foe') { const f = foes[Math.floor(Math.random() * foes.length)]; c.chaos = Math.max(c.chaos, 2);
+    text = `${f.name}の 手の者が 国で 火事を おこしました！ 2か月 お金が 入りません`; cls = 'bad'; }
   if (ev === 'ikki') { c.soldiers = Math.max(0, c.soldiers - 10); c.heart = Math.max(0, c.heart - 5); text = '民衆が 一揆を おこしました！ 🪖-10 ❤-5'; cls = 'bad'; }
   const nk = c.kashin[c.newsK];
   logEvent('event', { ev, told: !!nk, m: S.month });
@@ -894,6 +898,9 @@ function tradeBack(sh) {
 // ⚠ 人数が 多いと 何が かわるかは まだ 聞いていない。試作1：**1人ずつ 連打で 勝負。負けた人は つかまる。だれか 1人 勝てば 成功**
 // ponytail: 相手は コンピュータ（1秒に CPU_RATE 回）, みんなでに したら 相手の国の 人が 連打する
 const DUEL_SEC = 5, CPU_RATE = 5.2, GUARD_RATE = 0.5;
+// 監督10/29「暗殺で勝つと領土がとれる」。⚠ こちらの 決め：とれるのは 1マス（あいての 陸の うち、こちらと となりあう マスを 先に）。敵の 暗殺が 成功しても 同じ
+const grabTile = (from, to) => { const t = tilesOf(from), near = t.filter(i => neighbors4(i).some(j => S.owner[j] === to)), pool = near.length ? near : t;
+  return pool[Math.floor(Math.random() * pool.length)]; };
 function assassinPick(i) {
   const foes = S.countries.filter(c => c.ai && c.alive);
   sheet(`<h2>🗡 だれの 国を ねらう？</h2><p class="hint">「${esc(me().units[i].name)}」から ${me().units[i].killers}人が 行く。1人ずつ 連打で 勝負</p>
@@ -911,11 +918,13 @@ async function assassinGo(i, k) {
     if (r.win) won = true; else { n--; u.soldiers--; news(`🗡 ${tries}人目は つかまった…（${r.me} 対 ${r.them}）`, 'bad'); }
   }
   u.killers = Math.min(u.killers, Math.max(0, u.soldiers));
-  if (won) { foe.chaos = 6; foe.army = Math.floor(foe.army * 0.7); news(`🗡 暗殺 成功！ ${foe.name} は 6か月 大さわぎ（お金が 入らない・攻めてこない）`, 'good'); }
+  let tile = -1;
+  if (won) { foe.chaos = 6; foe.army = Math.floor(foe.army * 0.7); tile = grabTile(foe.id, 0); take(tile, 0);
+    news(`🗡 暗殺 成功！ ${foe.name} の 陸を 1つ とった。${foe.name} は 6か月 大さわぎ（お金が 入らない・攻めてこない）`, 'good'); }
   else news(`🗡 暗殺は しっぱい。${foe.name} の 殿は ぶじだった。`, 'bad');
-  logEvent('assassin_end', { to: foe.name, won, tries, left: n });
+  logEvent('assassin_end', { to: foe.name, won, tries, left: n, tile });
   if (u.soldiers <= 0) c.units.splice(i, 1);
-  refresh();
+  checkEnd(); refresh();
 }
 // 暗殺者が 来た（守る側）。監督10/25「暗殺予防に護衛をつくることができる」
 async function defendAssassin(foe) {
@@ -923,8 +932,9 @@ async function defendAssassin(foe) {
   news(`⚠ ${foe.name} の 暗殺者が 来た！`, 'bad');
   const r = await duel(`⚠ ${foe.name} の 暗殺者が 来た！ 連打で ふせげ！` + (g ? `<br><small>🛡 護衛 ${g}人が いるので +${g}</small>` : '<br><small>（護衛が いない…「部隊」の 設定で 護衛を つくれる）</small>'), CPU_RATE, g, 'defend');
   if (r.win) news(`🛡 暗殺者を ふせいだ！（${r.me} 対 ${r.them}）`, 'good');
-  else { me().money = Math.floor(me().money / 2); me().heart = Math.max(0, me().heart - 20); me().chaos = 3; news(`💥 殿が けがを した…（${r.me} 対 ${r.them}）お金が 半分・❤-20・3か月 お金が 入らない`, 'bad'); }
-  refresh();
+  else { me().money = Math.floor(me().money / 2); me().heart = Math.max(0, me().heart - 20); me().chaos = 3; const t = grabTile(0, foe.id); take(t, foe.id);
+    news(`💥 殿が けがを した…（${r.me} 対 ${r.them}）陸を 1つ とられた・お金が 半分・❤-20・3か月 お金が 入らない`, 'bad'); logEvent('assassin_lost_tile', { to: foe.name, tile: t }); }
+  checkEnd(); refresh();
 }
 let duelOn = false, duelTap = null;
 function duel(title, rate, bonus, role) {
@@ -963,6 +973,7 @@ const ORDERS = {
   chisui: { label: '🌊 治水（川を なおす）', months: 3, say: '川の 堤を なおして まいります。' },
   mine:   { label: '⛏ 鉱山を 開く', months: 4, say: '山を ほって 鉱山を 開きます。' },
   heishi: { label: '🪖 兵を あつめる', months: 2, say: '村を まわって 兵を あつめます。' },
+  jiken:  { label: '💣 事件を おこさせる', months: 2, say: '' },   // 監督10/29「自分が家臣に命じて事件を起こせる」
   news:   { label: '📣 事件家臣に する', months: 0, say: 'おまかせを。国で おきた 事件は 私が お知らせします。' },
 };
 $('cKashin').onclick = () => kashinList();
@@ -971,7 +982,7 @@ function kashinList() {
   const c = me();
   sheet(`<h2>👤 家臣</h2>${c.kashin.length ? '<p class="hint">さわると 話しかけられる</p>' : '<p class="hint">まだ 家臣が いない。兵士から 家臣を つくれる</p>'}
     ${c.kashin.map((k, i) => `<div class="item" onclick="talk(${i})" style="cursor:pointer"><b>${esc(k.name)}</b>${i === c.newsK ? '　📣事件家臣' : ''}<br>
-      ${k.task ? `いま：${ORDERS[k.task].label}（あと ${k.left}か月）` : 'いま：ひま'}</div>`).join('')}
+      ${k.task ? `いま：${ORDERS[k.task].label}${k.task === 'jiken' ? `（${esc(S.countries[k.to].name)}）` : ''}（あと ${k.left}か月）` : 'いま：ひま'}</div>`).join('')}
     <div class="row"><button onclick="kashinMake()">＋ 家臣を つくる</button><button onclick="closeSheet()">← とじる</button></div>`);
 }
 function kashinMake() {
@@ -1002,17 +1013,39 @@ function talk(i) {
     <div class="row"><button onclick="kashinList()">← もどる</button></div>`);
 }
 function order(i, o) {
+  if (o === 'jiken') { jikenPick(i); return; }
   const c = me(), k = c.kashin[i], d = ORDERS[o];
   logEvent('order', { name: k.name, order: o });
   if (o === 'news') { c.newsK = i; news(`📣 ${k.name}「${d.say}」`, 'k'); kashinList(); return; }
   k.task = o; k.left = d.months;
   news(`👤 ${k.name}「ははっ。${d.say}」`, 'k'); kashinList();
 }
+// ⚠ こちらの 決め：家臣は かならず する（10/28）＝事件は かならず おきる。その国は 3か月 大さわぎ・兵が 2わり へる。お金は かからない
+const JIKEN_CHAOS = 3;
+function jikenPick(i) {
+  const k = me().kashin[i], foes = S.countries.filter(c => c.ai && c.alive);
+  logEvent('menu', { m: 'jiken', name: k.name });
+  sheet(`<h2>💣 ${esc(k.name)}に 事件を おこさせる</h2><p class="hint">${ORDERS.jiken.months}か月 たつと、えらんだ 国で 事件が おきる。その国は ${JIKEN_CHAOS}か月 大さわぎ（お金が 入らない・攻めてこない）</p>
+    <label>どんな 事件？</label><input type="text" id="jWhat" maxlength="16" placeholder="れい：火事・一揆・米の 買いしめ">
+    <label>どの 国で？</label><div class="row">${foes.length ? foes.map(c => `<button onclick="jikenGo(${i},${c.id})" style="border-color:${c.color}">${esc(c.name)}${c.chaos ? '<br><small>⚠大さわぎ中</small>' : ''}</button>`).join('') : '<p class="hint">ねらえる 国が ない</p>'}</div>
+    <div class="row"><button onclick="talk(${i})">← もどる</button></div>`);
+}
+function jikenGo(i, to) {
+  const what = fval('jWhat'); if (!what) { warn('どんな 事件か 打ってね'); return; }
+  const k = me().kashin[i], foe = S.countries[to];
+  k.task = 'jiken'; k.left = ORDERS.jiken.months; k.to = to; k.what = what;
+  logEvent('order', { name: k.name, order: 'jiken', to: foe.name, what });
+  news(`👤 ${k.name}「ははっ。${foe.name}で ${what}を おこして まいります。」`, 'k'); kashinList();
+}
 function finishOrder(k) {
   const c = me(), o = k.task; k.task = null;
   if (o === 'tonden') { c.built.畑++; placeIcon('畑'); news(`🌾 ${k.name}「殿！ 屯田で 畑が 1つ ふえました。」`, 'good'); }
   if (o === 'chisui') { c.chisui = true; c.heart = Math.min(100, c.heart + 5); news(`🌊 ${k.name}「殿！ 治水が おわりました。大雨でも あんしんです。」❤+5`, 'good'); }
   if (o === 'mine') { c.built.鉱山++; placeIcon('鉱山'); news(`⛏ ${k.name}「殿！ 鉱山を 開きました。お金が 入ります。」`, 'good'); }
+  if (o === 'jiken') { const foe = S.countries[k.to];
+    if (!foe.alive) news(`💣 ${k.name}「殿… ${foe.name}は もう ほろびて おりました。」`, 'k');
+    else { foe.chaos = Math.max(foe.chaos, JIKEN_CHAOS); foe.army = Math.floor(foe.army * 0.8);
+      news(`💣 ${k.name}「殿！ ${foe.name}で ${k.what}を おこしました。${foe.name}は ${JIKEN_CHAOS}か月 大さわぎです。」`, 'good'); } }
   if (o === 'heishi') { const n = 8 + Math.floor(Math.random() * 8); c.soldiers += n; news(`🪖 ${k.name}「殿！ 兵が ${n}人 あつまりました。」`, 'good'); }
   logEvent('order_done', { name: k.name, order: o });
 }
@@ -1038,7 +1071,7 @@ $('btnSave').onclick = saveGame;
 $('cont').onclick = loadGame;
 { const d = readSave(); if (d && d.S) { $('cont').style.display = ''; $('cont').innerHTML = `📂 つづきから<br><small>${saveLabel(d)}</small>`; } }   // esc が できてから
 
-if (DEV) window.__k = { get S() { return S; }, tick, startGame, MAPS, duel, defendAssassin, myEvent, unitStr, defense, setup, CPU_RATE, POLI_WIN, checkEnd, warAsk, warGo, sendLetter, acceptP, navy, SHIP_POWER, tradeGo, TRADE_MONTHS, TRADE_PRICE, saveGame, loadGame, SAVE_KEY };
+if (DEV) window.__k = { get S() { return S; }, tick, startGame, MAPS, duel, defendAssassin, myEvent, unitStr, defense, setup, CPU_RATE, POLI_WIN, checkEnd, warAsk, warGo, sendLetter, acceptP, navy, SHIP_POWER, tradeGo, TRADE_MONTHS, TRADE_PRICE, saveGame, loadGame, SAVE_KEY, assassinGo, JIKEN_CHAOS, ORDERS };
 </script>
 </body>
 </html>
