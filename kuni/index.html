@@ -151,7 +151,7 @@
 const $ = id => document.getElementById(id);
 const URLQ = new URLSearchParams(location.search);
 const DEV = URLQ.get('dev') === '1';
-const BUILD = 'kuni-1101d';   // ⚠ 版の印。古い版で測ったデータを 新しい版と読み違えないために出す
+const BUILD = 'kuni-1103a';   // ⚠ 版の印。古い版で測ったデータを 新しい版と読み違えないために出す
 
 // ============ ゲームログ（v6・三国志と同じ・常時ON。テストプレイは全部データ） ============
 const LOG_TAG = URLQ.get('tag') || 'kuni';
@@ -247,7 +247,7 @@ const KINDS = {
 
 // ============ つくる欄（監督10/25「船を作る、部隊をつくる、兵器を作る、小兵器を作る、きまりをつくる、村を作る、町をつくる、畑をつくる」） ============
 // 監督10/25「つくるには、材料費でお金がかかる」。⚠ ねだんと 効きめは こちらで決めた＝監督が「高い」と言ったら ここだけ直す
-const COST = { 村: 30, 町: 80, 畑: 20, 船: 60, 兵器: 50, 小兵器: 15, 部隊: 10, きまり: 10, 家臣: 5, 品物: 20 };
+const COST = { 村: 30, 町: 80, 畑: 20, 船: 60, 兵器: 50, 小兵器: 15, 部隊: 10, きまり: 10, 家臣: 5, 品物: 20, 城: 150 };
 // 監督10/29「小兵器が選択肢になってたから自分で決められない」→ 10/31「2B」＝形の 名前を 自分で 打つ
 // ⚠ つよさは 形では なく 火薬で きまる（なし 4・あり 7）＝こちらの 決め
 // ponytail: つよさは 2しゅるい だけ, 監督が「形で つよさを かえたい」と 言ったら 決め方を 聞く
@@ -344,7 +344,7 @@ function startGame(w, h, land) {
   for (let k = 0; k < n; k++) {
     S.countries.push({ id: k, name: k === 0 ? ($('myName').value.trim() || 'わたしの国') : names[k - 1], color: COLORS[k], ai: k !== 0,
       money: 120, soldiers: 40, heart: 60, chaos: 0, alive: true,
-      built: { 村: 0, 町: 0, 畑: 0, 鉱山: 0 }, ships: [], weapons: [], smalls: [], units: [], kashin: [], rules: [], places: [], goods: [],
+      built: { 村: 0, 町: 0, 畑: 0, 鉱山: 0, 城: 0 }, ships: [], weapons: [], smalls: [], units: [], kashin: [], rules: [], places: [], goods: [],
       newsK: -1, chisui: false, guards: k === 0 ? 0 : Math.floor(Math.random() * 3), army: 30 + Math.floor(Math.random() * 20) });
   }
   logEvent('start', { shape: S.shape, kind: S.kind, n, w, h, land: landIdx.length, me: S.countries[0].name, build: BUILD });
@@ -534,7 +534,7 @@ function drawMap() {
     g.fillStyle = '#fff'; g.fillText(c.name, (cx + 0.5) * cell, (cy + 0.5) * cell);
   }
 }
-const ICON = { 村: '🏠', 町: '🏯', 畑: '🌾', 鉱山: '⛏' };
+const ICON = { 村: '🏠', 町: '🏯', 畑: '🌾', 鉱山: '⛏', 城: '🏰' };
 function refresh() {
   const c = me();
   $('tName').textContent = c.name; $('tMoney').textContent = c.money; $('tSol').textContent = c.soldiers;
@@ -577,7 +577,7 @@ function placeIcon(what) {
 // ============ 🔨 つくる ============
 $('cBuild').onclick = () => {
   logEvent('menu', { m: 'build' });
-  const items = ['船', '部隊', '兵器', '小兵器', 'きまり', '村', '町', '畑', '品物'];
+  const items = ['船', '部隊', '兵器', '小兵器', 'きまり', '村', '町', '畑', '品物', '城'];
   sheet(`<h2>🔨 つくる</h2><p class="hint">つくるには 材料費で お金が かかる。いま 💰${me().money}</p>
     <div class="row">${items.map(k => `<button onclick="buildForm('${k}')">${k}<br><small>💰${COST[k]}${k === '部隊' ? '〜' : ''}</small></button>`).join('')}</div>${back}`);
 };
@@ -593,6 +593,9 @@ function buildForm(k) {
     const eff = { 村: '毎月 💰+3・兵士+2', 町: '毎月 💰+8', 畑: '毎月 兵士+1・❤が すこしずつ 上がる・豊作が ある' }[k];
     sheet(`<h2>${k}を つくる</h2><p class="hint">${eff}</p>${nameSet(c.name + 'の' + k + (c.built[k] + 1))}
       <p class="cost">💰${COST[k]}</p><div class="row"><button onclick="doBuild()">つくる</button><button onclick="closeSheet()">やめる</button></div>`);
+  } else if (k === '城') {
+    sheet(`<h2>🏰 城を つくる</h2><p class="hint">城の マスと その となりの マスが 攻められたとき、陸上戦・陸海戦の 守りが ${CASTLE_X}ばいに なる</p>${nameSet(c.name + 'の城' + ((c.built.城 || 0) + 1))}
+      <p class="cost">💰${COST.城}</p><div class="row"><button onclick="doBuild()">つくる</button><button onclick="closeSheet()">やめる</button></div>`);
   } else if (k === '船') {
     sheet(`<h2>⛵ 船を つくる</h2><p class="hint">船が あると 海を こえて 攻められる（3マスまで）。船も いっしょに 戦う（1そう つよさ ${SHIP_POWER}）</p>${nameSet('丸' + (c.ships.length + 1))}
       <p class="cost">💰${COST.船}</p><div class="row"><button onclick="doBuild()">つくる</button><button onclick="closeSheet()">やめる</button></div>`);
@@ -615,7 +618,7 @@ function doBuild() {
   if (k === '品物' && !fval('fKind')) { warn('品物の 種類を 打ってね（れい：刀・茶器）'); return; }
   if (!pay(k, COST[k])) return;
   if (k === '品物') c.goods.push({ kind: fval('fKind'), name, set });
-  if (k === '村' || k === '町' || k === '畑') { c.built[k]++; c.places.push({ k, name, set }); placeIcon(k); }
+  if (k === '村' || k === '町' || k === '畑' || k === '城') { c.built[k] = (c.built[k] || 0) + 1; c.places.push({ k, name, set }); placeIcon(k); }   // || 0：城が ない ころの セーブ
   if (k === '船') c.ships.push({ name, set });
   if (k === 'きまり') c.rules.push({ name, set });
   logEvent('build', { k, name, set, kind: k === '品物' ? fval('fKind') : undefined, money: c.money });
@@ -795,18 +798,23 @@ function battle(i, t) {
 // ponytail: CPUは 船を 持たない（army で 海も こえる）・船の つよさは みな 8, 監督が「敵も 船を」「船の 形を 決めたい」と 言ったら 足す
 const SHIP_POWER = 8;
 const navy = c => c.ships.length * SHIP_POWER;
+// 🏰 城（監督10/28「城をつくるも出来る」・11/1「1 A」群雄合戦で城を作れる・11/3「2A」つぎは城）
+// ⚠ こちらの 決め：城の マスと となりの マスを 守るとき、陸上戦・陸海戦の 守りが 2ばい。海戦は 船だけで 戦うので 城は きかない。場所は じぶんの 陸の どこか（ほかの 建物と 同じ）
+// ponytail: 城の 場所は ランダム, 監督が「場所を えらびたい」と 言ったら 地図を さわって 置く
+const CASTLE_X = 2;
+const castleNear = t => [t, ...neighbors4(t)].some(i => S.icons[i] && S.icons[i].what === '城' && S.owner[i] === 0);
 const WAR_KIND = { land: '🪖 陸上戦', sea: '⛵ 海戦', both: '⚔ 陸海戦', ignore: '🙈 無視する' };
 function warAsk() {
   const w = S.wars[0]; if (!w || S.over || S.warOpen || sheetOpen() || duelOn) return;
   const foe = S.countries[w.from], c = me();
   if (!foe.alive || S.owner[w.tile] !== 0) { S.wars.shift(); return warAsk(); }
-  const why = !w.sea ? '陸から 来たので できない' : !c.ships.length ? '船が ない' : '';
+  const why = !w.sea ? '陸から 来たので できない' : !c.ships.length ? '船が ない' : '', cx = castleNear(w.tile) ? CASTLE_X : 1;
   const btn = (k, sub) => `<button ${k !== 'land' && k !== 'ignore' && why ? 'disabled' : `onclick="warGo('${k}')"`}>${WAR_KIND[k]}<br><small>${sub}</small></button>`;
   S.warOpen = true;
   sheet(`<h2>⚔ ${esc(foe.name)} が ${w.forced ? '兵を 送ってきた！' : '戦争を しかけてきた！'}</h2>
-    <p class="hint">${w.sea ? '⛵ 海を こえて 来た' : '🏞 陸から 来た'}。どう する？${w.forced ? '<br>⚠ 敵の 殿が「兵を送れ」と 命令した＝かならず 戦争' : ''}</p>
-    <div class="row">${btn('land', `部隊で 戦う（守り ${Math.round(defense(c))}）`)}${btn('sea', why || `船 ${c.ships.length}そうで 戦う`)}${btn('both', why || '部隊と 船の 両方')}${w.forced ? '' : btn('ignore', '戦わない')}</div>`);
-  logEvent('war_come', { from: foe.name, tile: w.tile, sea: w.sea, forced: !!w.forced, ships: c.ships.length });
+    <p class="hint">${w.sea ? '⛵ 海を こえて 来た' : '🏞 陸から 来た'}。どう する？${cx > 1 ? `<br>🏰 城の 近くなので 陸の 守りが ${CASTLE_X}ばい` : ''}${w.forced ? '<br>⚠ 敵の 殿が「兵を送れ」と 命令した＝かならず 戦争' : ''}</p>
+    <div class="row">${btn('land', `部隊で 戦う（守り ${Math.round(defense(c) * cx)}）`)}${btn('sea', why || `船 ${c.ships.length}そうで 戦う`)}${btn('both', why || '部隊と 船の 両方')}${w.forced ? '' : btn('ignore', '戦わない')}</div>`);
+  logEvent('war_come', { from: foe.name, tile: w.tile, sea: w.sea, forced: !!w.forced, ships: c.ships.length, castle: cx > 1 });
 }
 function warGo(k) {
   const w = S.wars.shift(), foe = S.countries[w.from], c = me();
@@ -818,10 +826,11 @@ function warGo(k) {
     else news(`🙈 無視した。${foe.name} は あきらめて 帰っていった。`, 'k');
     return warAsk();
   }
-  const d0 = k === 'land' ? defense(c) : k === 'sea' ? navy(c) + 5 : defense(c) + navy(c);
+  const cx = castleNear(w.tile) ? CASTLE_X : 1;
+  const d0 = k === 'land' ? defense(c) * cx : k === 'sea' ? navy(c) + 5 : defense(c) * cx + navy(c);
   const a = foe.army / 3 * rnd(), d = d0 * rnd(), win = d >= a;
   const sunk = !win && k !== 'land' && c.ships.length ? c.ships.pop() : null;
-  logEvent('war_choice', { from: foe.name, kind: k, sea: w.sea, forced: !!w.forced, a: Math.round(a), d: Math.round(d), win, sunk: sunk ? sunk.name : null });
+  logEvent('war_choice', { from: foe.name, kind: k, sea: w.sea, forced: !!w.forced, a: Math.round(a), d: Math.round(d), win, sunk: sunk ? sunk.name : null, castle: cx > 1 });
   if (win) { foe.army = Math.max(5, Math.floor(foe.army * 0.75)); news(`🛡 ${WAR_KIND[k]}で ${foe.name} を ふせいだ！`, 'good'); }
   else { foe.army = Math.max(5, Math.floor(foe.army * 0.9)); take(w.tile, foe.id); news(`⚔ ${WAR_KIND[k]}で ${foe.name} に 負けた…。陸を 1つ とられた${sunk ? `・船「${sunk.name}」が しずんだ` : ''}`, 'bad'); }
   checkEnd(); refresh(); warAsk();
@@ -1056,13 +1065,13 @@ $('cLook').onclick = () => {
   const c = me(), list = (t, a, f) => a.length ? `<div class="item"><b>${t}</b><br>${a.map(f).join('<br>')}</div>` : '';
   sheet(`<h2>📜 ${esc(c.name)}</h2>
     <div class="item">陸 ${tilesOf(0).length}こ　💰${c.money}（毎月 ${income(c) >= 0 ? '+' : ''}${income(c)}）　🪖${c.soldiers}人　❤民衆の心 ${c.heart}<br>
-      🏠村 ${c.built.村}　🏯町 ${c.built.町}　🌾畑 ${c.built.畑}　⛏鉱山 ${c.built.鉱山}　🛡護衛 ${guardCount()}人${c.chisui ? '　🌊治水ずみ' : ''}${c.chaos ? `<br>⚠ 大さわぎ中（あと ${c.chaos}か月）` : ''}</div>
+      🏠村 ${c.built.村}　🏯町 ${c.built.町}　🌾畑 ${c.built.畑}　⛏鉱山 ${c.built.鉱山}　🏰城 ${c.built.城 || 0}　🛡護衛 ${guardCount()}人${c.chisui ? '　🌊治水ずみ' : ''}${c.chaos ? `<br>⚠ 大さわぎ中（あと ${c.chaos}か月）` : ''}</div>
     ${list('📜 きまり', c.rules, r => `${esc(r.name)}：${esc(r.set || '（中身なし）')}`)}
     ${list('⛵ 船', c.ships, s => esc(s.name) + (s.trip ? `（交易で ${esc(s.trip.to)}へ・あと ${s.trip.left}か月）` : '') + (s.set ? '：' + esc(s.set) : ''))}
     ${list('🍵 品物', c.goods, g => `${esc(g.kind)}「${esc(g.name)}」${g.set ? '：' + esc(g.set) : ''}`)}
     ${list('🛞 兵器', c.weapons, w => `${esc(w.name)}（${w.wheels ? '車輪あり' : '車輪なし'}・壁${w.wall}・${esc(w.small || '小兵器なし')}・つよさ${w.power}）${w.set ? '：' + esc(w.set) : ''}`)}
     ${list('🗡 小兵器', c.smalls, s => `${esc(s.name)}（${s.gun ? '火薬あり' : '火薬なし'}・${esc(s.shape)}）${s.set ? '：' + esc(s.set) : ''}`)}
-    ${list('🏠 村・町・畑', c.places, p => `${p.k}「${esc(p.name)}」${p.set ? '：' + esc(p.set) : ''}`)}
+    ${list('🏠 村・町・畑・城', c.places, p => `${p.k}「${esc(p.name)}」${p.set ? '：' + esc(p.set) : ''}`)}
     <h2>ほかの国</h2>${S.countries.filter(x => x.id).map(x => `<div class="item" style="border-color:${x.color}"><b>${esc(x.name)}</b>　${x.alive ? `陸 ${tilesOf(x.id).length}こ　護衛 ${x.guards}人${x.chaos ? '　⚠大さわぎ中' : ''}` : '🏳 ほろびた'}</div>`).join('')}
     ${back}`);
 };
@@ -1071,7 +1080,7 @@ $('btnSave').onclick = saveGame;
 $('cont').onclick = loadGame;
 { const d = readSave(); if (d && d.S) { $('cont').style.display = ''; $('cont').innerHTML = `📂 つづきから<br><small>${saveLabel(d)}</small>`; } }   // esc が できてから
 
-if (DEV) window.__k = { get S() { return S; }, tick, startGame, MAPS, duel, defendAssassin, myEvent, unitStr, defense, setup, CPU_RATE, POLI_WIN, checkEnd, warAsk, warGo, sendLetter, acceptP, navy, SHIP_POWER, tradeGo, TRADE_MONTHS, TRADE_PRICE, saveGame, loadGame, SAVE_KEY, assassinGo, JIKEN_CHAOS, ORDERS };
+if (DEV) window.__k = { get S() { return S; }, tick, startGame, MAPS, duel, defendAssassin, myEvent, unitStr, defense, setup, CPU_RATE, POLI_WIN, checkEnd, warAsk, warGo, sendLetter, acceptP, navy, SHIP_POWER, tradeGo, TRADE_MONTHS, TRADE_PRICE, saveGame, loadGame, SAVE_KEY, assassinGo, JIKEN_CHAOS, ORDERS, CASTLE_X, castleNear };
 </script>
 </body>
 </html>
