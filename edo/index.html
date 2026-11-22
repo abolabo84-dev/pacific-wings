@@ -215,7 +215,7 @@
 const $ = id => document.getElementById(id);
 const URLQ = new URLSearchParams(location.search);
 const DEV = URLQ.get('dev') === '1';
-const BUILD = 'edo-1123d';   // ⚠ 版の印
+const BUILD = 'edo-1123e';   // ⚠ 版の印
 // 🎨 見た目：パパ 11/23「2の漆」で 決まり（?ui=1／3 は 比べる 用に 残す）
 const UI = ['1', '2', '3'].includes(URLQ.get('ui')) ? URLQ.get('ui') : '2';
 document.body.classList.add('ui' + UI); window.edoUI = UI;
@@ -712,16 +712,18 @@ const logEvent = window.logEvent;
 try {
 const view = $('view');
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));   // ⚠ 11/23 リアル寄せで 重く なった（ソフト描画で 41→82ms）→ 2 から 1.5 に
 view.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x9cc4e4);
-scene.fog = new THREE.FogExp2(0x9cc4e4, 0.008);
-const camera = new THREE.PerspectiveCamera(70, 1, 0.3, 300);
+scene.fog = new THREE.FogExp2(0x9cc4e4, 0.0095);
+const camera = new THREE.PerspectiveCamera(70, 1, 0.3, 230);
 const fit = () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); };
 fit(); addEventListener('resize', fit);
 const sun = new THREE.DirectionalLight(0xffffff, 2.0); sun.position.set(40, 80, 30);
-const amb = new THREE.AmbientLight(0xd8c8a8, 1.2); scene.add(sun, amb);
+const amb = new THREE.AmbientLight(0xd8c8a8, 0.75); scene.add(sun, amb);
+const hemi = new THREE.HemisphereLight(0xdfe9ff, 0x8a7656, 0.7); scene.add(hemi);   // 🎨 空の 青と 地面の 照り返し（11/23 リアル寄せ）
+sun.color.set(0xfff1dc);
 const mat = c => new THREE.MeshLambertMaterial({ color: c });
 const box = (w, h, d, c) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(c));
 
@@ -743,71 +745,135 @@ const ground = new THREE.Mesh(new THREE.PlaneGeometry(G ? 1600 : 200, G ? 1600 :
 const road = new THREE.Mesh(new THREE.PlaneGeometry(8, 66), mat(0xb9a47a)); road.rotation.x = -Math.PI / 2; road.position.set(0, 0.02, -3); scene.add(road);
 if (!G) { const river = new THREE.Mesh(new THREE.PlaneGeometry(200, 16), mat(0x3f7fb5)); river.rotation.x = -Math.PI / 2; river.position.set(0, 0.03, -47); scene.add(river); }
 const BOUND = { x: 34, zMin: -38, zMax: 34 };
-// ---- 生成の 町を 1つの 形に まとめて 作る（建物 何千けんでも 128m 四方ごとに 1つの メッシュ）----
-const MB = {};   // かたまり（"cx,cz"）ごとの 頂点
-function mb(x, z) { const k = Math.floor(x / 128) + ',' + Math.floor(z / 128); return MB[k] || (MB[k] = { p: [], n: [], c: [] }); }
+// ============ 🎨 リアル寄せ（パパ 11/23「グラフィックはもうすこしリアルに」）：絵の 具（テクスチャ）は ぜんぶ その場で 描く（外の 画像は 使わない） ============
+// ⚠ 町家の 見た目（下が 木の 格子・上が しっくい・虫籠窓・瓦・庇・のれん）は 一般的な 江戸の 町家の 形を こちらで 描いた もの。この 町の 1けん 1けんの 姿では ない
+const MAXA = Math.min(4, renderer.capabilities.getMaxAnisotropy());
+function ctex(w, h, draw, rep = true) { const cv = document.createElement('canvas'); cv.width = w; cv.height = h; const c = cv.getContext('2d'); draw(c, w, h);
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = MAXA; if (rep) t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; }
+let nrs = 7; const nr = () => (nrs = (nrs * 16807) % 2147483647) / 2147483647;
+function noise(c, w, h, n, a) { for (let k = 0; k < n; k++) { const v = nr(); c.fillStyle = `rgba(${v < .5 ? '0,0,0' : '255,255,255'},${a * nr()})`; c.fillRect(nr() * w, nr() * h, 1 + nr() * 3, 1 + nr() * 3); } }
+// 町家の 正面（よこ 4m・たて 6.4m ぶん。v=0 が 地面）
+const TX = {
+  wall: ctex(512, 512, (c, w, h) => { const y = m => h - m / 6.4 * h;
+    c.fillStyle = '#ece5d3'; c.fillRect(0, 0, w, h); noise(c, w, h, 2600, .06);
+    c.fillStyle = '#5b4330'; c.fillRect(0, y(2.4), w, y(0) - y(2.4));                           // 下：木の 格子
+    for (let x = 0; x < w; x += 12) { c.fillStyle = (x / 12) % 2 ? '#3e2c1f' : '#6e5038'; c.fillRect(x, y(2.4), 6, y(0) - y(2.4)); }
+    c.fillStyle = '#2f2117'; c.fillRect(0, y(0.35), w, y(0) - y(0.35));                          // 土台
+    c.fillStyle = '#3a2a1c'; c.fillRect(0, y(2.75), w, y(2.4) - y(2.75));                       // 梁
+    c.fillStyle = '#4a3626'; c.fillRect(w * .26, y(4.7), w * .48, y(3.6) - y(4.7));             // 虫籠窓
+    for (let x = w * .26 + 6; x < w * .74; x += 22) { c.fillStyle = '#e6dfcc'; c.fillRect(x, y(4.6), 10, y(3.7) - y(4.6)); }
+    c.fillStyle = '#3a2a1c'; c.fillRect(0, 0, w * .05, h); c.fillRect(w * .95, 0, w * .05, h);  // 柱
+    c.fillStyle = '#2a2018'; c.fillRect(0, 0, w, y(6.1)); }),
+  roof: ctex(256, 256, (c, w, h) => { c.fillStyle = '#4a4c54'; c.fillRect(0, 0, w, h);
+    for (let r = 0; r < 8; r++) { const g = c.createLinearGradient(0, r * 32, 0, r * 32 + 32); g.addColorStop(0, '#6a6d76'); g.addColorStop(.7, '#4a4c54'); g.addColorStop(1, '#2c2e33'); c.fillStyle = g; c.fillRect(0, r * 32, w, 32); }
+    for (let x = 0; x < w; x += 16) { c.fillStyle = 'rgba(0,0,0,.35)'; c.fillRect(x, 0, 2, h); c.fillStyle = 'rgba(255,255,255,.08)'; c.fillRect(x + 7, 0, 2, h); } noise(c, w, h, 900, .08); }),
+  plaster: ctex(256, 256, (c, w, h) => { c.fillStyle = '#efebe1'; c.fillRect(0, 0, w, h); noise(c, w, h, 1800, .05); c.fillStyle = '#3e4048'; c.fillRect(0, 0, w, h * .12); c.fillStyle = '#7a7266'; c.fillRect(0, h * .9, w, h * .1); }),
+  ground: ctex(256, 256, (c, w, h) => { c.fillStyle = '#c9b78c'; c.fillRect(0, 0, w, h); noise(c, w, h, 5000, .09); for (let k = 0; k < 140; k++) { c.fillStyle = `rgba(110,95,70,${.25 * nr()})`; c.beginPath(); c.arc(nr() * w, nr() * h, 1 + nr() * 2.5, 0, 7); c.fill(); } }),
+  stone: ctex(256, 256, (c, w, h) => { c.fillStyle = '#5f5b54'; c.fillRect(0, 0, w, h);
+    for (let r = 0; r < 4; r++) for (let k = -1; k < 4; k++) { const x = k * 72 + (r % 2) * 36; c.fillStyle = `hsl(35,6%,${42 + nr() * 14}%)`; c.fillRect(x + 3, r * 64 + 3, 66, 58); } noise(c, w, h, 1200, .1); }),
+  wood: ctex(256, 256, (c, w, h) => { for (let r = 0; r < 8; r++) { c.fillStyle = `hsl(28,${30 + nr() * 10}%,${28 + nr() * 10}%)`; c.fillRect(0, r * 32, w, 30); c.fillStyle = '#1e140c'; c.fillRect(0, r * 32 + 30, w, 2); } noise(c, w, h, 1500, .08); }),
+  water: ctex(256, 256, (c, w, h) => { c.fillStyle = '#2f5f86'; c.fillRect(0, 0, w, h); c.strokeStyle = 'rgba(200,225,255,.18)'; c.lineWidth = 2;
+    for (let k = 0; k < 60; k++) { const x = nr() * w, y = nr() * h, l = 10 + nr() * 30; c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo(x + l / 2, y - 3, x + l, y); c.stroke(); } }),
+};
+const MATS = { wall: new THREE.MeshLambertMaterial({ map: TX.wall, vertexColors: true }), roof: new THREE.MeshLambertMaterial({ map: TX.roof, vertexColors: true }),
+  plaster: new THREE.MeshLambertMaterial({ map: TX.plaster, vertexColors: true }), stone: new THREE.MeshLambertMaterial({ map: TX.stone, vertexColors: true }),
+  wood: new THREE.MeshLambertMaterial({ map: TX.wood, vertexColors: true }), flat: new THREE.MeshLambertMaterial({ vertexColors: true }) };
+// ---- 生成の 町を まとめて 作る（256m 四方 × 絵の 具ごとに 1つの メッシュ）----
+const MB = {};
+function mb(x, z, key) { const k = Math.floor(x / 256) + ',' + Math.floor(z / 256) + ',' + key; return MB[k] || (MB[k] = { key, p: [], n: [], c: [], u: [] }); }
 const col = new THREE.Color();
-function quad(b, a, bb, c, d, nx, ny, nz, hex) { col.setHex(hex); for (const v of [a, bb, c, a, c, d]) { b.p.push(...v); b.n.push(nx, ny, nz); b.c.push(col.r, col.g, col.b); } }
-function cube(x0, y0, z0, x1, y1, z1, hex, top) {   // top＝上の 面の 色（なければ 同じ）
-  const b = mb((x0 + x1) / 2, (z0 + z1) / 2);
-  quad(b, [x0, y1, z0], [x0, y1, z1], [x1, y1, z1], [x1, y1, z0], 0, 1, 0, top ?? hex);
-  quad(b, [x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1], 0, 0, 1, hex);
-  quad(b, [x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0], 0, 0, -1, hex);
-  quad(b, [x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1], 1, 0, 0, hex);
-  quad(b, [x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0], -1, 0, 0, hex);
+function quad(b, a, bb, c, d, nx, ny, nz, hex, uv) { col.setHex(hex); const vs = [a, bb, c, a, c, d], us = uv ? [uv[0], uv[1], uv[2], uv[0], uv[2], uv[3]] : null;
+  vs.forEach((v, k) => { b.p.push(...v); b.n.push(nx, ny, nz); b.c.push(col.r, col.g, col.b); b.u.push(...(us ? us[k] : [0, 0])); }); }
+// 箱：横の 面は u＝横の 長さ/U・v＝高さ/V（地面から そろう）、上の 面は x/U・z/U
+function cube(x0, y0, z0, x1, y1, z1, hex, top, key = 'flat', U = 4, V = 6.4, topKey) {
+  const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, b = mb(cx, cz, key), bt = mb(cx, cz, topKey || key), v0 = y0 / V, v1 = y1 / V;
+  quad(bt, [x0, y1, z0], [x0, y1, z1], [x1, y1, z1], [x1, y1, z0], 0, 1, 0, top ?? hex, [[x0 / U, z0 / U], [x0 / U, z1 / U], [x1 / U, z1 / U], [x1 / U, z0 / U]]);
+  quad(b, [x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1], 0, 0, 1, hex, [[x0 / U, v0], [x1 / U, v0], [x1 / U, v1], [x0 / U, v1]]);
+  quad(b, [x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0], 0, 0, -1, hex, [[-x1 / U, v0], [-x0 / U, v0], [-x0 / U, v1], [-x1 / U, v1]]);
+  quad(b, [x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1], 1, 0, 0, hex, [[-z1 / U, v0], [-z0 / U, v0], [-z0 / U, v1], [-z1 / U, v1]]);
+  quad(b, [x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0], -1, 0, 0, hex, [[z0 / U, v0], [z1 / U, v0], [z1 / U, v1], [z0 / U, v1]]);
 }
-function gable(x0, z0, x1, z1, y0, h, alongX, hex) {   // 切妻の 屋根（瓦）
-  const b = mb((x0 + x1) / 2, (z0 + z1) / 2), o = 0.5; x0 -= o; z0 -= o; x1 += o; z1 += o; const y1 = y0 + h;
-  if (alongX) { const zm = (z0 + z1) / 2, k = 1 / Math.hypot(h, (z1 - z0) / 2);
-    quad(b, [x0, y0, z1], [x1, y0, z1], [x1, y1, zm], [x0, y1, zm], 0, (z1 - z0) / 2 * k, h * k, hex);
-    quad(b, [x1, y0, z0], [x0, y0, z0], [x0, y1, zm], [x1, y1, zm], 0, (z1 - z0) / 2 * k, -h * k, hex);
-    col.setHex(hex); for (const [xx, nx] of [[x0, -1], [x1, 1]]) { const tri = nx < 0 ? [[xx, y0, z0], [xx, y0, z1], [xx, y1, zm]] : [[xx, y0, z1], [xx, y0, z0], [xx, y1, zm]]; for (const v of tri) { b.p.push(...v); b.n.push(nx, 0, 0); b.c.push(col.r * .8, col.g * .8, col.b * .8); } } }
-  else { const xm = (x0 + x1) / 2, k = 1 / Math.hypot(h, (x1 - x0) / 2);
-    quad(b, [x1, y0, z1], [x1, y0, z0], [xm, y1, z0], [xm, y1, z1], h * k, (x1 - x0) / 2 * k, 0, hex);
-    quad(b, [x0, y0, z0], [x0, y0, z1], [xm, y1, z1], [xm, y1, z0], -h * k, (x1 - x0) / 2 * k, 0, hex);
-    col.setHex(hex); for (const [zz, nz] of [[z0, -1], [z1, 1]]) { const tri = nz < 0 ? [[x1, y0, zz], [x0, y0, zz], [xm, y1, zz]] : [[x0, y0, zz], [x1, y0, zz], [xm, y1, zz]]; for (const v of tri) { b.p.push(...v); b.n.push(0, 0, nz); b.c.push(col.r * .8, col.g * .8, col.b * .8); } } }
+function gable(x0, z0, x1, z1, y0, h, alongX, hex, wallHex = 0xffffff) {   // 切妻の 屋根（瓦）・妻の 三角は しっくい
+  const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, b = mb(cx, cz, 'roof'), bw = mb(cx, cz, 'wall'), o = 0.6; const ix0 = x0, iz0 = z0, ix1 = x1, iz1 = z1; x0 -= o; z0 -= o; x1 += o; z1 += o; const y1 = y0 + h;
+  const tri = (pts, nx, nz, uvs) => { col.setHex(wallHex); pts.forEach((v, k) => { bw.p.push(...v); bw.n.push(nx, 0, nz); bw.c.push(col.r, col.g, col.b); bw.u.push(...uvs[k]); }); };
+  if (alongX) { const zm = (z0 + z1) / 2, k = 1 / Math.hypot(h, (z1 - z0) / 2), sl = Math.hypot(h, (z1 - z0) / 2) / 1.6;
+    quad(b, [x0, y0, z1], [x1, y0, z1], [x1, y1, zm], [x0, y1, zm], 0, (z1 - z0) / 2 * k, h * k, hex, [[x0 / 2, 0], [x1 / 2, 0], [x1 / 2, sl], [x0 / 2, sl]]);
+    quad(b, [x1, y0, z0], [x0, y0, z0], [x0, y1, zm], [x1, y1, zm], 0, (z1 - z0) / 2 * k, -h * k, hex, [[x1 / 2, 0], [x0 / 2, 0], [x0 / 2, sl], [x1 / 2, sl]]);
+    const zmi = (iz0 + iz1) / 2, v0 = y0 / 6.4, v1 = (y0 + h * .8) / 6.4;
+    tri([[ix0, y0, iz0], [ix0, y0, iz1], [ix0, y0 + h * .8, zmi]], -1, 0, [[0, v0], [1, v0], [.5, v1]]); tri([[ix1, y0, iz1], [ix1, y0, iz0], [ix1, y0 + h * .8, zmi]], 1, 0, [[0, v0], [1, v0], [.5, v1]]); }
+  else { const xm = (x0 + x1) / 2, k = 1 / Math.hypot(h, (x1 - x0) / 2), sl = Math.hypot(h, (x1 - x0) / 2) / 1.6;
+    quad(b, [x1, y0, z1], [x1, y0, z0], [xm, y1, z0], [xm, y1, z1], h * k, (x1 - x0) / 2 * k, 0, hex, [[z1 / 2, 0], [z0 / 2, 0], [z0 / 2, sl], [z1 / 2, sl]]);
+    quad(b, [x0, y0, z0], [x0, y0, z1], [xm, y1, z1], [xm, y1, z0], -h * k, (x1 - x0) / 2 * k, 0, hex, [[z0 / 2, 0], [z1 / 2, 0], [z1 / 2, sl], [z0 / 2, sl]]);
+    const xmi = (ix0 + ix1) / 2, v0 = y0 / 6.4, v1 = (y0 + h * .8) / 6.4;
+    tri([[ix1, y0, iz0], [ix0, y0, iz0], [xmi, y0 + h * .8, iz0]], 0, -1, [[0, v0], [1, v0], [.5, v1]]); tri([[ix0, y0, iz1], [ix1, y0, iz1], [xmi, y0 + h * .8, iz1]], 0, 1, [[0, v0], [1, v0], [.5, v1]]); }
 }
+// 庇（ひさし）：正面の 2.7m の 高さに 0.9m 張り出す 瓦の 小屋根
+function eave(x0, z0, x1, z1, dx, dz, roof) {
+  const b = mb((x0 + x1) / 2, (z0 + z1) / 2, 'roof'), yT = 3.0, yB = 2.55, o = 0.9;
+  if (dz) { const zf = dz > 0 ? z1 : z0, ze = zf + dz * o; const a = [x0, yT, zf], bb = [x1, yT, zf], c = [x1, yB, ze], d = [x0, yB, ze];
+    dz > 0 ? quad(b, d, c, bb, a, 0, .9, .45, roof, [[x0 / 2, 0], [x1 / 2, 0], [x1 / 2, .6], [x0 / 2, .6]]) : quad(b, a, bb, c, d, 0, .9, -.45, roof, [[x0 / 2, .6], [x1 / 2, .6], [x1 / 2, 0], [x0 / 2, 0]]); }
+  else { const xf = dx > 0 ? x1 : x0, xe = xf + dx * o; const a = [xf, yT, z0], bb = [xf, yT, z1], c = [xe, yB, z1], d = [xe, yB, z0];
+    dx > 0 ? quad(b, a, bb, c, d, .45, .9, 0, roof, [[z0 / 2, .6], [z1 / 2, .6], [z1 / 2, 0], [z0 / 2, 0]]) : quad(b, d, c, bb, a, -.45, .9, 0, roof, [[z0 / 2, 0], [z1 / 2, 0], [z1 / 2, .6], [z0 / 2, .6]]); }
+}
+function noren(x0, z0, x1, z1, dx, dz, hex) {   // のれん（正面の まん中・幅 1.8m）
+  const b = mb((x0 + x1) / 2, (z0 + z1) / 2, 'flat'), y0 = 1.55, y1 = 2.35;
+  if (dz) { const z = (dz > 0 ? z1 : z0) + dz * .06, m = (x0 + x1) / 2; dz > 0 ? quad(b, [m - .9, y0, z], [m + .9, y0, z], [m + .9, y1, z], [m - .9, y1, z], 0, 0, 1, hex) : quad(b, [m + .9, y0, z], [m - .9, y0, z], [m - .9, y1, z], [m + .9, y1, z], 0, 0, -1, hex); }
+  else { const x = (dx > 0 ? x1 : x0) + dx * .06, m = (z0 + z1) / 2; dx > 0 ? quad(b, [x, y0, m + .9], [x, y0, m - .9], [x, y1, m - .9], [x, y1, m + .9], 1, 0, 0, hex) : quad(b, [x, y0, m - .9], [x, y0, m + .9], [x, y1, m + .9], [x, y1, m - .9], -1, 0, 0, hex); }
+}
+function flushMB() {   // ためた 形を メッシュに する（2回 よんでも、2回目は 新しく たまった ぶんだけ）
+  for (const k in MB) { const b = MB[k]; if (!b.p.length) continue; const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(b.p, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(b.n, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(b.c, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(b.u, 2)); g.computeBoundingSphere();
+    scene.add(new THREE.Mesh(g, MATS[b.key])); b.p = []; b.n = []; b.c = []; b.u = []; nMesh++; }
+}
+let nMesh = 0;
 let rnd = 12345; const rand = () => (rnd = (rnd * 16807) % 2147483647) / 2147483647;   // ⚠ いつも 同じ 町に なる（種を 固定）
-const WALLS = [0xd9cdb4, 0xcfc2a5, 0x8a6a48, 0x7a5a3c, 0xe2d8c2], ROOFS = [0x3e4048, 0x45474f, 0x37393f];
+// かべの 色（絵の 具に かける 色）：しっくいの 白〜生成り・板壁の 茶
+const WALLS = [0xffffff, 0xf4ecdc, 0xe9dfc9, 0xfaf3e6, 0xc8a27c], ROOFS = [0xffffff, 0xe6e8ee, 0xd2d4dc], NOREN = [0x24365a, 0x2e2a26, 0x6a2a1a, 0xe9e4d6, 0x3a4f3a];
 let nHouse = 0;
+let waterTex = null;
 if (G) {
   const n = MAP.n, c = MAP.cell, h0 = MAP.half, at = (i, j) => (i < 0 || j < 0 || i >= n || j >= n ? T.OUT : G[j * n + i]);
-  // 町家：2×2 ます（8m 四方）ごとに 1けん。通りに 面した 家は 二階建てと 切妻の 屋根・裏は 低い 屋根だけ
+  const open = t => t === T.STREET || t === T.BRIDGE || t === T.WATER;
+  // 町家：2×2 ます（8m 四方）ごとに 1けん。通りに 面した 家は 二階建て・切妻・庇・ときどき のれん／裏は 低い 屋根だけ
   for (let j = 0; j < n; j += 2) for (let i = 0; i < n; i += 2) {
     const cells = [[i, j], [i + 1, j], [i, j + 1], [i + 1, j + 1]].filter(([a, b2]) => at(a, b2) === T.BLOCK); if (!cells.length) continue;
     const x0 = Math.min(...cells.map(q => q[0])) * c - h0, x1 = (Math.max(...cells.map(q => q[0])) + 1) * c - h0, z0 = Math.min(...cells.map(q => q[1])) * c - h0, z1 = (Math.max(...cells.map(q => q[1])) + 1) * c - h0;
-    let front = 0, fx = false;
-    for (const [a, b2] of cells) for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const t = at(a + di, b2 + dj); if (t === T.STREET || t === T.BRIDGE || t === T.WATER) { front++; if (dj) fx = true; } }
+    const fr = { '1,0': 0, '-1,0': 0, '0,1': 0, '0,-1': 0 };
+    for (const [a, b2] of cells) for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (open(at(a + di, b2 + dj))) fr[di + ',' + dj]++;
+    const front = Object.values(fr).reduce((a, b2) => a + b2, 0), fx = fr['0,1'] + fr['0,-1'] >= fr['1,0'] + fr['-1,0'];
     const wall = WALLS[Math.floor(rand() * WALLS.length)], roof = ROOFS[Math.floor(rand() * ROOFS.length)];
-    if (front) { const h = 4.2 + rand() * 2.2; cube(x0 + .15, 0, z0 + .15, x1 - .15, h, z1 - .15, wall); gable(x0, z0, x1, z1, h, 1.6, fx, roof); nHouse++; }
-    else cube(x0, 0, z0, x1, 3.2, z1, roof);
+    if (front) { const h = 4.6 + rand() * 1.6; cube(x0 + .15, 0, z0 + .15, x1 - .15, h, z1 - .15, wall, 0x55575e, 'wall', 4, 6.4, 'flat'); gable(x0, z0, x1, z1, h, 1.7, fx, roof, wall); nHouse++;
+      for (const key in fr) if (fr[key]) { const [dx, dz] = key.split(',').map(Number); eave(x0 + .15, z0 + .15, x1 - .15, z1 - .15, dx, dz, roof); if (rand() < .3) noren(x0 + .15, z0 + .15, x1 - .15, z1 - .15, dx, dz, NOREN[Math.floor(rand() * NOREN.length)]); } }
+    else cube(x0, 0, z0, x1, 3.4, z1, 0x5a5c62, 0x4a4c54, 'flat');
   }
   // 武家地など：通りに 面した 所に 白い 塀（入れない）
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
     if (at(i, j) !== T.BIG) continue;
     if (![[1, 0], [-1, 0], [0, 1], [0, -1]].some(([di, dj]) => walk(at(i + di, j + dj)))) continue;
-    const x = i * c - h0, z = j * c - h0; cube(x + .3, 0, z + .3, x + c - .3, 2.6, z + c - .3, 0xeae6dc, 0x3e4048);
+    const x = i * c - h0, z = j * c - h0; cube(x + .3, 0, z + .3, x + c - .3, 2.6, z + c - .3, 0xffffff, 0x3e4048, 'plaster', 4, 2.6, 'flat');
   }
-  // 地面（水と 橋の 所は あける）：行ごとに つなげた 板
-  const gp = []; for (let j = 0; j < n; j++) { let i = 0; while (i < n) { const t0 = at(i, j); if (t0 === T.WATER || t0 === T.BRIDGE) { i++; continue; } const a = i; while (i < n && at(i, j) !== T.WATER && at(i, j) !== T.BRIDGE) i++;
-    const x0 = a * c - h0, x1 = i * c - h0, z0 = j * c - h0, z1 = z0 + c; gp.push(x0, 0, z0, x0, 0, z1, x1, 0, z1, x0, 0, z0, x1, 0, z1, x1, 0, z0); } }
-  const gg = new THREE.BufferGeometry(); gg.setAttribute('position', new THREE.Float32BufferAttribute(gp, 3)); gg.computeVertexNormals(); scene.add(new THREE.Mesh(gg, mat(0xc9b78c)));
-  // 川・堀：水面と 石の 岸
-  const wm = new THREE.MeshLambertMaterial({ color: 0x3f6f9a });
-  const wp = []; for (let j = 0; j < n; j++) { let i = 0; while (i < n) { if (at(i, j) !== T.WATER && at(i, j) !== T.BRIDGE) { i++; continue; } const a = i; while (i < n && (at(i, j) === T.WATER || at(i, j) === T.BRIDGE)) i++;
-    const x0 = a * c - h0, x1 = i * c - h0, z0 = j * c - h0, z1 = z0 + c; wp.push(x0, -0.7, z0, x0, -0.7, z1, x1, -0.7, z1, x0, -0.7, z0, x1, -0.7, z1, x1, -0.7, z0); } }
-  const wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.Float32BufferAttribute(wp, 3)); wg.computeVertexNormals(); scene.add(new THREE.Mesh(wg, wm));
+  // 地面（水と 橋の 所は あける）：行ごとに つなげた 板・土の 絵（6m で くり返す）
+  const gp = [], gu = []; for (let j = 0; j < n; j++) { let i = 0; while (i < n) { const t0 = at(i, j); if (t0 === T.WATER || t0 === T.BRIDGE) { i++; continue; } const a = i; while (i < n && at(i, j) !== T.WATER && at(i, j) !== T.BRIDGE) i++;
+    const x0 = a * c - h0, x1 = i * c - h0, z0 = j * c - h0, z1 = z0 + c; gp.push(x0, 0, z0, x0, 0, z1, x1, 0, z1, x0, 0, z0, x1, 0, z1, x1, 0, z0);
+    for (const [x, z] of [[x0, z0], [x0, z1], [x1, z1], [x0, z0], [x1, z1], [x1, z0]]) gu.push(x / 6, z / 6); } }
+  const gg = new THREE.BufferGeometry(); gg.setAttribute('position', new THREE.Float32BufferAttribute(gp, 3)); gg.setAttribute('uv', new THREE.Float32BufferAttribute(gu, 2)); gg.computeVertexNormals();
+  scene.add(new THREE.Mesh(gg, new THREE.MeshLambertMaterial({ map: TX.ground })));
+  // 川・堀：水面（さざなみが ゆっくり 流れる）と 石垣の 岸
+  waterTex = TX.water;
+  const wp = [], wu = []; for (let j = 0; j < n; j++) { let i = 0; while (i < n) { if (at(i, j) !== T.WATER && at(i, j) !== T.BRIDGE) { i++; continue; } const a = i; while (i < n && (at(i, j) === T.WATER || at(i, j) === T.BRIDGE)) i++;
+    const x0 = a * c - h0, x1 = i * c - h0, z0 = j * c - h0, z1 = z0 + c; wp.push(x0, -0.7, z0, x0, -0.7, z1, x1, -0.7, z1, x0, -0.7, z0, x1, -0.7, z1, x1, -0.7, z0);
+    for (const [x, z] of [[x0, z0], [x0, z1], [x1, z1], [x0, z0], [x1, z1], [x1, z0]]) wu.push(x / 14, z / 14); } }
+  const wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.Float32BufferAttribute(wp, 3)); wg.setAttribute('uv', new THREE.Float32BufferAttribute(wu, 2)); wg.computeVertexNormals();
+  scene.add(new THREE.Mesh(wg, new THREE.MeshLambertMaterial({ map: TX.water })));
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { const t = at(i, j); if (t !== T.WATER && t !== T.BRIDGE) continue;
     const x = i * c - h0, z = j * c - h0;
     for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const u = at(i + di, j + dj); if (u === T.WATER || u === T.BRIDGE || u === T.OUT) continue;
-      if (di) cube(di > 0 ? x + c - .4 : x, -1.2, z, di > 0 ? x + c : x + .4, 0.05, z + c, 0x8c8880); else cube(x, -1.2, dj > 0 ? z + c - .4 : z, x + c, 0.05, dj > 0 ? z + c : z + .4, 0x8c8880); } }
-  // 橋：木の 板と らんかん
-  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) if (at(i, j) === T.BRIDGE) { const x = i * c - h0, z = j * c - h0; cube(x, -0.25, z, x + c, 0.12, z + c, 0x8a6a48);
+      if (di) cube(di > 0 ? x + c - .4 : x, -1.2, z, di > 0 ? x + c : x + .4, 0.05, z + c, 0xffffff, 0x8c8880, 'stone', 2.4, 1.25, 'flat'); else cube(x, -1.2, dj > 0 ? z + c - .4 : z, x + c, 0.05, dj > 0 ? z + c : z + .4, 0xffffff, 0x8c8880, 'stone', 2.4, 1.25, 'flat'); } }
+  // 橋：木の 板と らんかん（ぎぼし つき）
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) if (at(i, j) === T.BRIDGE) { const x = i * c - h0, z = j * c - h0; cube(x, -0.25, z, x + c, 0.12, z + c, 0xffffff, null, 'wood', 2, 2);
     for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const u = at(i + di, j + dj); if (u !== T.WATER) continue;
-      if (di) cube(di > 0 ? x + c - .25 : x, 0.12, z, di > 0 ? x + c : x + .25, 1.1, z + c, 0x6a4a30); else cube(x, 0.12, dj > 0 ? z + c - .25 : z, x + c, 1.1, dj > 0 ? z + c : z + .25, 0x6a4a30); } }
-  const hm = new THREE.MeshLambertMaterial({ vertexColors: true });
-  for (const k in MB) { const b = MB[k], g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(b.p, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(b.n, 3));
-    g.setAttribute('color', new THREE.Float32BufferAttribute(b.c, 3)); g.computeBoundingSphere(); scene.add(new THREE.Mesh(g, hm)); }
+      if (di) cube(di > 0 ? x + c - .2 : x, 0.12, z, di > 0 ? x + c : x + .2, 1.05, z + c, 0xb07a52, null, 'wood', 2, 2); else cube(x, 0.12, dj > 0 ? z + c - .2 : z, x + c, 1.05, dj > 0 ? z + c : z + .2, 0xb07a52, null, 'wood', 2, 2); } }
 }
 const boxes = [];                                   // 通れない 箱（手作りの 建物・じいさん）
 // 名札：⚠ 近いと 画面いっぱいに なっていた（11/22 iPhone）→ 7m より 近い・85m より 遠いと うすく 消える（LABELS を 毎コマ 見る）
@@ -828,16 +894,13 @@ function fadeLabels() {
   for (const l of LABELS) { if (!l.visible) continue; l.getWorldPosition(lwp); const d = lwp.distanceTo(camera.position);
     l.material.opacity = d < LV.near || d > LV.far ? 0 : Math.min(1, (d - LV.near) / (LV.nearIn - LV.near), (LV.far - d) / (LV.far - LV.farIn)); }
 }
-function building(name, x, z, w, d, h, wall, roof, noren) {
+function building(name, x, z, w, d, h, wall, roof, nor) {
   const g = new THREE.Group(); g.position.set(x, 0, z);
-  const b = box(w, h, d, wall); b.position.y = h / 2; g.add(b);
-  const r = box(w + 1, 0.5, d + 1, roof); r.position.y = h + 0.25; g.add(r);
-  const r2 = box(w * 0.6, 0.5, d + 1, roof); r2.position.y = h + 0.75; g.add(r2);
   const side = x < -1 ? 1 : x > 1 ? -1 : 0;                                // 戸口と のれんは 通りの がわ
-  const n = side ? box(0.12, 1.0, 2.2, noren) : box(2.6, 1.0, 0.12, noren);
-  n.position.set(side * (w / 2 + 0.1), 2.3, side ? 0 : d / 2 + 0.1); g.add(n);
-  const dr = side ? box(0.1, 2.3, 2.0, 0x2a1a0e) : box(2.4, 2.3, 0.1, 0x2a1a0e); dr.position.set(side * (w / 2 + 0.04), 1.15, side ? 0 : d / 2 + 0.04); g.add(dr);
-  const l = label(name); l.position.y = h + 2.4; g.add(l); g.userData.label = l;
+  const x0 = x - w / 2, x1 = x + w / 2, z0 = z - d / 2, z1 = z + d / 2, H = Math.max(h + 1.2, 4.4);   // 🎨 二階建てに 見える 高さ（当たりは 同じ）
+  cube(x0, 0, z0, x1, H, z1, 0xffffff, 0x55575e, 'wall', 4, 6.4, 'flat'); gable(x0, z0, x1, z1, H, 1.6, side === 0, 0xffffff);
+  const dx = side, dz = side ? 0 : 1; if (w > 3) eave(x0, z0, x1, z1, dx, dz, 0xffffff); noren(x0, z0, x1, z1, dx, dz, nor);
+  const l = label(name); l.position.y = H + 2.6; g.add(l); g.userData.label = l;
   scene.add(g); boxes.push({ x, z, w, d }); return g;
 }
 // ponytail: 家は どれを 買っても この 1けんが「じぶんの 家」に なる, 家の 種類ごとに 建物を 分けるのは 通邸より 上を 買えるように する とき
@@ -853,12 +916,18 @@ for (const [x, z] of (G ? [] : [[-20, 24], [18, 16], [-22, -32], [20, -34], [24,
   const t = box(0.6, 2.4, 0.6, 0x5a3a1e); t.position.set(x, 1.2, z); scene.add(t);
   const c = new THREE.Mesh(new THREE.ConeGeometry(2.2, 4.5, 7), mat(0x3f6b32)); c.position.set(x, 4.4, z); scene.add(c); boxes.push({ x, z, w: 1, d: 1 });
 }
-function person(cloth, hairC) {
-  const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.55, 1.25, 10), mat(cloth)); body.position.y = 0.72; g.add(body);
-  const obi = new THREE.Mesh(new THREE.CylinderGeometry(0.47, 0.5, 0.2, 10), mat(0x2a1a0e)); obi.position.y = 0.95; g.add(obi);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.33, 12, 10), mat(0xf0c8a0)); head.position.y = 1.68; g.add(head);
-  const hair = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 6), mat(hairC)); hair.position.y = 2.0; g.add(hair);   // まげ
+flushMB();
+function person(cloth, hairC) {   // 🎨 着物の 人（すそが 広がる・そで・帯・まげ・げた）
+  const g = new THREE.Group(), cm = mat(cloth), skin = mat(0xf0c8a0), hair = mat(hairC);
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.5, 1.3, 14), cm); body.position.y = 0.8; g.add(body);
+  const obi = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.4, 0.22, 14), mat(0x2a1a0e)); obi.position.y = 1.05; g.add(obi);
+  for (const sx of [-1, 1]) { const sl = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.2, 0.72, 8), cm); sl.position.set(sx * 0.4, 1.12, 0); sl.rotation.z = sx * 0.28; g.add(sl);
+    const hd = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), skin); hd.position.set(sx * 0.5, 0.74, 0); g.add(hd);
+    const ft = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.08, 0.3), mat(0x5a3a1e)); ft.position.set(sx * 0.13, 0.04, -0.04); g.add(ft); }
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 0.16, 8), skin); neck.position.y = 1.5; g.add(neck);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.27, 14, 12), skin); head.position.y = 1.72; g.add(head);
+  const back = new THREE.Mesh(new THREE.SphereGeometry(0.285, 12, 10, 0, Math.PI * 2, 0, Math.PI * .62), hair); back.position.set(0, 1.73, 0.02); back.rotation.x = 0.75; g.add(back);   // かみ（うしろ＝+z が かくれる。前は -z）
+  const mage = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.3, 6), hair); mage.position.set(0, 2.02, -0.02); mage.rotation.x = Math.PI / 2 - 0.25; g.add(mage);   // まげ
   return g;
 }
 // ⚠ じいさんは 壁ぎわ（x=-3.6）。前は x=-3.3 で、通りの 西がわを まっすぐ 歩くと じいさんに 引っかかって 止まった（11/22 テストで 見つけた）
@@ -995,6 +1064,8 @@ function tick(now) {
     if (!walked && Math.hypot(P.x, P.z - 22) > 3) { walked = true; document.body.classList.add('walking'); logEvent('first_walk', { ms: Math.round(now - spawnT), how: stick.active ? 'stick' : 'key' }); }
   }
   me.position.copy(P); me.rotation.y = yaw;
+  if (waterTex) waterTex.offset.set(now / 90000, now / 140000);
+  { const mv = Math.hypot(P.x - (me.userData.px ?? P.x), P.z - (me.userData.pz ?? P.z)); me.userData.ph = (me.userData.ph || 0) + mv * 3.2; me.position.y = mv > 0.001 ? Math.abs(Math.sin(me.userData.ph)) * 0.07 : 0; me.userData.px = P.x; me.userData.pz = P.z; }
   homeL2.visible = !!S().house; homeB.userData.label.visible = !S().house;
   { const sv = !!S().house && !window.edoNight(); shini.visible = sv; shL1.visible = sv && !S().doc; shL2.visible = sv && !!S().doc; byoL.visible = !!S().doc; }
   // いちばん 近い 戸口
@@ -1040,7 +1111,7 @@ function placeTick(now) { if (now - placeT < 400) return; placeT = now; let best
   for (const q of PLACES) { const d = Math.hypot(q[1] - P.x, q[2] - P.z); if (d < bd) { bd = d; best = q; } }
   const t = best ? `📍 ${best[0]} あたり` : ''; if (t !== placeName) { placeName = t; $('place').textContent = t; if (best) logEvent('place', { k: best[0] }); } }
 if (MAP) for (const b of MAP.bridges) if (b.name) { const l = label(b.name, 6); l.position.set((b.a[0] + b.b[0]) / 2, 3.4, (b.a[1] + b.b[1]) / 2); scene.add(l); }
-logEvent('map', { ok: !!MAP, houses: nHouse, chunks: Object.keys(MB).length, bridges: MAP ? MAP.bridges.length : 0 });
+logEvent('map', { ok: !!MAP, houses: nHouse, meshes: nMesh, bridges: MAP ? MAP.bridges.length : 0 });
 document.body.classList.add('t3d');
 if ((navigator.maxTouchPoints || 0) > 0) document.body.classList.add('touch');
 logEvent('t3d', { ok: true });
