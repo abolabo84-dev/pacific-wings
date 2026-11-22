@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>江戸の町体験 試作1</title>
+<!-- 🏮 監督の 新しいゲーム「江戸の町体験」（11/4〜11/8 の SMS）。11/22「ぜんぶ」→ パパ「作りはじめてええ」で 最初の 一歩だけ 形にした。
+     入っているもの：性別と 名前 → 五文で 家を 買う → 回覧板 → ウナギ屋（タレを かける ミニゲーム）→ 食べる（5日 食べないと 最初から）→ 物知りな じいさん
+     ⚠ まだ ない：ほかの 仕事・mob 百人・富くじ・旅・奉行と 侍・吉原・ばくち・粋と 徳・落語の 噺・みんなでルーム（1つずつ 足す）
+     ponytail: ひとりだけ・仕事は ウナギ屋 1つ, 監督が 順番を 決めたら 1つずつ 足す -->
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; background: #1a1410; color: #fff; font-family: "Meiryo", "Hiragino Sans", sans-serif;
+               touch-action: manipulation; -webkit-user-select: none; user-select: none; }
+  body { overflow: hidden; }
+  .screen { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; overflow-y: auto; padding: 12px 16px 24px; }
+  .screen.on { display: flex; }
+  h1 { font-size: clamp(24px, 7vw, 38px); margin: 14px 0 2px; text-align: center; text-shadow: 2px 2px 4px #000; }
+  h2 { font-size: clamp(17px, 4.5vw, 24px); margin: 12px 0 6px; text-align: center; }
+  p.sub { font-size: 14px; opacity: .8; text-align: center; margin: 2px 0 8px; line-height: 1.6; }
+  .row { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; width: min(100%, 560px); margin: 6px 0; }
+  /* ⚠ 子どもの指は 大人より 大きい的が 要る（群雄合戦と 同じ：どのボタンも 52px 以上） */
+  button { font-family: inherit; font-weight: bold; color: #fff; cursor: pointer; border: 3px solid #fff; border-radius: 12px;
+           background: #5a3a22; min-height: 52px; padding: 8px 14px; font-size: 17px; text-shadow: 1px 1px 2px #000; }
+  button:active { transform: scale(.96); }
+  button:disabled { opacity: .35; }
+  .pick { opacity: .55; border-width: 2px; }
+  .pick.on { opacity: 1; border-color: #ffe066; box-shadow: 0 0 10px #ffe066; }
+  .hint { font-size: 14px; opacity: .9; text-align: center; margin: 4px 0; line-height: 1.6; max-width: 560px; }
+  label { display: block; margin: 12px 0 4px; font-weight: bold; text-align: center; }
+  input[type=text] { font-family: inherit; font-size: 20px; padding: 8px 10px; border-radius: 8px; border: 2px solid #c9a86a;
+           background: #fff8e8; color: #222; width: min(100%, 320px); -webkit-user-select: text; user-select: text; }
+  #go { background: #8a2f1b; font-size: 22px; padding: 12px 34px; margin-top: 14px; }
+
+  #town { padding: 0; }
+  #top { width: 100%; display: flex; flex-wrap: wrap; gap: 4px 14px; justify-content: center; padding: 8px; background: #2e2114; font-size: 17px; font-weight: bold; }
+  #top .me { color: #ffe066; }
+  #top .warn { color: #ff8a80; }
+  #scene { width: 100%; flex: 0 0 auto; text-align: center; font-size: 44px; padding: 14px 0 8px; background: linear-gradient(#27364a, #3b2a1c); letter-spacing: .12em; }
+  #news { width: 100%; flex: 1 1 auto; min-height: 90px; overflow-y: auto; background: #120e0a; padding: 6px 10px; font-size: 15px; line-height: 1.6; }
+  #news div { border-bottom: 1px solid #2c2318; padding: 2px 0; }
+  #news .good { color: #b9f6ca; } #news .bad { color: #ff8a80; } #news .k { color: #ffe066; }
+  #cmd { width: 100%; display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; padding: 8px; background: #2e2114; }
+  #cmd button { font-size: 17px; min-height: 56px; }
+
+  #sheet { position: absolute; inset: 0; background: rgba(0,0,0,.55); display: none; z-index: 30; }
+  #sheet.on { display: flex; align-items: flex-end; justify-content: center; }
+  #sheetBox { width: min(100%, 620px); max-height: 88%; overflow-y: auto; background: #3a2a18; border: 3px solid #c9a86a; border-bottom: 0;
+              border-radius: 16px 16px 0 0; padding: 12px 14px 20px; }
+  #sheetBox .row { width: 100%; }
+  #sheetBox .row button { flex: 1 1 100%; text-align: left; }
+  #sheetBox .row.two button { flex: 1 1 40%; text-align: center; }
+  .cost { color: #ffe066; }
+
+  #work { background: #241a12; }
+  #cv { display: block; touch-action: none; border-radius: 14px; background: #3b2a1c; margin-top: 6px; }
+  #bar { width: min(100%, 420px); height: 14px; border-radius: 7px; background: #111; margin-top: 8px; overflow: hidden; }
+  #barIn { height: 100%; width: 100%; background: #ffb300; }
+  #wMsg { font-size: 22px; font-weight: bold; min-height: 1.6em; margin-top: 8px; text-align: center; }
+  #ver { position: absolute; right: 6px; bottom: 4px; font-size: 10px; opacity: .4; pointer-events: none; }
+</style>
+</head>
+<body>
+
+<div id="start" class="screen on">
+  <h1>🏮 江戸の町体験</h1>
+  <p class="sub">🧪 試作1（まだ ウナギ屋の 仕事だけ）</p>
+  <p class="hint">さいしょは <b>五文</b>。まず 家を 買って、仕事で お金を ためよう。</p>
+  <label for="nm">なまえ</label>
+  <input type="text" id="nm" maxlength="10" placeholder="れい：くまごろう">
+  <label>せいべつ</label>
+  <div class="row" id="sexRow">
+    <button class="pick on" data-s="男">男</button>
+    <button class="pick" data-s="女">女</button>
+  </div>
+  <button id="go">はじめる</button>
+  <button id="cont" style="display:none;margin-top:10px">📂 つづきから</button>
+</div>
+
+<div id="town" class="screen">
+  <div id="top"></div>
+  <div id="scene">🏘🏮🌙</div>
+  <div id="news"></div>
+  <div id="cmd">
+    <button id="bHouse" onclick="houseSheet()">🏠 家</button>
+    <button id="bBoard" onclick="boardSheet()">📋 回覧板</button>
+    <button id="bWork" onclick="workGo()">🌙 仕事に 行く</button>
+    <button id="bEat" onclick="eatSheet()">🍚 食べる</button>
+    <button id="bJii" onclick="jiiSheet()" style="grid-column: span 2">👴 物知りな じいさん</button>
+  </div>
+</div>
+
+<div id="work" class="screen">
+  <h2>🍱 ウナギ屋：うなぎに タレを かける</h2>
+  <p class="hint" id="wHint">ゆび（マウス）で うなぎを なぞって、タレを ぬろう</p>
+  <canvas id="cv"></canvas>
+  <div id="bar"><div id="barIn"></div></div>
+  <div id="wMsg"></div>
+</div>
+
+<div id="sheet"><div id="sheetBox"></div></div>
+<div id="ver"></div>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const URLQ = new URLSearchParams(location.search);
+const DEV = URLQ.get('dev') === '1';
+const BUILD = 'edo-1122b';   // ⚠ 版の印
+$('ver').textContent = BUILD;
+
+// ============ ゲームログ（群雄合戦と 同じ しくみ・常時ON。テストプレイは 全部 データ） ============
+const LOG_TAG = URLQ.get('tag') || 'edo';
+const STARTED = new Date().toISOString();
+const LOG_KEY = 'yuujinGameLog_' + STARTED.replace(/[:.]/g, '-') + '_' + LOG_TAG;
+const gameLog = [];
+function logEvent(type, data) { gameLog.push({ t: Math.round(performance.now()), type, data }); }
+function saveLog() {
+  try { localStorage.setItem(LOG_KEY, JSON.stringify({ ver: location.pathname, tag: LOG_TAG, build: BUILD, started: STARTED, events: gameLog.slice(-3000) })); }
+  catch (e) { console.warn('⚠ ログを保存できなかった', e); }
+}
+window.gameLogPeek = () => gameLog;
+setInterval(saveLog, 10000);
+addEventListener('beforeunload', saveLog);
+const CLOUD_URL = 'https://script.google.com/macros/s/AKfycbyMDP1lVKD7YRe3A0Z37qr9W6fMOcIyPiy-c_d2kZs1ywQCeeBrwLz7sm6-5tKqYomX/exec';
+const CLOUD_KEY = 'yuujin2026';
+try { if (!localStorage.getItem('yuujinDevice')) localStorage.setItem('yuujinDevice', 'pc-' + Math.random().toString(36).slice(2, 7)); } catch (e) {}
+let DEVICE = 'unknown'; try { DEVICE = localStorage.getItem('yuujinDevice') || 'unknown'; } catch (e) {}
+let sentCount = 0, sending = false;
+const cloudBody = events => JSON.stringify({ key: CLOUD_KEY, runId: LOG_KEY, device: DEVICE, ver: location.pathname, tag: LOG_TAG, build: BUILD, events });
+async function sendLog() {
+  if (DEV || sending || sentCount >= gameLog.length) return;   // ⚠ テスト（?dev=1）のログは 送らない
+  sending = true; const upto = gameLog.length;
+  try {
+    const res = await fetch(CLOUD_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: cloudBody(gameLog.slice(sentCount, upto)) });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    sentCount = upto;
+  } catch (e) { console.warn('⚠ ログを送れなかった。次の60秒で また試す', e); }
+  finally { sending = false; }
+}
+setInterval(sendLog, 60000);
+addEventListener('beforeunload', () => { if (!DEV && sentCount < gameLog.length) try { navigator.sendBeacon(CLOUD_URL, cloudBody(gameLog.slice(sentCount))); } catch (e) {} });
+logEvent('open', { build: BUILD, w: innerWidth, h: innerHeight, touch: (navigator.maxTouchPoints || 0) > 0 });
+addEventListener('pointerdown', e => logEvent('tap', { x: Math.round(e.clientX), y: Math.round(e.clientY), id: (e.target.closest('[id]') || {}).id || '' }), true);
+
+// ============ きまり（監督の 数字は そのまま。⚠ は こちらの 決め） ============
+const START_MON = 5;                       // 監督11/4「さいしょは、一人五文持っていて」
+// 監督11/4「長屋は、三文 母屋は、五文 通邸は、一貫（五十文）… 屋敷が七万両」。⚠ 大邸「一部一貫（一部は五貫）」は 値段が 読みきれないので まだ 出していない
+const HOUSES = [
+  { k: '長屋', mon: 3 }, { k: '母屋', mon: 5 }, { k: '通邸', mon: 50, label: '一貫（五十文）' }, { k: '屋敷', mon: Infinity, label: '七万両' },
+];
+const JOB_FEE = 1;                         // 監督11/5「仕事入るのに一文必要」
+// 監督11/4 の 仕事と もらえる 道具。⚠ 試作1は ウナギ屋だけ（ほかは 回覧板に 名前だけ 出す）
+const JOBS = [
+  ['ウナギ屋', 'タレ'], ['寿司屋', '屋台'], ['てんぷら屋', '屋台'], ['蕎麦屋', '屋台'], ['うどん屋', '屋台'], ['大工', '道具箱'], ['奉行', '十手'], ['力士', 'ふんどし'],
+  ['行司', '軍配'], ['歌舞伎役者', 'メイク道具'], ['絵師', '筆'], ['茶人', '釜'], ['和傘職人', 'のり'], ['植木屋', 'ハサミ'], ['火消し', '提灯'], ['駕籠屋', 'かご'], ['泥棒', '鍵'],
+];
+// 監督11/5「屋台は、十三文 ウナギは、20文 … 魚屋は、十八文 飯屋は、三十文」（風呂屋 十三文は ごはんでは ないので まだ 出していない）
+const FOODS = [{ k: '屋台', mon: 13 }, { k: '魚屋', mon: 18 }, { k: 'ウナギ', mon: 20 }, { k: '飯屋', mon: 30 }];
+const STARVE_DAYS = 5;                     // 監督11/5「5日ご飯食べないとゲームオーバ最初から」
+// ⚠ こちらの 決め：一晩に 6ぱい・1ぱい うまく ぬれたら 一文（最高 六文）・その晩に もらえる
+// ⚠ 監督の 給料の 話とは まだ 合わせていない：11/5「奉行が一番給料が高い20文」「給料は 回覧板で わかる・月に いっかい」／11/6「いいお酒は 二十文 奉行の給料二日ぶん」（＝20文が 1日ぶんか 月ぶんか 読みきれない）
+// ⚠ 回覧板の「場所：川ぞいの 店」も こちらの 決め（監督11/4 は「仕事の名前場所がある」まで）
+// パパ11/5「やってるうちに だんだん 次の 丼が 来る スピードが 早くなる」→ 1ぱいごとに 持ち時間が へる
+// ponytail: 数字は 仮, テストプレイの ログ（bowl の cov と ms）を 見て 直す
+const UN = { cols: 14, rows: 4, need: 0.7, bowls: 6, pay: 1, t0: 6000, tStep: 500, tMin: 3000, brush: 0.9 };
+
+const SAVE_KEY = 'edoSave1';
+let S = null;
+const readSave = () => { try { return JSON.parse(localStorage.getItem(SAVE_KEY)); } catch (e) { return null; } };
+// ⚠ こちらの 決め：何か するたびに 自動で セーブ（5日 食べないで 最初からに なったら 消える）
+function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) { console.warn('⚠ セーブできなかった', e); } }
+const esc = s => String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+function show(id) { document.querySelectorAll('.screen').forEach(x => x.classList.toggle('on', x.id === id)); }
+function sheet(html) { $('sheetBox').innerHTML = html; $('sheet').classList.add('on'); $('sheetBox').scrollTop = 0; }
+// ⚠ たおれた あと（S が ない）に ふだの 外を 押しても、町に 残らず はじめの 画面へ（町の ボタンは S が ないと 動かない）
+function closeSheet() { $('sheet').classList.remove('on'); if (!S) return show('start'); refresh(); }
+$('sheet').addEventListener('pointerdown', e => { if (e.target === $('sheet')) closeSheet(); });
+function news(text, cls) { const d = document.createElement('div'); if (cls) d.className = cls; d.textContent = text; $('news').prepend(d); }
+
+// ============ はじめの 画面（監督11/5「最初に性別名前を決めて」） ============
+let sex = '男';
+$('sexRow').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; sex = b.dataset.s;
+  $('sexRow').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); });
+// ⚠ こちらの 決め：つづきが あるのに「はじめる」を 押したら、消える前に 一回 聞く
+$('go').onclick = () => {
+  if (readSave()) return sheet(`<h2>📂 つづきが ある</h2><p class="hint" style="font-size:17px">「はじめる」と、前の つづきは 消える。いい？</p><div class="row two"><button onclick="closeSheet()">やめる</button><button onclick="$('sheet').classList.remove('on'); newGame()">消して はじめる</button></div>`);
+  newGame();
+};
+function newGame() {
+  S = { name: $('nm').value.trim() || 'ななし', sex, mon: START_MON, day: 1, hungry: 0, house: null, job: null, tool: null, lent: false, bowls: 0 };
+  $('news').innerHTML = '';
+  logEvent('start', { sex: S.sex, nameLen: S.name.length });
+  news(`${S.name}は 五文 持って 江戸に やって来た。まず 家を 買おう。`, 'k');
+  save(); show('town'); refresh();
+}
+$('cont').onclick = () => { S = readSave(); if (!S) return; $('news').innerHTML = ''; logEvent('continue', { day: S.day, mon: S.mon });
+  news(`${S.name}は 江戸の 町に もどって来た。`, 'k'); show('town'); refresh(); };
+if (readSave()) $('cont').style.display = '';
+
+function refresh() {
+  if (!S) return;
+  const left = STARVE_DAYS - S.hungry;
+  $('top').innerHTML = `<span class="me">${S.sex === '女' ? '👩' : '👨'} ${esc(S.name)}</span><span>💰 ${S.mon}文</span><span>📅 ${S.day}日目</span>` +
+    `<span class="${left <= 2 ? 'warn' : ''}">🍚 ${S.hungry === 0 ? 'おなか いっぱい' : `${S.hungry}日 食べていない`}</span>` +
+    `<span>${S.house ? '🏠 ' + S.house : '🏠 家なし'}</span>${S.job ? `<span>🍱 ${S.job}</span>` : ''}`;
+  $('bWork').disabled = !S.job;
+}
+
+// ============ 家（監督11/4「まず自分の家を買う」） ============
+function houseSheet() {
+  if (S.house) return sheet(`<h2>🏠 ${esc(S.name)}の 家：${S.house}</h2><p class="hint">ほかの 家に ひっこすのは まだ できない</p><div class="row two"><button onclick="closeSheet()">とじる</button></div>`);
+  sheet(`<h2>🏠 家を 買う</h2><p class="hint">いま 💰 ${S.mon}文。家を 買うと 回覧板が 来る</p><div class="row">` +
+    HOUSES.map((h, i) => `<button ${S.mon >= h.mon ? '' : 'disabled'} onclick="buyHouse(${i})">${h.k}　<span class="cost">${h.label || h.mon + '文'}</span></button>`).join('') +
+    `</div><div class="row two"><button onclick="closeSheet()">やめる</button></div>`);
+}
+function buyHouse(i) {
+  const h = HOUSES[i]; if (S.house || S.mon < h.mon) return;
+  S.mon -= h.mon; S.house = h.k; logEvent('house', { k: h.k, mon: h.mon, left: S.mon });
+  news(`${h.k}を 買った（${h.mon}文）。`, 'good'); news('📋 回覧板が 来た。お仕事が のっている。', 'k');
+  save(); closeSheet();
+}
+
+// ============ 回覧板（監督11/4「回覧板が家を買うと来る 回覧板には、お仕事が紹介されている」） ============
+function boardSheet() {
+  if (!S.house) return sheet(`<h2>📋 回覧板</h2><p class="hint">回覧板は 家を 買うと 来る。まず 🏠 家を 買おう</p><div class="row two"><button onclick="closeSheet()">とじる</button></div>`);
+  if (S.job) return sheet(`<h2>📋 回覧板</h2><p class="hint">いまの 仕事：<b>${S.job}</b>（道具：${S.tool}）<br>ほかの 仕事は まだ 作っている とちゅう</p><div class="row two"><button onclick="closeSheet()">とじる</button></div>`);
+  sheet(`<h2>📋 回覧板：お仕事</h2><p class="hint">仕事に 入るのに <b>${JOB_FEE}文</b> いる。入ると 道具が もらえる。いま 💰 ${S.mon}文</p><div class="row">` +
+    JOBS.map(([k, tool], i) => i === 0
+      ? `<button ${S.mon >= JOB_FEE ? '' : 'disabled'} onclick="takeJob()">${k}（${tool}が もらえる）　<span class="cost">場所：川ぞいの 店</span></button>`
+      : `<button disabled>${k}（${tool}が もらえる）　まだ</button>`).join('') +
+    `</div><div class="row two"><button onclick="closeSheet()">やめる</button></div>`);
+}
+function takeJob() {
+  if (S.job || S.mon < JOB_FEE) return;
+  S.mon -= JOB_FEE; S.job = JOBS[0][0]; S.tool = JOBS[0][1]; logEvent('job', { k: S.job, left: S.mon });
+  news(`${S.job}に 入った（${JOB_FEE}文）。${S.tool}を もらった。`, 'good'); news('🌙 夜に なったら「仕事に 行く」。', 'k');
+  save(); closeSheet();
+}
+
+// ============ 食べる（監督11/5 の 値段・「5日ご飯食べないとゲームオーバ最初から」） ============
+function eatSheet() {
+  sheet(`<h2>🍚 食べる</h2><p class="hint">いま 💰 ${S.mon}文。${STARVE_DAYS}日 食べないと たおれて <b>最初から</b>に なる</p><div class="row">` +
+    FOODS.map((f, i) => `<button ${S.mon >= f.mon ? '' : 'disabled'} onclick="eat(${i})">${f.k}　<span class="cost">${f.mon}文</span></button>`).join('') +
+    `</div><div class="row two"><button onclick="closeSheet()">やめる</button></div>`);
+}
+function eat(i) {
+  const f = FOODS[i]; if (S.mon < f.mon) return;
+  S.mon -= f.mon; logEvent('eat', { k: f.k, mon: f.mon, hungry: S.hungry, left: S.mon }); S.hungry = 0;
+  news(`${f.k}で 食べた（${f.mon}文）。おなか いっぱい。`, 'good'); save(); closeSheet();
+}
+
+// ============ 物知りな じいさん（監督11/4「ある長屋に物知りなじいさんがいていろんなことを教えてくれる」） ============
+function jiiSheet() {
+  let t;
+  // ⚠ こちらの 決め：母屋を 五文で 買うと 仕事に 入る 一文が なくなって 進めなくなる → じいさんが 一回だけ 一文 かしてくれる
+  if (S.house && !S.job && S.mon < JOB_FEE && !S.lent) { S.lent = true; S.mon += JOB_FEE; logEvent('jii_lend', {}); save();
+    t = '「仕事に 入る 一文も ないのかい。ほれ、一文 やろう。回覧板を 見てごらん」'; }
+  else if (!S.house) t = '「江戸では まず 家だよ。長屋なら 三文で 買える。家を 買うと 回覧板が 来るんだ」';
+  else if (!S.job) t = '「回覧板を 見たかい。仕事に 入るには 一文 いる。入れば 道具が もらえるよ」';
+  else if (S.hungry >= 3) t = `「顔色が わるいね。${STARVE_DAYS}日 食べないと たおれて 最初からだ。屋台なら 十三文だよ」`;
+  else if (S.mon < FOODS[0].mon) t = '「ウナギ屋は 夜に 行くんだ。うなぎに タレを かけるだけ。むらなく ぬれば 一ぱい 一文に なる」';
+  else t = '「お金が たまったら 何か 食べな。ほかの 仕事や 富くじは、いま 町で じゅんびしている ところだ」';
+  logEvent('jii', { t: t.slice(1, 12) });
+  sheet(`<h2>👴 物知りな じいさん</h2><p class="hint" style="font-size:17px;text-align:left">${t}</p><div class="row two"><button onclick="closeSheet()">ありがとう</button></div>`);
+}
+
+// ============ ウナギ屋の 仕事（監督11/5「ウナギや屋は、うなぎにたれおかけるだけ」「垂れは、よるになったらいく」「仕事をミニゲームにしたらどう」） ============
+let W = null;
+const cv = $('cv'), cx = cv.getContext('2d');
+function workGo() {
+  if (!S.job) return;
+  const w = Math.min(innerWidth - 24, 420), h = 220;
+  cv.width = w; cv.height = h;
+  W = { i: 0, earned: 0, eel: { x: w * .12, y: h * .36, w: w * .76, h: h * .3 }, busy: false };
+  logEvent('work_start', { day: S.day, mon: S.mon, hungry: S.hungry });
+  show('work'); bowlStart();
+}
+function bowlStart() {
+  W.cells = new Uint8Array(UN.cols * UN.rows); W.n = 0; W.busy = false; W.strokes = 0; W.first = null; W.per = [];
+  W.limit = Math.max(UN.tMin, UN.t0 - UN.tStep * W.i); W.t0 = performance.now();
+  $('wMsg').textContent = `${W.i + 1}ぱい目（${UN.bowls}ぱい中）`;
+  drawBowl(); clearInterval(W.timer);
+  W.timer = setInterval(() => { const e = performance.now() - W.t0; $('barIn').style.width = Math.max(0, 100 - e / W.limit * 100) + '%';
+    if (e >= W.limit) bowlEnd(); }, 50);
+}
+function drawBowl() {
+  const { x, y, w, h } = W.eel, cw = w / UN.cols, ch = h / UN.rows;
+  cx.clearRect(0, 0, cv.width, cv.height);
+  cx.fillStyle = '#1b1b1b'; cx.beginPath(); cx.ellipse(cv.width / 2, cv.height / 2, cv.width * .47, cv.height * .42, 0, 0, 7); cx.fill();   // どんぶり
+  cx.fillStyle = '#f5f1e6'; cx.beginPath(); cx.ellipse(cv.width / 2, cv.height / 2, cv.width * .43, cv.height * .36, 0, 0, 7); cx.fill();   // ごはん
+  for (let r = 0; r < UN.rows; r++) for (let c = 0; c < UN.cols; c++) {
+    cx.fillStyle = W.cells[r * UN.cols + c] ? '#5b2a0c' : '#d9a066';                                                                        // タレ／まだ
+    cx.fillRect(x + c * cw, y + r * ch, cw + .5, ch + .5);
+  }
+  cx.strokeStyle = '#3a1a06'; cx.lineWidth = 2; cx.strokeRect(x, y, w, h);
+}
+function paint(e) {
+  if (!W || W.busy) return;
+  const rc = cv.getBoundingClientRect(), px = (e.clientX - rc.left) * cv.width / rc.width, py = (e.clientY - rc.top) * cv.height / rc.height;
+  const { x, y, w, h } = W.eel, cw = w / UN.cols, ch = h / UN.rows, rad = ch * UN.brush;
+  for (let r = 0; r < UN.rows; r++) for (let c = 0; c < UN.cols; c++) {
+    const i = r * UN.cols + c; if (W.cells[i]) continue;
+    if (Math.hypot(x + (c + .5) * cw - px, y + (r + .5) * ch - py) <= rad) { W.cells[i] = 1; W.n++; }
+  }
+  drawBowl();
+  if (W.n === W.cells.length) bowlEnd();
+}
+let down = false;
+cv.addEventListener('pointerdown', e => { down = true; try { cv.setPointerCapture(e.pointerId); } catch (err) {} if (W && !W.busy) { W.strokes++; if (W.first === null) W.first = Math.round(performance.now() - W.t0); W.per.push(W.n); } paint(e); });
+cv.addEventListener('pointermove', e => { if (down) paint(e); });
+addEventListener('pointerup', () => { down = false; });
+addEventListener('pointercancel', () => { down = false; });
+function bowlEnd() {
+  if (W.busy) return; W.busy = true; clearInterval(W.timer);
+  const cov = W.n / W.cells.length, ok = cov >= UN.need, ms = Math.round(performance.now() - W.t0);
+  if (ok) W.earned += UN.pay;
+  S.bowls++;
+  // first＝さいしょに さわるまでの ms・per＝なぞり 1本ごとに ぬれた マスの 数（持ち時間と 筆の 太さを ログから 直すため）
+  const per = W.per.map((v, k) => (k + 1 < W.per.length ? W.per[k + 1] : W.n) - v);
+  logEvent('bowl', { i: W.i, cov: +cov.toFixed(2), ms, limit: W.limit, ok, strokes: W.strokes, first: W.first, per: per.slice(0, 30) });
+  $('wMsg').textContent = ok ? (cov === 1 ? '◎ きれいに ぬれた！ +1文' : '○ よし！ +1文') : '× タレが たりない…';
+  W.i++;
+  setTimeout(() => (W.i < UN.bowls ? bowlStart() : workEnd()), 800);
+}
+function workEnd() {
+  const e = W.earned; W = null;
+  S.mon += e; S.day++; S.hungry++;
+  logEvent('work_end', { earned: e, mon: S.mon, day: S.day, hungry: S.hungry });
+  show('town');
+  news(`🌙 ウナギ屋で ${UN.bowls}ぱい 作って ${e}文 もらった。朝に なった（${S.day}日目）。`, e ? 'good' : 'bad');
+  if (S.hungry >= STARVE_DAYS) return starve();
+  if (S.hungry >= 3) news(`⚠ もう ${S.hungry}日 食べていない。${STARVE_DAYS}日で たおれる。`, 'bad');
+  save(); refresh();
+}
+function starve() {
+  logEvent('starve', { day: S.day, mon: S.mon });
+  try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
+  const d = S.day; S = null; $('cont').style.display = 'none';
+  sheet(`<h2>😵 たおれた</h2><p class="hint" style="font-size:17px">${STARVE_DAYS}日 ごはんを 食べなかった。<br>${d}日目で 最初からに なった。</p><div class="row two"><button onclick="$('sheet').classList.remove('on'); show('start')">最初から</button></div>`);
+}
+
+if (DEV) window.__e = { get S() { return S; }, set S(v) { S = v; }, get W() { return W; }, UN, HOUSES, FOODS, JOBS, STARVE_DAYS, SAVE_KEY, refresh, workEnd, bowlEnd, save };
+</script>
+</body>
+</html>
