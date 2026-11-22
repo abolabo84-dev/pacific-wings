@@ -215,7 +215,7 @@
 const $ = id => document.getElementById(id);
 const URLQ = new URLSearchParams(location.search);
 const DEV = URLQ.get('dev') === '1';
-const BUILD = 'edo-1123g';   // ⚠ 版の印
+const BUILD = 'edo-1123h';   // ⚠ 版の印
 // 🎨 見た目：パパ 11/23「2の漆」で 決まり（?ui=1／3 は 比べる 用に 残す）
 const UI = ['1', '2', '3'].includes(URLQ.get('ui')) ? URLQ.get('ui') : '2';
 document.body.classList.add('ui' + UI); window.edoUI = UI;
@@ -293,7 +293,7 @@ function sheet(html) { $('sheetBox').innerHTML = html; $('sheet').classList.add(
 function mapInfo() { const m = window.edoMap; if (!m) return;
   sheet(`<h2>📜 この 町の 地図に ついて</h2><p class="hint say">日本橋を まんなかに、半径 500m の 町。<br>${esc(m.note)}。<br><br>${m.credit.map(esc).join('<br>')}</p>${okBtn2}`); }
 const okBtn2 = '<div class="row two"><button onclick="closeSheet()">とじる</button></div>';
-function closeSheet() { $('sheet').classList.remove('on'); story = null; SP = null; if (!S) return show('start'); refresh(); }
+function closeSheet() { $('sheet').classList.remove('on'); story = null; SP = null; MX = null; TK = null; if (!S) return show('start'); refresh(); }
 let sheetLock = false;   // 🕯 ろうそくの 場面は、札の 外を 押しても 閉じない（逃げられない・裏で 時間だけ 進まない）
 $('sheet').addEventListener('pointerdown', e => { if (e.target === $('sheet') && !sheetLock) closeSheet(); });
 function news(text, cls) { const d = document.createElement('div'); if (cls) d.className = cls; d.textContent = text; $('news').prepend(d); setTimeout(() => d.classList.add('old'), 4500); }
@@ -406,10 +406,11 @@ function jiiSheet() {
   let t;
   // ⚠ こちらの 決め：母屋を 五文で 買うと 仕事に 入る 一文が なくなって 進めなくなる → じいさんが 一回だけ 一文 かしてくれる
   if (S.house && !S.job && !S.soba && S.mon < JOB_FEE && !S.lent) { S.lent = true; S.mon += JOB_FEE; logEvent('jii_lend', {}); save();
-    t = '「仕事に 入る 一文も ないのかい。ほれ、一文 やろう。回覧板を 見てごらん」'; }
+    t = '「仕事に 入る 一文も ないのかい。ほら、一文 あげよう。回覧板を 見てごらん」'; }
   else if (!S.house) t = '「江戸では まず 家だよ。長屋なら 三文で 買える。家を 買うと 回覧板が 来るんだ」';
   else if (!S.job && !S.soba) t = '「回覧板を 見たかい。仕事に 入るには 一文 いる。入れば 道具が もらえるよ」';
   else if (S.hungry >= 3) t = `「顔色が わるいね。${STARVE_DAYS}日 食べないと たおれて 最初からだ。屋台なら 十三文だよ」`;
+  else if (S.day >= 2 && (S.chiri || 0) < 2) t = '「町の 南の はしの 大きな 店で、旦那が 誕生日の 祝いを しているよ。顔を 出して ごらん」';   // 🎭 ちりとてちんへの 道しるべ（はじめの 向きの うしろに あるので）
   else if (S.mon < FOODS[0].mon) t = '「ウナギ屋は 夜に 行くんだ。うなぎに タレを かけるだけ。むらなく ぬれば 一ぱい 一文に なる」';
   else t = '「お金が たまったら 何か 食べな。ほかの 仕事や 富くじは、いま 町で じゅんびしている ところだ」';
   logEvent('jii', { t: t.slice(1, 12) });
@@ -604,7 +605,7 @@ const SG = { fee: 5, trick: 30, lose: 'restart', life: 12000, miss: 1500, period
 const SPELL = ['アジャラカモクレン', 'テケレッツのパア'], SPELL_NEED = [0, 1, 'clap', 'clap'];
 const SHINI = { t: '🧓 つえを ついた じいさん', end: 'やってみる', pages: [
   'やせた、つえを ついた じいさんが 立っている。<br>「わしは 死神だよ」',
-  '「お金に こまったら、医者を やらないか。病人の そばには、かならず 死神が いる。おまえには 見えるように してやろう」',
+  '「お金に こまったら、医者を やらないか。病人の そばには、かならず 死神が いる。おまえには 見えるように してあげよう」',
   '「死神が <b>足元</b>に いたら、呪文で 追いはらえる。病人は すぐ 治る。<br><b>枕元</b>に いたら、それは 寿命だ。手を 出しては いけないよ」',
   `「呪文は『${SPELL[0]}、${SPELL[1]}』。となえたら、<b>手を 2つ 打つ</b>」`] };
 let SP = null, C = null;
@@ -697,7 +698,83 @@ function candleEnd(win) {
   sheet(`<h2>🕯 ああ、消える……</h2><p class="hint say">ろうそくが 消えて、目の 前が まっくらに なった。<br><br>${note}<br><br>……目が さめると、じぶんの 家の 前に たおれていた。お金は ぜんぶ なくなっていた。</p>${okBtn}`);
 }
 
-if (DEV) window.__e = { get N() { return N; }, get C() { return C; }, get SP() { return SP; }, SG, candlePos, sobaStart, sobaEnd, SB, UDON, get S() { return S; }, set S(v) { S = v; }, get W() { return W; }, UN, HOUSES, FOODS, JOBS, STARVE_DAYS, SAVE_KEY, refresh, workEnd, bowlEnd, save };
+// ============ 🎭 落語「ちりとてちん」（監督 11/23 08:00「A」＝つぎの 噺は ちりとてちん）＝町の 南の はしの 大店で、旦那の 誕生日 ============
+// 噺の 筋は 資料で 確かめた（~/.claude/research/rakugo-enmoku.md。世紀末亭＝桂南光 1999・Wikipedia・コトバンク）：
+//   旦那の 誕生日。何を 出されても「初めて」と 喜ぶ 喜ぃさん → 何でも けなす 知ったかぶりの 竹の 話に なる → 水屋で 腐った 豆腐が 見つかる
+//   →「長崎名産 ちりとてちん」に 仕立てて 竹に 出す → 竹は「知ってます」と 言って 食べる はめに なる → サゲ「どんな味や？」「ちょうど、豆腐の腐ったような味ですわ」
+// ⚠ 上方の 噺。台詞は 標準語に した（パパ 11/23「画面内メッセージに関西弁がまじってるのを標準語に」）。サゲも「…味ですわ」→「…味です」
+// ⚠ 人の 名前（旦那・喜ぃさん・竹）は 桂南光の 型（演者で ちがう）。ゲームでは じぶんが 喜ぃさんの 役
+// ⚠ まぜる ものは 資料で 割れる（唐辛子／醤油・ワサビ・梅干）。ここは 桂南光の 型（しょうゆ・わさび・梅干し）だけ。名前の もとは となりの 三味線の 音（資料 3つ）
+// ⚠ こちらの 作り：酒は 出さない（ごちそうだけ。品は 資料に ないので「ごちそう」とだけ）・だれが 思いついたか・まぜる ミニゲーム（さとう・お茶は はずれ）・
+//   竹を その気に させる 3回の やりとり（ばらすと 竹が 帰って あした やりなおし）・竹の 食べる ようす・あとの 旦那の 一言
+// ⚠ こちらの 決め：ごちそうで おなか いっぱい（1回だけ）・お礼 五文（死神の 足元と 同じ。奉行の 1日 二十文より 少なく）
+// ⚠ 噺の まま 入れた もの（パパに 聞く）：腐った 豆腐を だまして 食べさせる 筋・長崎を「におう 名物」の 産地に する こと
+const CH = { pay: 5, mix: ['しょうゆ', 'わさび', '梅干し'], miss: { 'さとう': '旦那「あまく しては だめだ」', 'お茶': '旦那「それは 飲む ものだよ」' } };
+const TAKE = [   // 竹との やりとり。[竹を その気に させる 言葉, 竹の 返事]
+  ['「竹さんは 何でも 知っているからなあ」', '竹「まあね。江戸で 知らない 食べものは ないよ」'],
+  ['「長崎の 名物が 手に 入ったんだ。竹さんなら 知っているでしょう」', '竹「長崎？ ああ、あれだろう。よく 食べたよ」'],
+  ['「ちりとてちん と いうんだ」', '竹「ちりとてちん！ なつかしいねえ。長崎では 毎日 食べていたよ」']];
+let MX = null, TK = null;
+function chiriSheet() {
+  const st = S.chiri || 0; logEvent('chiri_meet', { st, day: S.day });
+  if (st >= 2) return sheet(`<h2>🎂 旦那</h2><p class="hint say">旦那「竹さんは あれから、少し おとなしく なったよ。また おいで」</p>${okBtn}`);
+  if (st === 1) return S.chiriDay === S.day ? sheet(`<h2>🎂 旦那</h2><p class="hint say c">竹は おこって 帰って しまった。<br>あした また 来よう。</p>${okBtn}`) : takeStart();
+  tell({ t: '🎂 旦那の 誕生日', end: 'いただきます', pages: [
+    '大きな 店の 旦那が 手まねきした。<br>「今日は わたしの 誕生日でね。よく 来てくれた。ごちそうを 食べて いきなさい」'] }, () => { chiriTaste(); return 'keep'; });
+}
+function chiriTaste() {
+  sheet(`<h2>🍱 ごちそう</h2><p class="hint say c">旦那「さあ、どうぞ。どうだい？」</p><div class="row">` +
+    `<button onclick="chiriSay('hajime')">「こんな ごちそう、はじめて 食べました！」</button><button onclick="chiriSay('aki')">「こんなの、もう 食べあきましたよ」</button></div>`);
+}
+function chiriSay(k) {
+  logEvent('chiri_say', { k });
+  tell({ t: '🍱 ごちそう', end: '豆腐を どうする？', pages: [
+    k === 'hajime' ? '旦那「うれしいねえ。あんたは 何を 出しても 喜んでくれる」' : '旦那「……竹みたいな ことを 言うねえ」',
+    '旦那「その 竹という 男がね、何を 出しても『知ってる』『食べあきた』と けなすんだ。一度 こらしめて やりたい」',
+    '台所の 水屋の おくから、豆腐が 出てきた。<br>黄色く なって、ひどい においが する。<br>旦那「……これだ」'] }, () => { MX = { got: [], miss: 0, t0: performance.now() }; mixSheet(''); return 'keep'; });
+}
+function mixSheet(msg) {
+  const btn = [...CH.mix, ...Object.keys(CH.miss)].sort(() => Math.random() - 0.5);
+  sheet(`<h2>🥢 ちりとてちんを 作る</h2><p class="hint say c">腐った 豆腐に まぜて、もっと すごい 味に しよう（${MX.got.length}／3）<br><span style="color:#ff8a80">${msg}</span></p><div class="row">` +
+    btn.map(t => `<button ${MX.got.includes(t) ? 'disabled' : ''} onclick="mixTap('${t}')">${MX.got.includes(t) ? '✓ ' : ''}${t}</button>`).join('') + `</div><div class="row two"><button onclick="closeSheet()">あとで</button></div>`);
+}
+function mixTap(t) {
+  if (!MX || MX.got.includes(t)) return;
+  if (CH.miss[t]) { MX.miss++; return mixSheet(CH.miss[t]); }
+  MX.got.push(t); if (MX.got.length < CH.mix.length) return mixSheet('');
+  logEvent('chiri_mix', { ms: Math.round(performance.now() - MX.t0), miss: MX.miss }); MX = null;
+  tell({ t: '🪕 となりから 三味線', end: '竹を 待つ', pages: [
+    'まぜて、小さな びんに つめた。<br>そのとき、となりの 家から 三味線の 音が 聞こえた。<br><b>♪ チリ・トテ・チン</b>',
+    '旦那「それだ！ 名前は『ちりとてちん』。長崎の 名物と いう ことに しよう」'] }, () => {
+    S.chiri = 1; S.hungry = 0; logEvent('chiri_made', {}); save();
+    news('🍱 旦那の ごちそうで おなか いっぱい。ちりとてちんが できた。', 'good'); takeStart(); return 'keep'; });
+}
+function takeStart() {
+  TK = { n: 0, t0: performance.now(), wrong: 0 }; logEvent('take_start', { day: S.day });
+  tell({ t: '😤 竹が 来た', end: '竹と 話す', pages: ['戸が あいて、竹が 入ってきた。<br>竹「旦那、誕生日 おめでとう。どうせ たいした ごちそうは ないんでしょう」'] }, () => { takeSheet(''); return 'keep'; });
+}
+function takeSheet(msg) {
+  const btn = [['good', TAKE[TK.n][0]], ['bara', '「じつは これ、腐った 豆腐なんだ」'], ['x', '「今日は いい 天気だねえ」']].sort(() => Math.random() - 0.5);
+  sheet(`<h2>😤 竹を その気に させる（${TK.n}／3）</h2><p class="hint say c">${msg || '竹に ちりとてちんを 食べさせよう'}</p><div class="row">` +
+    btn.map(([k, t]) => `<button data-k="${k}" onclick="takeTap('${k}')">${t}</button>`).join('') + `</div><div class="row two"><button onclick="closeSheet()">あとで</button></div>`);
+}
+function takeTap(k) {
+  if (!TK) return;
+  logEvent('take_tap', { k, n: TK.n, ms: Math.round(performance.now() - TK.t0) });
+  if (k === 'x') { TK.wrong++; return takeSheet('竹「……で、ごちそうは？」'); }
+  if (k === 'bara') { TK = null; S.chiriDay = S.day; logEvent('take_end', { win: false }); save();
+    return sheet(`<h2>😤 竹が 帰った</h2><p class="hint say c">竹「腐った 豆腐？ ばかに するな！」<br>竹は おこって 帰って しまった。<br>あした また 来よう。</p>${okBtn}`); }
+  const said = TAKE[TK.n][1]; if (++TK.n < TAKE.length) return takeSheet(said);
+  logEvent('take_end', { win: true, wrong: TK.wrong, ms: Math.round(performance.now() - TK.t0) }); TK = null;
+  tell({ t: '🥢 ちりとてちん', end: 'おしまい', pages: [
+    said + '<br><br>旦那が びんの ふたを あけた。ひどい においが 広がる。<br>竹「う……。こ、これこれ。この においが いいんだ」',
+    '竹は はしで つまんで、目を つぶって 口に 入れた。<br>顔が まっかに なった。',
+    `旦那「竹さん、ちりとてちんは どんな 味だい？」<br><b>竹「ちょうど、豆腐の 腐ったような 味です」</b><br><br>🎭 落語「ちりとてちん」の おち。知ったかぶりを して 食べて みたら、やっぱり 腐った 豆腐の 味だった。`] }, () => {
+    S.chiri = 2; S.mon += CH.pay; logEvent('chiri_end', { mon: S.mon });
+    news(`🎭 落語「ちりとてちん」を さいごまで 見た。旦那から お礼に ${CH.pay}文。`, 'good'); });
+}
+
+if (DEV) window.__e = { get N() { return N; }, get C() { return C; }, get SP() { return SP; }, get MX() { return MX; }, get TK() { return TK; }, CH, TAKE, SG,candlePos, sobaStart, sobaEnd, SB, UDON, get S() { return S; }, set S(v) { S = v; }, get W() { return W; }, UN, HOUSES, FOODS, JOBS, STARVE_DAYS, SAVE_KEY, refresh, workEnd, bowlEnd, save };
 </script>
 
 <!-- 🚶 3D の 町（three.js は 三国志合戦と 同じ 版）。ここが 読めない・動かないときは 上の ボタン画面の まま 遊べる -->
@@ -930,13 +1007,19 @@ function person(cloth, hairC) {   // 🎨 着物の 人（すそが 広がる・
   const mage = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.3, 6), hair); mage.position.set(0, 2.02, -0.02); mage.rotation.x = Math.PI / 2 - 0.25; g.add(mage);   // まげ
   return g;
 }
-// ⚠ じいさんは 壁ぎわ（x=-3.6）。前は x=-3.3 で、通りの 西がわを まっすぐ 歩くと じいさんに 引っかかって 止まった（11/22 テストで 見つけた）
-const jii = person(0x7a7a6a, 0xeeeeee); jii.position.set(-3.6, 0, -6); scene.add(jii);
-const shini = person(0x2a2a2e, 0xeeeeee); shini.scale.set(0.8, 1.05, 0.8); shini.position.set(3.4, 0, 18); shini.rotation.y = -Math.PI / 2;
+// ⚠ じいさんは 壁ぎわ。前は x=-3.3 で、通りの 西がわを まっすぐ 歩くと じいさんに 引っかかって 止まった（11/22 テストで 見つけた）→ 当たりの はばを 0.6 に して 壁ぎわへ
+// ⚠ 通りに 立つ 人（じいさん・死神・旦那）は 通りの ほうを 向く（袖が 壁に うまらない）。壁は |x|=4.0 → 体の はば 0.5 ぶん 内がわの |x|=3.45 に 立つ
+//   名札は 通りの まん中より（|x|=2.2）＝壁の 中に 入って 半分 かくれていた（パパ 11/23 iPhone のスクショ「キャラが埋まってたりするな」）
+const NPC_X = 3.45, NPC_L = 2.2, faceSt = x => (x < 0 ? -Math.PI / 2 : Math.PI / 2);   // 前は -z。-π/2＝東（+x）を 向く
+const jii = person(0x7a7a6a, 0xeeeeee); jii.position.set(-NPC_X, 0, -6); jii.rotation.y = faceSt(-1); scene.add(jii);
+const shini = person(0x2a2a2e, 0xeeeeee); shini.scale.set(0.8, 1.05, 0.8); shini.position.set(NPC_X, 0, 18); shini.rotation.y = faceSt(1);
 { const st = box(0.08, 1.9, 0.08, 0x5a3a1e); st.position.set(0.55, 0.95, -0.3); shini.add(st); } shini.visible = false; scene.add(shini);
-const shL1 = label('つえの じいさん', 5); const shL2 = label('死神', 3); for (const l of [shL1, shL2]) { l.position.set(3.4, 3.3, 18); l.visible = false; scene.add(l); }
+const shL1 = label('つえの じいさん', 5); const shL2 = label('死神', 3); for (const l of [shL1, shL2]) { l.position.set(NPC_L, 3.3, 18); l.visible = false; scene.add(l); }
+// 🎂 ちりとてちんの 旦那：町の 南の はし（はじめの 場所 z=22 の うしろ）。地図の 町家の 前に 立つ（建物は 足さない）。⚠ じいさんと 同じく 壁ぎわ
+const danna = person(0x5a3a2a, 0x1a1a1a); danna.position.set(NPC_X, 0, 29); danna.rotation.y = faceSt(1); danna.visible = false; scene.add(danna); boxes.push({ x: NPC_X, z: 29, w: 0.6, d: 0.8 });
+const dnL = label('🎂 旦那の 誕生日', 6); dnL.position.set(NPC_L, 3.3, 29); dnL.visible = false; scene.add(dnL);
 const byoL = label('🩺 病人の 家', 5.5); byoL.position.set(-9.5, 9.4, -21); byoL.visible = false; scene.add(byoL);
-const jl = label('物知りな じいさん', 5.5); jl.position.set(-3.6, 3.1, -6); scene.add(jl); boxes.push({ x: -3.6, z: -6, w: 0.8, d: 0.8 });
+const jl = label('物知りな じいさん', 5.5); jl.position.set(-NPC_L, 3.3, -6); scene.add(jl); boxes.push({ x: -3.45, z: -6, w: 0.6, d: 0.8 });
 
 // ---- 入れる 所（戸口の 前に 立つと「入る」が 出る）。ひらく 札は 試作1と 同じ ----
 const S = () => window.edoS();
@@ -949,6 +1032,7 @@ const SPOTS = [
   // 🎭 死神：家を 買ってから 出る（はじめての 人が 家より 先に 死神に 会わない）。病人の 家は 医者に なってから
   { k: 'shini',  x: 3.0,  z: 18, when: () => !!S().house, txt: () => (S().doc ? '💀 死神と 話す' : '🧓 つえの じいさん'), go: () => window.shiniSheet() },
   { k: 'byo',    x: -3.2, z: -19.2, hz: 2.4, when: () => !!S().doc, txt: () => '🩺 病人の 家に 入る', go: () => window.byoSheet() },
+  { k: 'chiri',  x: 2.2,  z: 29, hz: 2.4, when: () => !!S().house, txt: () => ((S().chiri || 0) >= 2 ? '🎂 旦那と 話す' : '🎂 旦那の 誕生日'), go: () => window.chiriSheet() },   // ⚠ はじめの 場所（z=22）は 帯の 外
   { k: 'unagi',  x: 0,    z: -29.1, hz: 2.3, hw: 6.6, txt: () => '🍱 ウナギ屋に 入る', go: () => window.unagiSheet() },
 ];
 // ⚠ 丸（半径）で 判定すると 通りの まんなかで 0.4秒ぶんしか 出なかった（11/22）→ 帯に した。hw＝東西の 半分・hz＝南北の 半分
@@ -1067,7 +1151,7 @@ function tick(now) {
   if (waterTex) waterTex.offset.set(now / 90000, now / 140000);
   { const mv = Math.hypot(P.x - (me.userData.px ?? P.x), P.z - (me.userData.pz ?? P.z)); me.userData.ph = (me.userData.ph || 0) + mv * 3.2; me.position.y = mv > 0.001 ? Math.abs(Math.sin(me.userData.ph)) * 0.07 : 0; me.userData.px = P.x; me.userData.pz = P.z; }
   homeL2.visible = !!S().house; homeB.userData.label.visible = !S().house;
-  { const sv = !!S().house && !window.edoNight(); shini.visible = sv; shL1.visible = sv && !S().doc; shL2.visible = sv && !!S().doc; byoL.visible = !!S().doc; }
+  { const sv = !!S().house && !window.edoNight(); shini.visible = sv; shL1.visible = sv && !S().doc; shL2.visible = sv && !!S().doc; byoL.visible = !!S().doc; danna.visible = dnL.visible = sv; }
   // いちばん 近い 戸口
   if (yatai.parent !== me) me.add(yatai);
   const night = window.edoNight();
