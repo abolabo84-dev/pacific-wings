@@ -68,7 +68,16 @@
   body.t3d #news { position: relative; z-index: 5; flex: 0 0 auto; min-height: 0; max-height: 4.9em; overflow: hidden; background: rgba(0,0,0,.45); pointer-events: none; }
   body.t3d #next { display: block; position: relative; z-index: 5; margin-top: 6px; padding: 4px 12px; border-radius: 10px; background: rgba(0,0,0,.55);
                    color: #ffe066; font-weight: bold; font-size: 17px; text-align: center; pointer-events: none; }
-  body.t3d #stick { display: block; position: absolute; left: 0; bottom: 0; width: 50%; height: 50%; z-index: 11; touch-action: none; }
+  /* 🕹 11/22 の 本番ログ（スマホ 375×640）：始めて すぐ 画面の まんなかを 5秒で 7回 押し、歩けたのは 80秒後。そのあとも スティックの すぐ 右（x 200〜218）を 押して 外していた
+     → スティックの 場所を 左下に いつも 見せる・さわれる 所を 横 50%→58% に */
+  body.t3d #stick { display: block; position: absolute; left: 0; bottom: 0; width: 58%; height: 50%; z-index: 11; touch-action: none; }
+  #stickHint { display: none; position: absolute; left: 28px; bottom: 64px; width: 110px; height: 110px; border-radius: 50%; border: 3px solid rgba(255,255,255,.75);
+               background: rgba(0,0,0,.28); z-index: 10; pointer-events: none; }
+  #stickHint::after { content: ''; position: absolute; left: 30px; top: 30px; width: 50px; height: 50px; border-radius: 50%; background: rgba(255,255,255,.6); }
+  #stickHint span { position: absolute; left: -10px; bottom: 118px; width: 160px; text-align: center; font-weight: bold; font-size: 16px; color: #ffe066; text-shadow: 1px 1px 3px #000; line-height: 1.3; }
+  body.t3d.touch #town.on ~ #stickHint, body.t3d.touch #stickHint.show { display: block; }
+  body.t3d.touch.walking #stickHint { opacity: .35; }
+  body.t3d.touch.walking #stickHint span, body.stickdown #stickHint { display: none !important; }
   #stickBase { position: fixed; width: 110px; height: 110px; border: 2px solid rgba(255,255,255,.5); border-radius: 50%; display: none; pointer-events: none; z-index: 12; }
   #stickKnob { position: fixed; width: 50px; height: 50px; border-radius: 50%; background: rgba(255,255,255,.55); display: none; pointer-events: none; z-index: 12; }
   body.t3d #act { position: absolute; right: 14px; bottom: 28px; z-index: 12; min-height: 76px; min-width: 150px; max-width: 46%; font-size: 19px; background: #8a2f1b; border-color: #ffe066; }
@@ -77,6 +86,77 @@
   body.t3d #call.on { display: block; }
   body.t3d #keyHint { display: block; position: absolute; left: 0; right: 0; bottom: 6px; z-index: 4; text-align: center; font-size: 13px; opacity: .85; pointer-events: none; text-shadow: 1px 1px 2px #000; }
   body.t3d.touch #keyHint { display: none; }
+  /* ================= 🎨 画面（11/23 パパ「がめん、こうみると雑然としてるな　もっとスタイリッシュにウィンドウとかもしていきたいな」） =================
+     共通の 直し（どの 案でも 同じ）＋ 見た目の 案 ui1／ui2／ui3（?ui= で 切りかえ・パパが 選ぶまで 仮） */
+  .say { font-size: 17px; text-align: left; } .say.c { text-align: center; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  #top .me { max-width: 8em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #top .pip { display: inline-block; width: 9px; height: 11px; margin-left: 2px; border-radius: 2px; background: #6fbf73; vertical-align: -1px; }
+  #top .pip.e { background: rgba(255,255,255,.18); } #top .warn .pip:not(.e) { background: #ff7a66; }
+  /* 3D の とき：左上の 小さな 札（1行目＝名前と 日・2行目＝お金と おなか・3行目＝家と 仕事の 絵） */
+  body.t3d #top { position: absolute; left: 8px; top: 8px; width: auto; max-width: calc(100% - 16px); display: grid; grid-template-columns: auto auto; gap: 2px 10px;
+                  padding: 7px 12px; border-radius: 12px; font-size: 14px; justify-content: start; }
+  body.t3d #top > span, body.t3d.ui2 #top > span, body.t3d.ui3 #top > span { white-space: nowrap; background: none; border: 0; padding: 0; }
+  body.t3d.ui2 #top { border: 1px solid var(--gold); background: rgba(14,10,8,.86); }
+  body.t3d.ui3 #top { border: 2px solid var(--sumi); }
+  body.t3d #news { margin-top: 84px; }
+  body.t3d #news { height: 2.3em; max-height: none; overflow: hidden; background: none; text-align: center; padding: 4px 8px 0; }
+  body.t3d #news div { display: none; }
+  body.t3d #news div:first-child { display: inline-block; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border: 0;
+                                   padding: 4px 14px; border-radius: 999px; background: rgba(0,0,0,.6); font-size: 14px; transition: opacity .6s; }
+  body.t3d #news div.old { opacity: 0; }
+  body.t3d #next { display: flex; align-items: center; gap: 8px; font-size: 15px; padding: 5px 14px 5px 8px; border-radius: 999px; margin-top: 2px; max-width: calc(100% - 24px); }
+  #nextT { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #compass { display: inline-block; width: 26px; height: 26px; line-height: 26px; text-align: center; border-radius: 50%; background: #ffe066; color: #1a1410; font-size: 16px; flex: 0 0 auto; }
+  body.t3d #act, body.t3d #call { white-space: nowrap; max-width: calc(100% - 28px); min-height: 56px; padding: 10px 20px; border-radius: 999px; font-size: clamp(15px, 4.4vw, 18px); }
+  body.t3d #act { bottom: 26px; }
+  body.t3d #call { bottom: 96px; }
+  #stickHint { bottom: 40px; }
+  #place { display: none; }
+  body.t3d #place { display: block; position: relative; z-index: 5; margin-top: 4px; padding: 2px 12px; border-radius: 999px; font-size: 13px; background: rgba(0,0,0,.45); pointer-events: none; }
+  body.t3d #place:empty { display: none; }
+  body.ui3.t3d #place { background: rgba(243,234,216,.9); color: #2a2520; }
+
+  /* ---- 案 2：漆（黒い 漆に 金の 細い 線・見出しは 明朝） ---- */
+  body.ui2 { --pan: rgba(18,14,12,.9); --gold: #c9a24a; --ink: #f4ead7; }
+  body.ui2 h1, body.ui2 h2 { font-family: "Hiragino Mincho ProN", "Yu Mincho", "YuMincho", serif; letter-spacing: .06em; }
+  body.ui2 button { border: 1px solid var(--gold); background: linear-gradient(#3a2a1c, #22180f); box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 2px 6px rgba(0,0,0,.4); text-shadow: none; color: var(--ink); }
+  body.ui2 #go, body.ui2.t3d #act { background: linear-gradient(#9c3424, #6e2014); border-color: #e8c27a; }
+  body.ui2.t3d #call { background: linear-gradient(#2f4766, #1c2d45); }
+  body.ui2 #top { background: linear-gradient(rgba(14,10,8,.92), rgba(14,10,8,.75)); border-bottom: 1px solid var(--gold); }
+  body.ui2 #top > span { background: none; border: 1px solid rgba(201,162,74,.45); }
+  body.ui2.t3d #next { background: var(--pan); border: 1px solid var(--gold); color: #ffe7a8; }
+  body.ui2 #sheet { background: rgba(0,0,0,.4); -webkit-backdrop-filter: blur(1.5px); backdrop-filter: blur(1.5px); }
+  body.ui2 #sheet.on { align-items: flex-end; }
+  body.ui2 #sheetBox { margin: 0 10px 12px; width: min(calc(100% - 20px), 600px); background: var(--pan); border: 1px solid var(--gold); border-radius: 16px;
+                       box-shadow: 0 0 0 4px rgba(201,162,74,.12), 0 12px 36px rgba(0,0,0,.6); padding: 14px 16px 18px; color: var(--ink); }
+  body.ui2 #sheetBox h2 { margin: 2px 0 10px; padding-bottom: 8px; border-bottom: 1px solid rgba(201,162,74,.5); color: #ffe7a8; }
+  body.ui2 #sheetBox .row button { border-radius: 10px; }
+
+  /* ---- 案 3：和紙（生成りの 紙・墨の 字・朱の ボタン） ---- */
+  body.ui3 { --paper: #f3ead8; --sumi: #2a2520; --shu: #b8432c; }
+  body.ui3 h1, body.ui3 h2 { font-family: "Hiragino Mincho ProN", "Yu Mincho", "YuMincho", serif; }
+  body.ui3 #top { background: rgba(243,234,216,.94); color: var(--sumi); border-bottom: 2px solid var(--sumi); }
+  body.ui3 #top > span { background: rgba(42,37,32,.07); }
+  body.ui3 #top .me { color: var(--shu); }
+  body.ui3 #top .warn { color: #c0281a; }
+  body.ui3.t3d #news div:first-child { background: rgba(243,234,216,.92); color: var(--sumi); }
+  body.ui3.t3d #news .good { color: #1e6b3a; } body.ui3.t3d #news .bad { color: #a8241a; } body.ui3.t3d #news .k { color: #6b4a10; }
+  body.ui3.t3d #next { background: rgba(243,234,216,.94); color: var(--sumi); border: 2px solid var(--sumi); }
+  body.ui3 #compass { background: var(--shu); color: #fff; }
+  body.ui3 button { background: var(--paper); color: var(--sumi); border: 2px solid var(--sumi); text-shadow: none; box-shadow: 2px 3px 0 rgba(42,37,32,.35); }
+  body.ui3 button:disabled { opacity: .4; }
+  body.ui3 #go, body.ui3.t3d #act { background: var(--shu); color: #fff; border-color: #6e1f12; }
+  body.ui3.t3d #call { background: #34495e; color: #fff; }
+  body.ui3 #sheet { background: rgba(20,16,12,.35); }
+  body.ui3 #sheetBox { margin: 0 10px 12px; width: min(calc(100% - 20px), 600px); background: var(--paper); color: var(--sumi); border: 2px solid var(--sumi); border-radius: 6px;
+                       box-shadow: 6px 6px 0 rgba(42,37,32,.35); padding: 14px 16px 18px; }
+  body.ui3 #sheetBox h2 { margin: 2px 0 10px; padding-bottom: 6px; border-bottom: 2px solid var(--shu); }
+  body.ui3 #sheetBox .cost { color: var(--shu); }
+  body.ui3 .hint b { color: var(--shu); }
+  /* 👤 札（ウィンドウ）の 下に かくれた 人を シルエットで 見せる（パパ 11/23「ウィンドウで人が隠れてるところはシルエットで表現」）。札より 上・さわれない */
+  #silCv { position: fixed; inset: 0; z-index: 31; pointer-events: none; opacity: .9; }
+  #mapInfo { display: none; margin-top: 18px; font-size: 14px; min-height: 52px; padding: 6px 14px; opacity: .85; }
   #ver { position: absolute; right: 6px; bottom: 4px; font-size: 10px; opacity: .4; pointer-events: none; }
 </style>
 </head>
@@ -95,6 +175,7 @@
   </div>
   <button id="go">はじめる</button>
   <button id="cont" style="display:none;margin-top:10px">📂 つづきから</button>
+  <button id="mapInfo" onclick="mapInfo()">📜 この 町の 地図に ついて</button>
 </div>
 
 <div id="town" class="screen">
@@ -102,10 +183,11 @@
   <div id="view"></div>
   <div id="scene">🏘🏮🌙</div>
   <div id="news"></div>
-  <div id="next"></div>
+  <div id="next"><span id="compass">▲</span><span id="nextT"></span></div>
+  <div id="place"></div>
   <div id="stick"></div><div id="stickBase"></div><div id="stickKnob"></div>
   <button id="act"></button>
-  <button id="call">📣 売り声を 出す</button>
+  <button id="call">📣 売り声</button>
   <div id="keyHint">W・↑ すすむ／A・D まがる／S・↓ さがる／E 入る・話す／Q 売り声（夜）</div>
   <div id="cmd">
     <button id="bHouse" onclick="houseSheet()">🏠 家</button>
@@ -125,6 +207,7 @@
 </div>
 
 <div id="sheet"><div id="sheetBox"></div></div>
+<div id="stickHint"><span>ここを おして<br>ゆびを うごかす</span></div>
 <div id="ver"></div>
 
 <script>
@@ -132,7 +215,10 @@
 const $ = id => document.getElementById(id);
 const URLQ = new URLSearchParams(location.search);
 const DEV = URLQ.get('dev') === '1';
-const BUILD = 'edo-1122g';   // ⚠ 版の印
+const BUILD = 'edo-1123d';   // ⚠ 版の印
+// 🎨 見た目：パパ 11/23「2の漆」で 決まり（?ui=1／3 は 比べる 用に 残す）
+const UI = ['1', '2', '3'].includes(URLQ.get('ui')) ? URLQ.get('ui') : '2';
+document.body.classList.add('ui' + UI); window.edoUI = UI;
 $('ver').textContent = BUILD;
 
 // ============ ゲームログ（群雄合戦と 同じ しくみ・常時ON。テストプレイは 全部 データ） ============
@@ -203,10 +289,14 @@ const esc = s => String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;
 function show(id) { document.querySelectorAll('.screen').forEach(x => x.classList.toggle('on', x.id === id)); }
 function sheet(html) { $('sheetBox').innerHTML = html; $('sheet').classList.add('on'); $('sheetBox').scrollTop = 0; }
 // ⚠ たおれた あと（S が ない）に ふだの 外を 押しても、町に 残らず はじめの 画面へ（町の ボタンは S が ないと 動かない）
+// 📜 地図の 出典（CC BY 4.0 の クレジット・何が データで 何が 作りか）
+function mapInfo() { const m = window.edoMap; if (!m) return;
+  sheet(`<h2>📜 この 町の 地図に ついて</h2><p class="hint say">日本橋を まんなかに、半径 500m の 町。<br>${esc(m.note)}。<br><br>${m.credit.map(esc).join('<br>')}</p>${okBtn2}`); }
+const okBtn2 = '<div class="row two"><button onclick="closeSheet()">とじる</button></div>';
 function closeSheet() { $('sheet').classList.remove('on'); story = null; SP = null; if (!S) return show('start'); refresh(); }
 let sheetLock = false;   // 🕯 ろうそくの 場面は、札の 外を 押しても 閉じない（逃げられない・裏で 時間だけ 進まない）
 $('sheet').addEventListener('pointerdown', e => { if (e.target === $('sheet') && !sheetLock) closeSheet(); });
-function news(text, cls) { const d = document.createElement('div'); if (cls) d.className = cls; d.textContent = text; $('news').prepend(d); }
+function news(text, cls) { const d = document.createElement('div'); if (cls) d.className = cls; d.textContent = text; $('news').prepend(d); setTimeout(() => d.classList.add('old'), 4500); }
 
 // ============ はじめの 画面（監督11/5「最初に性別名前を決めて」） ============
 let sex = '男';
@@ -214,7 +304,7 @@ $('sexRow').addEventListener('click', e => { const b = e.target.closest('button'
   $('sexRow').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); });
 // ⚠ こちらの 決め：つづきが あるのに「はじめる」を 押したら、消える前に 一回 聞く
 $('go').onclick = () => {
-  if (readSave()) return sheet(`<h2>📂 つづきが ある</h2><p class="hint" style="font-size:17px">「はじめる」と、前の つづきは 消える。いい？</p><div class="row two"><button onclick="closeSheet()">やめる</button><button onclick="$('sheet').classList.remove('on'); newGame()">消して はじめる</button></div>`);
+  if (readSave()) return sheet(`<h2>📂 つづきが ある</h2><p class="hint say c">「はじめる」と、前の つづきは 消える。いい？</p><div class="row two"><button onclick="closeSheet()">やめる</button><button onclick="$('sheet').classList.remove('on'); newGame()">消して はじめる</button></div>`);
   newGame();
 };
 function newGame() {
@@ -231,11 +321,15 @@ if (readSave()) $('cont').style.display = '';
 function refresh() {
   if (!S) return;
   const left = STARVE_DAYS - S.hungry;
-  $('top').innerHTML = `<span class="me">${S.sex === '女' ? '👩' : '👨'} ${esc(S.name)}</span><span>💰 ${S.mon}文</span><span>📅 ${S.day}日目</span>` +
-    `<span class="${left <= 2 ? 'warn' : ''}">🍚 ${S.hungry === 0 ? 'おなか いっぱい' : `${S.hungry}日 食べていない`}</span>` +
-    `<span>${S.house ? '🏠 ' + S.house : '🏠 家なし'}</span>${S.job ? `<span>🍱 ${S.job}</span>` : ''}${S.soba ? '<span>🍜 蕎麦屋</span>' : ''}${S.doc ? '<span>🩺 医者</span>' : ''}`;
+  // ⚠ 1段に おさめる（11/22 の iPhone で 3段に 折れていた）。仕事は 絵だけ（名前は 画面に 出ない 字で 残す＝読み上げ・テスト用）
+  const jobs = (S.job ? '🍱' : '') + (S.soba ? '🍜' : '') + (S.doc ? '🩺' : ''), jobN = [S.job, S.soba && '蕎麦屋', S.doc && '医者'].filter(Boolean).join('・');
+  // おなか：あと 何日 だいじょうぶかを 5つの ます（5日 食べないと たおれる＝監督 11/5）
+  const pips = Array.from({ length: STARVE_DAYS }, (_, i) => `<i class="pip${i < left ? '' : ' e'}"></i>`).join('');
+  $('top').innerHTML = `<span class="me">${S.sex === '女' ? '👩' : '👨'}${esc(S.name)}</span><span>${S.day}日目</span><span>💰${S.mon}文</span>` +
+    `<span class="${left <= 2 ? 'warn' : ''}">🍚${pips}<i class="sr">${S.hungry === 0 ? 'おなか いっぱい' : `${S.hungry}日 食べていない`}</i></span>` +
+    `<span style="grid-column:1/-1">🏠${S.house ? S.house : '家なし'}${jobs ? '　' + jobs + `<i class="sr">${jobN}</i>` : ''}</span>`;
   $('bWork').disabled = !S.job;
-  if (N) sobaTick(); else $('next').textContent = '➡ つぎは ' + nextSpot().t;
+  if (N) sobaTick(); else $('nextT').textContent = 'つぎは ' + nextSpot().t;
 }
 // 🚶 つぎに 行く 所（じいさんの 台詞と 同じ 状態で 決める。3D の 町で 黄色い 印を 出す）
 function nextSpot() {
@@ -319,7 +413,7 @@ function jiiSheet() {
   else if (S.mon < FOODS[0].mon) t = '「ウナギ屋は 夜に 行くんだ。うなぎに タレを かけるだけ。むらなく ぬれば 一ぱい 一文に なる」';
   else t = '「お金が たまったら 何か 食べな。ほかの 仕事や 富くじは、いま 町で じゅんびしている ところだ」';
   logEvent('jii', { t: t.slice(1, 12) });
-  sheet(`<h2>👴 物知りな じいさん</h2><p class="hint" style="font-size:17px;text-align:left">${t}</p><div class="row two"><button onclick="closeSheet()">ありがとう</button></div>`);
+  sheet(`<h2>👴 物知りな じいさん</h2><p class="hint say">${t}</p><div class="row two"><button onclick="closeSheet()">ありがとう</button></div>`);
 }
 
 // ============ ウナギ屋の 仕事（監督11/5「ウナギや屋は、うなぎにたれおかけるだけ」「垂れは、よるになったらいく」「仕事をミニゲームにしたらどう」） ============
@@ -396,7 +490,7 @@ function over(title, body, type) {
   logEvent(type, { day: S.day, mon: S.mon });
   try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
   S = null; $('cont').style.display = 'none';
-  sheet(`<h2>${title}</h2><p class="hint" style="font-size:17px">${body}</p><div class="row two"><button onclick="$('sheet').classList.remove('on'); show('start')">最初から</button></div>`);
+  sheet(`<h2>${title}</h2><p class="hint say c">${body}</p><div class="row two"><button onclick="$('sheet').classList.remove('on'); show('start')">最初から</button></div>`);
 }
 
 // ============ 🍜 蕎麦屋の 夜（監督 11/4「蕎麦屋屋台がもらえる」「屋台は、よる屋台担いで歩いて呼ばれてご飯をつくるとお金がもらえる」） ============
@@ -417,7 +511,7 @@ function sobaStart() {
 function sobaTick() {
   if (!N) return;
   const left = SB.secs - (performance.now() - N.t0) / 1000;
-  $('next').textContent = `🌙 夜（のこり ${Math.max(0, Math.ceil(left))}秒）・売れた ${N.earned}はい`;
+  $('nextT').textContent = `🌙 夜（のこり ${Math.max(0, Math.ceil(left))}秒）・売れた ${N.earned}はい`;
   if (left <= 0 && !$('sheet').classList.contains('on')) sobaEnd('time');
 }
 const okBtn = '<div class="row two"><button onclick="closeSheet()">とじる</button></div>';
@@ -425,7 +519,7 @@ function sobaCall(zone) {
   if (!N) return;
   N.calls++; let r = 'none';
   if (zone === 'quiet') { r = 'scold'; N.scold = true;
-    sheet(`<h2>🤫 しーっ</h2><p class="hint" style="font-size:17px;text-align:left">戸が あいて、女の人が 出てきた。<br>「子どもが 寝たばかり なんだから、静かに しておくれ」</p>${okBtn}`); }
+    sheet(`<h2>🤫 しーっ</h2><p class="hint say">戸が あいて、女の人が 出てきた。<br>「子どもが 寝たばかり なんだから、静かに しておくれ」</p>${okBtn}`); }
   else if (SB_SELL[zone] && !N.sold[zone]) { r = 'sold'; N.sold[zone] = 1; N.earned += SB.pay; news(`🍜 ${SB_SELL[zone]}で そばが 1ぱい 売れた（+${SB.pay}文）。`, 'good'); }
   else news(SB_SELL[zone] ? '📣 そばーい！ …ここでは もう 売れた。ほかの 所へ 行こう。' : '📣 そばーい！ …だれも 来ない。', '');
   logEvent('soba_call', { zone, r, earned: N.earned, s: Math.round((performance.now() - N.t0) / 1000) });
@@ -472,7 +566,7 @@ let story = null;   // { u: { t, pages }, i, done }＝「つづき ▶」で め
 function tell(u, done) { story = { u, i: 0, done }; storySheet(); }
 function storySheet() {
   const u = story.u, last = story.i === u.pages.length - 1;
-  sheet(`<h2>${u.t}</h2><p class="hint" style="font-size:17px;text-align:left">${u.pages[story.i]}</p><div class="row two"><button onclick="storyNext()">${last ? (u.end || 'とじる') : 'つづき ▶'}</button></div>`);
+  sheet(`<h2>${u.t}</h2><p class="hint say">${u.pages[story.i]}</p><div class="row two"><button onclick="storyNext()">${last ? (u.end || 'とじる') : 'つづき ▶'}</button></div>`);
 }
 function storyNext() {
   if (!story) return closeSheet();
@@ -483,7 +577,7 @@ function storyNext() {
 function udonSee() {
   if (!N || story) return;
   const b = S.udonBeat || 0;
-  if (b >= UDON.length) return sheet(`<h2>🍜 うどん屋</h2><p class="hint" style="font-size:17px;text-align:left">うどん屋「未来の 話は ないしょだよ。そばも うどんも、夜は あったかいのが 一番だ」</p>${okBtn}`);
+  if (b >= UDON.length) return sheet(`<h2>🍜 うどん屋</h2><p class="hint say">うどん屋「未来の 話は ないしょだよ。そばも うどんも、夜は あったかいのが 一番だ」</p>${okBtn}`);
   logEvent('udon_see', { b, s: Math.round((performance.now() - N.t0) / 1000) });
   tell(UDON[b], () => {
     S.udonBeat = b + 1; if (N) N.seen++; logEvent('udon_beat', { b, done: S.udonBeat >= UDON.length });
@@ -518,30 +612,30 @@ function shiniSheet() {
   if (!S.doc) { logEvent('shini_meet', { day: S.day, mon: S.mon });
     return tell(SHINI, () => { S.doc = true; S.docN = 0; logEvent('shini_doc', {}); news('🩺 医者に なった。通りの 北の 母屋に 病人が いる。', 'k'); }); }
   const t = S.tricked ? '「二度目は ないぞ」' : `「足元なら 呪文。枕元なら 寿命だ。呪文は『${SPELL[0]}、${SPELL[1]}』、手を 2つ」`;
-  sheet(`<h2>💀 死神</h2><p class="hint" style="font-size:17px;text-align:left">${t}</p>${okBtn}`);
+  sheet(`<h2>💀 死神</h2><p class="hint say">${t}</p>${okBtn}`);
 }
 const bed = pos => `<div style="font-size:34px;text-align:center;letter-spacing:.1em">${pos === 'head' ? '💀' : '　'}😷🛏${pos === 'foot' ? '💀' : '　'}</div><p class="hint">← 枕元（頭の ほう）　　足元 →</p>`;
 function byoSheet() {
-  if (S.patDay === S.day) return sheet(`<h2>🩺 病人の 家</h2><p class="hint" style="font-size:17px">今日は もう 病人は いない。あした また 来よう。</p>${okBtn}`);
+  if (S.patDay === S.day) return sheet(`<h2>🩺 病人の 家</h2><p class="hint say c">今日は もう 病人は いない。あした また 来よう。</p>${okBtn}`);
   if (!S.pat || S.pat.day !== S.day) { const n = S.docN || 0;
     S.pat = { day: S.day, pos: S.patFix || (n === 0 ? 'foot' : n === 1 ? 'head' : Math.random() < 0.5 ? 'foot' : 'head'), turned: false };
     logEvent('pat', { n, pos: S.pat.pos }); save(); }
   const head = S.pat.pos === 'head';
-  sheet(`<h2>🩺 病人の 家</h2>${bed(S.pat.pos)}<p class="hint" style="font-size:17px">病人が 寝ている。死神は <b>${head ? '枕元' : '足元'}</b>に いる。${S.pat.turned ? '（寝床を 回した）' : ''}</p><div class="row">` +
+  sheet(`<h2>🩺 病人の 家</h2>${bed(S.pat.pos)}<p class="hint say c">病人が 寝ている。死神は <b>${head ? '枕元' : '足元'}</b>に いる。${S.pat.turned ? '（寝床を 回した）' : ''}</p><div class="row">` +
     `<button onclick="spellStart()">🙏 呪文を となえる</button>` +
     (head ? `<button onclick="patEnd('giveup')">「寿命です」と 言って 帰る</button>` : '') +
     (head && !S.tricked ? `<button onclick="trickAsk()">🔄 寝床を ぐるっと 回す（死神を だます）</button>` : '') +
     `</div><div class="row two"><button onclick="closeSheet()">あとで</button></div>`);
 }
 function trickAsk() {
-  sheet(`<h2>🔄 寝床を 回す？</h2><p class="hint" style="font-size:17px">寝床を 回すと、枕元の 死神が 足元に なる。<br>でも、<b>死神との 約束を やぶる</b> ことに なる。</p>` +
+  sheet(`<h2>🔄 寝床を 回す？</h2><p class="hint say c">寝床を 回すと、枕元の 死神が 足元に なる。<br>でも、<b>死神との 約束を やぶる</b> ことに なる。</p>` +
     `<div class="row two"><button onclick="byoSheet()">やめる</button><button onclick="trickGo()">回す</button></div>`);
 }
 function trickGo() { if (!S.pat || S.pat.pos !== 'head' || S.tricked) return; S.pat.pos = 'foot'; S.pat.turned = true; logEvent('trick', { day: S.day, mon: S.mon }); save(); byoSheet(); }
 function spellStart() { SP = { i: 0, miss: 0, t0: performance.now() }; spellSheet(''); }
 function spellSheet(msg) {
   const btn = [[0, SPELL[0]], [1, SPELL[1]], ['x', 'ナムナムナム'], ['clap', '👏 手を 打つ']].sort(() => Math.random() - 0.5);
-  sheet(`<h2>🙏 呪文</h2><p class="hint" style="font-size:17px">「${SPELL[0]}、${SPELL[1]}」→ 手を 2つ<br>順番に 押そう（${SP.i}／4）<br><span style="color:#ff8a80">${msg}</span></p><div class="row">` +
+  sheet(`<h2>🙏 呪文</h2><p class="hint say c">「${SPELL[0]}、${SPELL[1]}」→ 手を 2つ<br>順番に 押そう（${SP.i}／4）<br><span style="color:#ff8a80">${msg}</span></p><div class="row">` +
     btn.map(([k, t]) => `<button data-k="${k}" onclick="spellTap('${k}')">${t}</button>`).join('') + `</div><div class="row two"><button onclick="byoSheet()">やめる</button></div>`);
 }
 function spellTap(k) {
@@ -549,7 +643,7 @@ function spellTap(k) {
   if (String(SPELL_NEED[SP.i]) !== k) { SP.miss++; SP.i = 0; return spellSheet('まちがえた。はじめから'); }
   if (++SP.i < SPELL_NEED.length) return spellSheet('');
   const head = S.pat.pos === 'head'; logEvent('spell', { ms: Math.round(performance.now() - SP.t0), miss: SP.miss, pos: S.pat.pos }); SP = null;
-  if (head) return sheet(`<h2>💀 死神は 動かない</h2>${bed('head')}<p class="hint" style="font-size:17px">枕元の 死神には 呪文が きかない。</p><div class="row two"><button onclick="byoSheet()">もどる</button></div>`);
+  if (head) return sheet(`<h2>💀 死神は 動かない</h2>${bed('head')}<p class="hint say c">枕元の 死神には 呪文が きかない。</p><div class="row two"><button onclick="byoSheet()">もどる</button></div>`);
   patEnd('cure');
 }
 function patEnd(r) {
@@ -559,7 +653,7 @@ function patEnd(r) {
   if (r === 'giveup') { news('🩺 「寿命です」と 言って 帰った（0文）。', ''); return closeSheet(); }
   news(`🩺 死神が 消えて、病人が 治った。お礼に ${pay}文 もらった。`, 'good');
   if (turned) return candleIntro();
-  sheet(`<h2>✨ 治った</h2>${bed('none')}<p class="hint" style="font-size:17px">手を 2つ 打つと、死神が すっと 消えた。病人は 起き上がった。<br>お礼に <b>${pay}文</b> もらった。</p>${okBtn}`);
+  sheet(`<h2>✨ 治った</h2>${bed('none')}<p class="hint say c">手を 2つ 打つと、死神が すっと 消えた。病人は 起き上がった。<br>お礼に <b>${pay}文</b> もらった。</p>${okBtn}`);
 }
 // ---- 🕯 命の ろうそく ----
 function candleIntro() {
@@ -571,7 +665,7 @@ function candleIntro() {
 }
 function candleStart() {
   sheetLock = true; C = { t: 0, left: SG.life, tries: 0, last: performance.now() }; logEvent('candle_start', {});
-  sheet(`<h2>🕯 命の ろうそく</h2><p class="hint" style="font-size:17px">しるしが <b>みどりの 所</b>に 来た ときに「火を うつす」を 押そう</p>` +
+  sheet(`<h2>🕯 命の ろうそく</h2><p class="hint say c">しるしが <b>みどりの 所</b>に 来た ときに「火を うつす」を 押そう</p>` +
     `<div style="position:relative;height:34px;background:#111;border-radius:8px;margin:10px 0;overflow:hidden"><div style="position:absolute;left:${SG.z0}%;width:${SG.z1 - SG.z0}%;top:0;bottom:0;background:#2e7d32"></div>` +
     `<div id="cMark" style="position:absolute;top:0;bottom:0;width:8px;margin-left:-4px;background:#ffe066;left:0%"></div></div>` +
     `<div style="height:14px;background:#111;border-radius:7px;overflow:hidden"><div id="cLife" style="height:100%;width:100%;background:#ff7043"></div></div><p class="hint">↑ ろうそくの のこり</p>` +
@@ -595,12 +689,12 @@ function candleTry() {
 function candleEnd(win) {
   clearInterval(C.timer); logEvent('candle_end', { win, tries: C.tries, left: Math.round(C.left), lose: SG.lose }); C = null; sheetLock = false;
   if (win) { news('🕯 火が うつった。助かった。', 'good'); save();
-    return sheet(`<h2>🕯 火が うつった！</h2><p class="hint" style="font-size:17px;text-align:left">新しい ろうそくが 明るく もえた。助かった。<br>死神「……二度目は ないぞ」<br><br>` +
+    return sheet(`<h2>🕯 火が うつった！</h2><p class="hint say">新しい ろうそくが 明るく もえた。助かった。<br>死神「……二度目は ないぞ」<br><br>` +
       `🎭 落語「死神」は、火が うつせなくて「ああ、消える……」と たおれる ところで 終わる（おち）。助かる 終わり方で やる 人も いる。</p>${okBtn}`); }
   const note = '🎭 落語「死神」の おち。火が うつせなくて「ああ、消える……」と たおれる ところで 終わる。';
   if (SG.lose === 'restart') return over('🕯 ああ、消える……', `ろうそくが 消えた。<br>${S.day}日目で 最初からに なった。<br><br>${note}`, 'candle');
   const lost = S.mon; S.mon = 0; news(`🕯 ろうそくが 消えた……。目が さめると、お金が ぜんぶ（${lost}文）なくなっていた。`, 'bad'); save();
-  sheet(`<h2>🕯 ああ、消える……</h2><p class="hint" style="font-size:17px;text-align:left">ろうそくが 消えて、目の 前が まっくらに なった。<br><br>${note}<br><br>……目が さめると、じぶんの 家の 前に たおれていた。お金は ぜんぶ なくなっていた。</p>${okBtn}`);
+  sheet(`<h2>🕯 ああ、消える……</h2><p class="hint say">ろうそくが 消えて、目の 前が まっくらに なった。<br><br>${note}<br><br>……目が さめると、じぶんの 家の 前に たおれていた。お金は ぜんぶ なくなっていた。</p>${okBtn}`);
 }
 
 if (DEV) window.__e = { get N() { return N; }, get C() { return C; }, get SP() { return SP; }, SG, candlePos, sobaStart, sobaEnd, SB, UDON, get S() { return S; }, set S(v) { S = v; }, get W() { return W; }, UN, HOUSES, FOODS, JOBS, STARVE_DAYS, SAVE_KEY, refresh, workEnd, bowlEnd, save };
@@ -623,7 +717,7 @@ view.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x9cc4e4);
 scene.fog = new THREE.FogExp2(0x9cc4e4, 0.008);
-const camera = new THREE.PerspectiveCamera(70, 1, 0.3, 400);
+const camera = new THREE.PerspectiveCamera(70, 1, 0.3, 300);
 const fit = () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); };
 fit(); addEventListener('resize', fit);
 const sun = new THREE.DirectionalLight(0xffffff, 2.0); sun.position.set(40, 80, 30);
@@ -633,16 +727,106 @@ const box = (w, h, d, c) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(c
 
 // ---- 町の 形（⚠ ならびは こちらの 決め：通り 1本。西に 長屋と 母屋、東に 屋台・魚屋・飯屋、北の 川ぞいに ウナギ屋） ----
 // ⚠ 通りを 北へ 歩くと 全部の 戸口の 前を 通る。「入る」は 戸口の 前の 帯（通りの 幅 いっぱい）で 出る＝通りの どっち側を 歩いても 出る
-const ground = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), mat(0x8a9a5b)); ground.rotation.x = -Math.PI / 2; scene.add(ground);
+// ============ 🗺 日本橋 半径 500m の 町（パパ 11/23「範囲は 3」）。map.json は tools/bake_edo_map.py で 地図データから 焼いた ============
+// ⚠ データ（CODH・CC BY 4.0）で 分かるのは 町家の 面・川と 堀の 形・地名の 場所。通り（町割り）と 建物の 並びは こちらの 作り（map.json の note・credit）
+// ⚠ map.json が 読めないときは 今までの 通り 1本の 町（BOUND）で 遊べる
+const MAP = await fetch('map.json').then(r => (r.ok ? r.json() : null)).catch(() => null);
+window.edoMap = MAP; if (MAP) $('mapInfo').style.display = 'inline-block';
+const T = { OUT: 0, STREET: 1, BLOCK: 2, WATER: 3, BIG: 4, BRIDGE: 5 };
+let G = null;
+if (MAP) { G = new Uint8Array(MAP.n * MAP.n); let k = 0; for (let i = 0; i < MAP.rle.length; i += 3) { const v = +MAP.rle[i], c = parseInt(MAP.rle.substr(i + 1, 2), 16); G.fill(v, k, k + c); k += c; } }
+const cellAt = (x, z) => { if (!G) return T.STREET; const i = Math.floor((x + MAP.half) / MAP.cell), j = Math.floor((z + MAP.half) / MAP.cell);
+  return i < 0 || j < 0 || i >= MAP.n || j >= MAP.n ? T.OUT : G[j * MAP.n + i]; };
+const walk = t => t === T.STREET || t === T.BRIDGE;
+// 地図が あるとき：地面は ます目から 作る（水の 所は あける）。遠くの 板は 水より 下（y=-1.2）
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(G ? 1600 : 200, G ? 1600 : 200), mat(G ? 0x9a9070 : 0x8a9a5b)); ground.rotation.x = -Math.PI / 2; if (G) ground.position.y = -1.2; scene.add(ground);
 const road = new THREE.Mesh(new THREE.PlaneGeometry(8, 66), mat(0xb9a47a)); road.rotation.x = -Math.PI / 2; road.position.set(0, 0.02, -3); scene.add(road);
-const river = new THREE.Mesh(new THREE.PlaneGeometry(200, 16), mat(0x3f7fb5)); river.rotation.x = -Math.PI / 2; river.position.set(0, 0.03, -47); scene.add(river);
+if (!G) { const river = new THREE.Mesh(new THREE.PlaneGeometry(200, 16), mat(0x3f7fb5)); river.rotation.x = -Math.PI / 2; river.position.set(0, 0.03, -47); scene.add(river); }
 const BOUND = { x: 34, zMin: -38, zMax: 34 };
-const boxes = [];                                   // 通れない 箱（建物・木・じいさん）
+// ---- 生成の 町を 1つの 形に まとめて 作る（建物 何千けんでも 128m 四方ごとに 1つの メッシュ）----
+const MB = {};   // かたまり（"cx,cz"）ごとの 頂点
+function mb(x, z) { const k = Math.floor(x / 128) + ',' + Math.floor(z / 128); return MB[k] || (MB[k] = { p: [], n: [], c: [] }); }
+const col = new THREE.Color();
+function quad(b, a, bb, c, d, nx, ny, nz, hex) { col.setHex(hex); for (const v of [a, bb, c, a, c, d]) { b.p.push(...v); b.n.push(nx, ny, nz); b.c.push(col.r, col.g, col.b); } }
+function cube(x0, y0, z0, x1, y1, z1, hex, top) {   // top＝上の 面の 色（なければ 同じ）
+  const b = mb((x0 + x1) / 2, (z0 + z1) / 2);
+  quad(b, [x0, y1, z0], [x0, y1, z1], [x1, y1, z1], [x1, y1, z0], 0, 1, 0, top ?? hex);
+  quad(b, [x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1], 0, 0, 1, hex);
+  quad(b, [x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0], 0, 0, -1, hex);
+  quad(b, [x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1], 1, 0, 0, hex);
+  quad(b, [x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0], -1, 0, 0, hex);
+}
+function gable(x0, z0, x1, z1, y0, h, alongX, hex) {   // 切妻の 屋根（瓦）
+  const b = mb((x0 + x1) / 2, (z0 + z1) / 2), o = 0.5; x0 -= o; z0 -= o; x1 += o; z1 += o; const y1 = y0 + h;
+  if (alongX) { const zm = (z0 + z1) / 2, k = 1 / Math.hypot(h, (z1 - z0) / 2);
+    quad(b, [x0, y0, z1], [x1, y0, z1], [x1, y1, zm], [x0, y1, zm], 0, (z1 - z0) / 2 * k, h * k, hex);
+    quad(b, [x1, y0, z0], [x0, y0, z0], [x0, y1, zm], [x1, y1, zm], 0, (z1 - z0) / 2 * k, -h * k, hex);
+    col.setHex(hex); for (const [xx, nx] of [[x0, -1], [x1, 1]]) { const tri = nx < 0 ? [[xx, y0, z0], [xx, y0, z1], [xx, y1, zm]] : [[xx, y0, z1], [xx, y0, z0], [xx, y1, zm]]; for (const v of tri) { b.p.push(...v); b.n.push(nx, 0, 0); b.c.push(col.r * .8, col.g * .8, col.b * .8); } } }
+  else { const xm = (x0 + x1) / 2, k = 1 / Math.hypot(h, (x1 - x0) / 2);
+    quad(b, [x1, y0, z1], [x1, y0, z0], [xm, y1, z0], [xm, y1, z1], h * k, (x1 - x0) / 2 * k, 0, hex);
+    quad(b, [x0, y0, z0], [x0, y0, z1], [xm, y1, z1], [xm, y1, z0], -h * k, (x1 - x0) / 2 * k, 0, hex);
+    col.setHex(hex); for (const [zz, nz] of [[z0, -1], [z1, 1]]) { const tri = nz < 0 ? [[x1, y0, zz], [x0, y0, zz], [xm, y1, zz]] : [[x0, y0, zz], [x1, y0, zz], [xm, y1, zz]]; for (const v of tri) { b.p.push(...v); b.n.push(0, 0, nz); b.c.push(col.r * .8, col.g * .8, col.b * .8); } } }
+}
+let rnd = 12345; const rand = () => (rnd = (rnd * 16807) % 2147483647) / 2147483647;   // ⚠ いつも 同じ 町に なる（種を 固定）
+const WALLS = [0xd9cdb4, 0xcfc2a5, 0x8a6a48, 0x7a5a3c, 0xe2d8c2], ROOFS = [0x3e4048, 0x45474f, 0x37393f];
+let nHouse = 0;
+if (G) {
+  const n = MAP.n, c = MAP.cell, h0 = MAP.half, at = (i, j) => (i < 0 || j < 0 || i >= n || j >= n ? T.OUT : G[j * n + i]);
+  // 町家：2×2 ます（8m 四方）ごとに 1けん。通りに 面した 家は 二階建てと 切妻の 屋根・裏は 低い 屋根だけ
+  for (let j = 0; j < n; j += 2) for (let i = 0; i < n; i += 2) {
+    const cells = [[i, j], [i + 1, j], [i, j + 1], [i + 1, j + 1]].filter(([a, b2]) => at(a, b2) === T.BLOCK); if (!cells.length) continue;
+    const x0 = Math.min(...cells.map(q => q[0])) * c - h0, x1 = (Math.max(...cells.map(q => q[0])) + 1) * c - h0, z0 = Math.min(...cells.map(q => q[1])) * c - h0, z1 = (Math.max(...cells.map(q => q[1])) + 1) * c - h0;
+    let front = 0, fx = false;
+    for (const [a, b2] of cells) for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const t = at(a + di, b2 + dj); if (t === T.STREET || t === T.BRIDGE || t === T.WATER) { front++; if (dj) fx = true; } }
+    const wall = WALLS[Math.floor(rand() * WALLS.length)], roof = ROOFS[Math.floor(rand() * ROOFS.length)];
+    if (front) { const h = 4.2 + rand() * 2.2; cube(x0 + .15, 0, z0 + .15, x1 - .15, h, z1 - .15, wall); gable(x0, z0, x1, z1, h, 1.6, fx, roof); nHouse++; }
+    else cube(x0, 0, z0, x1, 3.2, z1, roof);
+  }
+  // 武家地など：通りに 面した 所に 白い 塀（入れない）
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+    if (at(i, j) !== T.BIG) continue;
+    if (![[1, 0], [-1, 0], [0, 1], [0, -1]].some(([di, dj]) => walk(at(i + di, j + dj)))) continue;
+    const x = i * c - h0, z = j * c - h0; cube(x + .3, 0, z + .3, x + c - .3, 2.6, z + c - .3, 0xeae6dc, 0x3e4048);
+  }
+  // 地面（水と 橋の 所は あける）：行ごとに つなげた 板
+  const gp = []; for (let j = 0; j < n; j++) { let i = 0; while (i < n) { const t0 = at(i, j); if (t0 === T.WATER || t0 === T.BRIDGE) { i++; continue; } const a = i; while (i < n && at(i, j) !== T.WATER && at(i, j) !== T.BRIDGE) i++;
+    const x0 = a * c - h0, x1 = i * c - h0, z0 = j * c - h0, z1 = z0 + c; gp.push(x0, 0, z0, x0, 0, z1, x1, 0, z1, x0, 0, z0, x1, 0, z1, x1, 0, z0); } }
+  const gg = new THREE.BufferGeometry(); gg.setAttribute('position', new THREE.Float32BufferAttribute(gp, 3)); gg.computeVertexNormals(); scene.add(new THREE.Mesh(gg, mat(0xc9b78c)));
+  // 川・堀：水面と 石の 岸
+  const wm = new THREE.MeshLambertMaterial({ color: 0x3f6f9a });
+  const wp = []; for (let j = 0; j < n; j++) { let i = 0; while (i < n) { if (at(i, j) !== T.WATER && at(i, j) !== T.BRIDGE) { i++; continue; } const a = i; while (i < n && (at(i, j) === T.WATER || at(i, j) === T.BRIDGE)) i++;
+    const x0 = a * c - h0, x1 = i * c - h0, z0 = j * c - h0, z1 = z0 + c; wp.push(x0, -0.7, z0, x0, -0.7, z1, x1, -0.7, z1, x0, -0.7, z0, x1, -0.7, z1, x1, -0.7, z0); } }
+  const wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.Float32BufferAttribute(wp, 3)); wg.computeVertexNormals(); scene.add(new THREE.Mesh(wg, wm));
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { const t = at(i, j); if (t !== T.WATER && t !== T.BRIDGE) continue;
+    const x = i * c - h0, z = j * c - h0;
+    for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const u = at(i + di, j + dj); if (u === T.WATER || u === T.BRIDGE || u === T.OUT) continue;
+      if (di) cube(di > 0 ? x + c - .4 : x, -1.2, z, di > 0 ? x + c : x + .4, 0.05, z + c, 0x8c8880); else cube(x, -1.2, dj > 0 ? z + c - .4 : z, x + c, 0.05, dj > 0 ? z + c : z + .4, 0x8c8880); } }
+  // 橋：木の 板と らんかん
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) if (at(i, j) === T.BRIDGE) { const x = i * c - h0, z = j * c - h0; cube(x, -0.25, z, x + c, 0.12, z + c, 0x8a6a48);
+    for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const u = at(i + di, j + dj); if (u !== T.WATER) continue;
+      if (di) cube(di > 0 ? x + c - .25 : x, 0.12, z, di > 0 ? x + c : x + .25, 1.1, z + c, 0x6a4a30); else cube(x, 0.12, dj > 0 ? z + c - .25 : z, x + c, 1.1, dj > 0 ? z + c : z + .25, 0x6a4a30); } }
+  const hm = new THREE.MeshLambertMaterial({ vertexColors: true });
+  for (const k in MB) { const b = MB[k], g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(b.p, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(b.n, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(b.c, 3)); g.computeBoundingSphere(); scene.add(new THREE.Mesh(g, hm)); }
+}
+const boxes = [];                                   // 通れない 箱（手作りの 建物・じいさん）
+// 名札：⚠ 近いと 画面いっぱいに なっていた（11/22 iPhone）→ 7m より 近い・85m より 遠いと うすく 消える（LABELS を 毎コマ 見る）
+const LABELS = [], UI = window.edoUI;
 function label(text, w = 7) {
   const cv = document.createElement('canvas'); cv.width = 512; cv.height = 128; const c = cv.getContext('2d');
-  c.fillStyle = 'rgba(20,14,8,.82)'; c.fillRect(0, 0, 512, 128); c.strokeStyle = '#c9a86a'; c.lineWidth = 8; c.strokeRect(4, 4, 504, 120);
-  c.fillStyle = '#fff'; c.font = 'bold 64px Meiryo, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(text, 256, 68, 480);
-  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), depthWrite: false })); sp.scale.set(w, w / 4, 1); return sp;
+  const r = (x, y, ww, hh, rr) => { c.beginPath(); c.moveTo(x + rr, y); c.arcTo(x + ww, y, x + ww, y + hh, rr); c.arcTo(x + ww, y + hh, x, y + hh, rr); c.arcTo(x, y + hh, x, y, rr); c.arcTo(x, y, x + ww, y, rr); c.closePath(); };
+  const mincho = '"Hiragino Mincho ProN", "Yu Mincho", serif', gothic = 'Meiryo, "Hiragino Sans", sans-serif';
+  if (UI === '3') { r(8, 10, 496, 108, 10); c.fillStyle = 'rgba(243,234,216,.95)'; c.fill(); c.lineWidth = 6; c.strokeStyle = '#2a2520'; c.stroke(); c.fillStyle = '#2a2520'; c.font = `bold 60px ${mincho}`; }
+  else if (UI === '2') { r(8, 14, 496, 100, 50); c.fillStyle = 'rgba(16,12,10,.82)'; c.fill(); c.lineWidth = 3; c.strokeStyle = '#c9a24a'; c.stroke(); c.fillStyle = '#ffe7a8'; c.font = `bold 58px ${mincho}`; }
+  else { c.fillStyle = 'rgba(20,14,8,.82)'; c.fillRect(0, 0, 512, 128); c.strokeStyle = '#c9a86a'; c.lineWidth = 8; c.strokeRect(4, 4, 504, 120); c.fillStyle = '#fff'; c.font = `bold 64px ${gothic}`; }
+  c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(text, 256, 68, 470);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), depthWrite: false, transparent: true })); w *= 0.62; sp.scale.set(w, w / 4, 1);   // ⚠ 名札は 前の 6割の 大きさ（町が ごちゃごちゃして 見えた）
+  LABELS.push(sp); return sp;
+}
+const LV = { near: 7, nearIn: 11, far: 48, farIn: 36 }, lwp = new THREE.Vector3();
+function fadeLabels() {
+  for (const l of LABELS) { if (!l.visible) continue; l.getWorldPosition(lwp); const d = lwp.distanceTo(camera.position);
+    l.material.opacity = d < LV.near || d > LV.far ? 0 : Math.min(1, (d - LV.near) / (LV.nearIn - LV.near), (LV.far - d) / (LV.far - LV.farIn)); }
 }
 function building(name, x, z, w, d, h, wall, roof, noren) {
   const g = new THREE.Group(); g.position.set(x, 0, z);
@@ -665,7 +849,7 @@ building('屋台', 5.4, 2, 2.6, 2.6, 2.2, 0x8a5a2a, 0xb5452a, 0xf5f1e6);
 building('魚屋', 8.5, -14, 9, 8, 3.4, 0xb9c4c9, 0x3a4a5a, 0x2e6a8a);
 building('飯屋', 8.5, -24, 9, 8, 3.4, 0xd9b98a, 0x5a3a2a, 0x8a2f1b);
 building('ウナギ屋', 0, -34.5, 13, 7, 3.6, 0xc9a070, 0x2e2e36, 0x5b2a0c);
-for (const [x, z] of [[-20, 24], [18, 16], [-22, -32], [20, -34], [24, -4], [-24, 2]]) {           // 木
+for (const [x, z] of (G ? [] : [[-20, 24], [18, 16], [-22, -32], [20, -34], [24, -4], [-24, 2]])) {           // 木（地図が 読めない ときだけ）
   const t = box(0.6, 2.4, 0.6, 0x5a3a1e); t.position.set(x, 1.2, z); scene.add(t);
   const c = new THREE.Mesh(new THREE.ConeGeometry(2.2, 4.5, 7), mat(0x3f6b32)); c.position.set(x, 4.4, z); scene.add(c); boxes.push({ x, z, w: 1, d: 1 });
 }
@@ -688,26 +872,26 @@ const jl = label('物知りな じいさん', 5.5); jl.position.set(-3.6, 3.1, -
 // ---- 入れる 所（戸口の 前に 立つと「入る」が 出る）。ひらく 札は 試作1と 同じ ----
 const S = () => window.edoS();
 const SPOTS = [
-  { k: 'home',   x: -3.2, z: 10,  txt: () => (S().house ? '📋 じぶんの 家（回覧板）' : '🏠 売り家を 見る'), go: () => (S().house ? window.boardSheet() : window.houseSheet()) },
+  { k: 'home',   x: -3.2, z: 10,  txt: () => (S().house ? '📋 家の 回覧板' : '🏠 売り家を 見る'), go: () => (S().house ? window.boardSheet() : window.houseSheet()) },
   { k: 'yatai',  x: 3.2,  z: 2,   txt: () => '🍜 屋台', go: () => window.shopSheet(0) },
   { k: 'jii',    x: -2.2, z: -6,  txt: () => '👴 じいさんと 話す', go: () => window.jiiSheet() },
   { k: 'sakana', x: 3.2,  z: -14, txt: () => '🐟 魚屋に 入る', go: () => window.shopSheet(1) },
   { k: 'meshi',  x: 3.2,  z: -24, hz: 2.3, txt: () => '🍚 飯屋に 入る', go: () => window.shopSheet(3) },
   // 🎭 死神：家を 買ってから 出る（はじめての 人が 家より 先に 死神に 会わない）。病人の 家は 医者に なってから
-  { k: 'shini',  x: 3.0,  z: 18, when: () => !!S().house, txt: () => (S().doc ? '💀 死神と 話す' : '🧓 つえの じいさんと 話す'), go: () => window.shiniSheet() },
+  { k: 'shini',  x: 3.0,  z: 18, when: () => !!S().house, txt: () => (S().doc ? '💀 死神と 話す' : '🧓 つえの じいさん'), go: () => window.shiniSheet() },
   { k: 'byo',    x: -3.2, z: -19.2, hz: 2.4, when: () => !!S().doc, txt: () => '🩺 病人の 家に 入る', go: () => window.byoSheet() },
   { k: 'unagi',  x: 0,    z: -29.1, hz: 2.3, hw: 6.6, txt: () => '🍱 ウナギ屋に 入る', go: () => window.unagiSheet() },
 ];
 // ⚠ 丸（半径）で 判定すると 通りの まんなかで 0.4秒ぶんしか 出なかった（11/22）→ 帯に した。hw＝東西の 半分・hz＝南北の 半分
 const inSpot = s => (!s.when || s.when()) && Math.abs(P.x) < (s.hw || 4.2) && Math.abs(P.z - s.z) < (s.hz || 2.6);
-const mark = new THREE.Mesh(new THREE.OctahedronGeometry(0.7), new THREE.MeshBasicMaterial({ color: 0xffe066 })); scene.add(mark);   // ➡ つぎは ここ
+const mark = new THREE.Mesh(new THREE.OctahedronGeometry(0.5), new THREE.MeshBasicMaterial({ color: 0xffe066 })); scene.add(mark);   // ➡ つぎは ここ
 
 // ---- 🌙 夜（蕎麦屋）：屋台・うどん屋（NPC）・酔っぱらい・💤 の 家。場所は 帯（南北 ±2.4m）で 見る ----
 const NZ = [{ k: 'south', z: 18 }, { k: 'home', z: 10 }, { k: 'quiet', z: -6 }, { k: 'sakana', z: -14 }, { k: 'unagi', z: -29.1, hw: 6.6 }];
 // うどん屋の いる 所（場面 0・1・2 と、ぜんぶ 見た あと）。⚠ ならびは こちらの 決め：通りを 北へ 歩くと 順に 出会う
 const UPOS = [{ x: 2.2, z: 3 }, { x: 2.2, z: -6 }, { x: -2.6, z: -21 }, { x: 2.2, z: 3 }];
-const N_HOME = { k: 'n_home', txt: () => '🏠 屋台を しまう（朝に する）', go: () => window.sobaEnd('home') };
-const N_UDON = { k: 'n_udon', txt: () => (window.edoBeat() >= 3 ? '🍜 うどん屋と 話す' : '👀 うどん屋の ようすを 見る'), go: () => window.udonSee() };
+const N_HOME = { k: 'n_home', txt: () => '🏠 屋台を しまう', go: () => window.sobaEnd('home') };
+const N_UDON = { k: 'n_udon', txt: () => (window.edoBeat() >= 3 ? '🍜 うどん屋と 話す' : '👀 うどん屋を 見る'), go: () => window.udonSee() };
 function mkYatai(roof) { const g = new THREE.Group();
   const b = box(1.5, 1.0, 0.9, 0x8a5a2a); b.position.set(0, 0.75, 0); const r = box(1.8, 0.14, 1.2, roof); r.position.set(0, 1.9, 0);
   const l = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.42, 0.3), new THREE.MeshBasicMaterial({ color: 0xffd27a })); l.position.set(0.72, 1.55, 0);
@@ -728,13 +912,30 @@ function setNight(on) {
 
 // ---- じぶん ----
 let me = null; const P = new THREE.Vector3(0, 0, 22); let yaw = 0, lastS = null, spawnT = 0, firstDoor = false, cur = null, frames = 0;
+// 👤 シルエット：2つ目の 描き手（すけた 板）で、札が 出ている あいだだけ じぶんを 金の ふちと 黒で 描く
+const sil = new THREE.WebGLRenderer({ alpha: true, antialias: true }); sil.setPixelRatio(Math.min(devicePixelRatio, 2)); sil.setClearColor(0x000000, 0);
+sil.domElement.id = 'silCv'; sil.domElement.style.display = 'none'; document.body.appendChild(sil.domElement);
+const silCam = new THREE.PerspectiveCamera(), silGold = new THREE.MeshBasicMaterial({ color: 0xc9a24a, side: THREE.BackSide }), silInk = new THREE.MeshBasicMaterial({ color: 0x17110c, transparent: true, opacity: 0.3, blending: THREE.NoBlending });   // ⚠ 中は うすく（そのまま 書きこむ＝金を 消して うすい 黒）。まっ黒だと 札の 字が 読めなかった
+const silFit = () => sil.setSize(innerWidth, innerHeight); silFit(); addEventListener('resize', silFit);
+let silOn = false;
+function silhouette() {
+  const want = !!me && $('sheet').classList.contains('on') && $('town').classList.contains('on');
+  if (want !== silOn) { silOn = want; sil.domElement.style.display = want ? 'block' : 'none'; if (!want) sil.clear(); }   // ⚠ three が 板に display を じかに 書くので クラスでは 消えなかった
+  if (!want) return;
+  me.traverse(o => o.layers.enable(1)); silCam.copy(camera); silCam.layers.set(1);
+  const bg = scene.background, fg = scene.fog; scene.background = null; scene.fog = null;
+  sil.autoClear = true; me.scale.setScalar(1.09); scene.overrideMaterial = silGold; sil.render(scene, silCam);
+  sil.autoClear = false; me.scale.setScalar(1); scene.overrideMaterial = silInk; sil.render(scene, silCam);
+  scene.overrideMaterial = null; scene.background = bg; scene.fog = fg; sil.autoClear = true;
+}
 function spawn() {                                  // ⚠ 場所は セーブしない。いつも 通りの 南の はしから（町の 形を 変えても 建物の 中から 始まらない）
   if (me) scene.remove(me);
   me = person(S().sex === '女' ? 0xb5452a : 0x2e4a7a, 0x1a1a1a); scene.add(me);
   P.set(0, 0, 22); yaw = 0; spawnT = performance.now(); firstDoor = false; cur = null; camera.position.set(0, 5, 28.5);
   logEvent('spawn', {});
 }
-const blocked = (x, z, r = 0.5) => Math.abs(x) > BOUND.x || z < BOUND.zMin || z > BOUND.zMax || boxes.some(b => Math.abs(x - b.x) < b.w / 2 + r && Math.abs(z - b.z) < b.d / 2 + r);
+const outside = (x, z, r) => (G ? [[r, r], [r, -r], [-r, r], [-r, -r]].some(([a, b]) => !walk(cellAt(x + a, z + b))) : Math.abs(x) > BOUND.x || z < BOUND.zMin || z > BOUND.zMax);
+const blocked = (x, z, r = 0.5) => outside(x, z, r) || boxes.some(b => Math.abs(x - b.x) < b.w / 2 + r && Math.abs(z - b.z) < b.d / 2 + r);
 
 // ---- 入力（三国志合戦と 同じ 流儀：左右で 向き・前後で 歩く） ----
 const keys = {}; const stick = { active: false, x: 0, y: 0, id: null, cx: 0, cy: 0 };
@@ -747,10 +948,10 @@ addEventListener('keydown', e => {
   if (MOVE_KEYS.includes(e.code)) { e.preventDefault(); keys[e.code] = true; }
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
-const stop = () => { for (const k in keys) keys[k] = false; stick.active = false; stick.x = stick.y = 0; $('stickBase').style.display = $('stickKnob').style.display = 'none'; };
+const stop = () => { for (const k in keys) keys[k] = false; stick.active = false; stick.x = stick.y = 0; $('stickBase').style.display = $('stickKnob').style.display = 'none'; document.body.classList.remove('stickdown'); };
 addEventListener('blur', stop);
 const zone = $('stick'), sb = $('stickBase'), sk = $('stickKnob');
-zone.addEventListener('touchstart', e => { const t = e.changedTouches[0]; document.body.classList.add('touch');
+zone.addEventListener('touchstart', e => { const t = e.changedTouches[0]; document.body.classList.add('touch', 'stickdown');
   stick.active = true; stick.id = t.identifier; stick.cx = t.clientX; stick.cy = t.clientY; stick.x = stick.y = 0;
   sb.style.display = sk.style.display = 'block'; sb.style.left = (t.clientX - 55) + 'px'; sb.style.top = (t.clientY - 55) + 'px'; sk.style.left = (t.clientX - 25) + 'px'; sk.style.top = (t.clientY - 25) + 'px'; }, { passive: true });
 zone.addEventListener('touchmove', e => { for (const t of e.changedTouches) { if (t.identifier !== stick.id) continue;
@@ -773,7 +974,7 @@ $('call').addEventListener('click', callNow);
 
 // ---- まわす ----
 const SPEED = 5.2, TURN = 2.2;                       // ⚠ こちらの 決め（歩き 5.2m/秒＝通りの はしから ウナギ屋まで 約10秒）
-let last = performance.now(), moved = 0, sampT = 0, frN = 0, frSum = 0, frT = 0;
+let walked = false, last = performance.now(), moved = 0, sampT = 0, frN = 0, frSum = 0, frT = 0;
 const tmp = new THREE.Vector3();
 function tick(now) {
   requestAnimationFrame(tick);
@@ -791,6 +992,7 @@ function tick(now) {
     if (!blocked(nx, P.z)) P.x = nx;                 // x と z を 別々に＝壁に そって すべる
     if (!blocked(P.x, nz)) P.z = nz;
     moved += Math.hypot(P.x - ox, P.z - oz);
+    if (!walked && Math.hypot(P.x, P.z - 22) > 3) { walked = true; document.body.classList.add('walking'); logEvent('first_walk', { ms: Math.round(now - spawnT), how: stick.active ? 'stick' : 'key' }); }
   }
   me.position.copy(P); me.rotation.y = yaw;
   homeL2.visible = !!S().house; homeB.userData.label.visible = !S().house;
@@ -816,23 +1018,35 @@ function tick(now) {
   if (a.classList.contains('on') !== on) a.classList.toggle('on', on);
   // ➡ つぎは ここ
   const n = window.edoNext(), ns = n && SPOTS.find(s => s.k === n.k);
-  mark.visible = !!ns && !night; if (ns) { mark.position.set(ns.x, 5.6 + Math.sin(now / 300) * 0.4, ns.z); mark.rotation.y = now / 500; }
+  { const cmp = $('compass'); if (ns && !night) { const dx = ns.x - P.x, dz = ns.z - P.z, near = Math.hypot(dx, dz) < 9;   // ➤ つぎの 所の 方角（じぶんの 前が 上）
+      const a = Math.atan2(dx, dz) - Math.atan2(-Math.sin(yaw), -Math.cos(yaw)); cmp.style.transform = `rotate(${(-a * 180 / Math.PI).toFixed(0)}deg)`; cmp.style.visibility = near ? 'hidden' : 'visible'; mark.userData.near = near; }
+    else cmp.style.visibility = 'hidden'; }
+  mark.visible = !!ns && !night && !mark.userData.near; if (ns) { mark.position.set(ns.x, 5.6 + Math.sin(now / 300) * 0.4, ns.z); mark.rotation.y = now / 500; }
   // カメラ（うしろ 6.5m・上 5m。⚠ 建物の 中に 入らないように、ぶつかる 手前まで 寄せて そのぶん 上げる）
   let k = 1; for (let i = 10; i >= 0; i--) { k = i / 10; if (!blocked(P.x + Math.sin(yaw) * 6.5 * k, P.z + Math.cos(yaw) * 6.5 * k, 0.4)) break; }   // 壁を 背に したら ま上まで 寄る（k=0）
   tmp.set(P.x + Math.sin(yaw) * 6.5 * k, 5 + (1 - k) * 3, P.z + Math.cos(yaw) * 6.5 * k);
   camera.position.lerp(tmp, 1 - Math.pow(0.001, dt));
   camera.lookAt(P.x - Math.sin(yaw) * (1 + 5 * k), 1.6, P.z - Math.cos(yaw) * (1 + 5 * k));   // 寄ったときは 足もとを 見る＝じぶんが 画面から 消えない
+  fadeLabels(); placeTick(now);
   renderer.render(scene, camera);
+  silhouette();
   // ログ：場所（動いた ときだけ 1.5秒ごと）・コマの 重さ（10秒ごと）
   if (now - sampT > 1500 && moved > 0.5) { sampT = now; moved = 0; logEvent('pos', { x: +P.x.toFixed(1), z: +P.z.toFixed(1), yaw: +yaw.toFixed(2) }); }
   frN++; frSum += raw; if (now - frT > 10000) { if (frT) logEvent('frame', { ms: +(frSum / frN * 1000).toFixed(1), n: frN }); frT = now; frN = 0; frSum = 0; }
 }
+// 📍 いま いる あたりの 地名（地図データ）＝45m より 近い いちばん 近い 名前
+const PLACES = MAP ? MAP.places : []; let placeT = 0, placeName = '';
+function placeTick(now) { if (now - placeT < 400) return; placeT = now; let best = null, bd = 45;
+  for (const q of PLACES) { const d = Math.hypot(q[1] - P.x, q[2] - P.z); if (d < bd) { bd = d; best = q; } }
+  const t = best ? `📍 ${best[0]} あたり` : ''; if (t !== placeName) { placeName = t; $('place').textContent = t; if (best) logEvent('place', { k: best[0] }); } }
+if (MAP) for (const b of MAP.bridges) if (b.name) { const l = label(b.name, 6); l.position.set((b.a[0] + b.b[0]) / 2, 3.4, (b.a[1] + b.b[1]) / 2); scene.add(l); }
+logEvent('map', { ok: !!MAP, houses: nHouse, chunks: Object.keys(MB).length, bridges: MAP ? MAP.bridges.length : 0 });
 document.body.classList.add('t3d');
 if ((navigator.maxTouchPoints || 0) > 0) document.body.classList.add('touch');
 logEvent('t3d', { ok: true });
 requestAnimationFrame(tick);
 if (DEV) window.__t = { P, SPOTS, boxes, blocked, get yaw() { return yaw; }, set yaw(v) { yaw = v; }, get cur() { return cur; }, get frames() { return frames; },
-  warp(k) { const s = SPOTS.find(q => q.k === k); P.set(s.x, 0, s.z); }, keys, stick, camera, scene, yatai, udonG, drunk, zz, UPOS };
+  warp(k) { const s = SPOTS.find(q => q.k === k); P.set(s.x, 0, s.z); }, MAP, cellAt, nHouse, sil, get silOn() { return silOn; }, silCount() { silhouette(); if (!silOn) return 0; const gl = sil.getContext(), w = gl.drawingBufferWidth, h = gl.drawingBufferHeight, px = new Uint8Array(w * h * 4); gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px); let n = 0; for (let i = 3; i < px.length; i += 4) if (px[i]) n++; return n; }, keys, stick, camera, scene, yatai, udonG, drunk, zz, UPOS };
 } catch (e) { console.warn('⚠ 3D の 町を 出せなかった。ボタンの 画面で 遊べる', e); logEvent('t3d', { ok: false, err: String(e).slice(0, 120) }); }
 </script>
 </body>
