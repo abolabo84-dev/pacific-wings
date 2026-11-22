@@ -215,7 +215,7 @@
 const $ = id => document.getElementById(id);
 const URLQ = new URLSearchParams(location.search);
 const DEV = URLQ.get('dev') === '1';
-const BUILD = 'edo-1123f';   // ⚠ 版の印
+const BUILD = 'edo-1123g';   // ⚠ 版の印
 // 🎨 見た目：パパ 11/23「2の漆」で 決まり（?ui=1／3 は 比べる 用に 残す）
 const UI = ['1', '2', '3'].includes(URLQ.get('ui')) ? URLQ.get('ui') : '2';
 document.body.classList.add('ui' + UI); window.edoUI = UI;
@@ -598,9 +598,9 @@ function udonSee() {
 //   「じぶんの 手で うまく 継げたら 助かる」は ゲームの 作り
 // ⚠ こちらの 決め：医者は 回覧板に のせない（監督の 17の 仕事に ない）・お礼は 五文（奉行の 1日 二十文より 少なく＝監督「奉行が一番給料が高い」）・病人は 1日 1人・
 //   だました ときの お礼 三十文（噺の 三千両／一万両／五千両は 資料で 割れる）・だませるのは 1回だけ・1人目は 足元、2人目は 枕元、あとは 半々
-// ⚠ ろうそくが 消えた ときに どうなるか は、まだ 監督に 聞いていない。SG.lose 1つで 変えられる：'money'＝お金が ぜんぶ なくなる（今は こちら。セーブは 消さない）／'restart'＝最初から
+// ろうそくが 消えたら 最初から（監督 11/23 07:05「B」＝「最初からになる（5日食べなかったときと同じ）」）。SG.lose：'restart'＝最初から（セーブを 消す）／'money'＝お金が ぜんぶ なくなる（前の 版）
 // ponytail: 病人は 絵文字の 絵・病人の 家は 母屋 1けん, 町の 人（mob）を 作る ときに 家ごとに 分ける
-const SG = { fee: 5, trick: 30, lose: 'money', life: 12000, miss: 1500, period: 1600, z0: 33, z1: 67 };
+const SG = { fee: 5, trick: 30, lose: 'restart', life: 12000, miss: 1500, period: 1600, z0: 33, z1: 67 };
 const SPELL = ['アジャラカモクレン', 'テケレッツのパア'], SPELL_NEED = [0, 1, 'clap', 'clap'];
 const SHINI = { t: '🧓 つえを ついた じいさん', end: 'やってみる', pages: [
   'やせた、つえを ついた じいさんが 立っている。<br>「わしは 死神だよ」',
