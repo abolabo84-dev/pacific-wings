@@ -132,7 +132,7 @@
 const $ = id => document.getElementById(id);
 const URLQ = new URLSearchParams(location.search);
 const DEV = URLQ.get('dev') === '1';
-const BUILD = 'edo-1122e';   // ⚠ 版の印
+const BUILD = 'edo-1122f';   // ⚠ 版の印
 $('ver').textContent = BUILD;
 
 // ============ ゲームログ（群雄合戦と 同じ しくみ・常時ON。テストプレイは 全部 データ） ============
@@ -201,8 +201,9 @@ const esc = s => String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;
 function show(id) { document.querySelectorAll('.screen').forEach(x => x.classList.toggle('on', x.id === id)); }
 function sheet(html) { $('sheetBox').innerHTML = html; $('sheet').classList.add('on'); $('sheetBox').scrollTop = 0; }
 // ⚠ たおれた あと（S が ない）に ふだの 外を 押しても、町に 残らず はじめの 画面へ（町の ボタンは S が ないと 動かない）
-function closeSheet() { $('sheet').classList.remove('on'); story = null; if (!S) return show('start'); refresh(); }
-$('sheet').addEventListener('pointerdown', e => { if (e.target === $('sheet')) closeSheet(); });
+function closeSheet() { $('sheet').classList.remove('on'); story = null; SP = null; if (!S) return show('start'); refresh(); }
+let sheetLock = false;   // 🕯 ろうそくの 場面は、札の 外を 押しても 閉じない（逃げられない・裏で 時間だけ 進まない）
+$('sheet').addEventListener('pointerdown', e => { if (e.target === $('sheet') && !sheetLock) closeSheet(); });
 function news(text, cls) { const d = document.createElement('div'); if (cls) d.className = cls; d.textContent = text; $('news').prepend(d); }
 
 // ============ はじめの 画面（監督11/5「最初に性別名前を決めて」） ============
@@ -230,7 +231,7 @@ function refresh() {
   const left = STARVE_DAYS - S.hungry;
   $('top').innerHTML = `<span class="me">${S.sex === '女' ? '👩' : '👨'} ${esc(S.name)}</span><span>💰 ${S.mon}文</span><span>📅 ${S.day}日目</span>` +
     `<span class="${left <= 2 ? 'warn' : ''}">🍚 ${S.hungry === 0 ? 'おなか いっぱい' : `${S.hungry}日 食べていない`}</span>` +
-    `<span>${S.house ? '🏠 ' + S.house : '🏠 家なし'}</span>${S.job ? `<span>🍱 ${S.job}</span>` : ''}${S.soba ? '<span>🍜 蕎麦屋</span>' : ''}`;
+    `<span>${S.house ? '🏠 ' + S.house : '🏠 家なし'}</span>${S.job ? `<span>🍱 ${S.job}</span>` : ''}${S.soba ? '<span>🍜 蕎麦屋</span>' : ''}${S.doc ? '<span>🩺 医者</span>' : ''}`;
   $('bWork').disabled = !S.job;
   if (N) sobaTick(); else $('next').textContent = '➡ つぎは ' + nextSpot().t;
 }
@@ -387,11 +388,12 @@ function workEnd() {
   if (S.hungry >= 3) news(`⚠ もう ${S.hungry}日 食べていない。${STARVE_DAYS}日で たおれる。`, 'bad');
   save(); refresh();
 }
-function starve() {
-  logEvent('starve', { day: S.day, mon: S.mon });
+function starve() { over('😵 たおれた', `${STARVE_DAYS}日 ごはんを 食べなかった。<br>${S.day}日目で 最初からに なった。`, 'starve'); }
+function over(title, body, type) {
+  logEvent(type, { day: S.day, mon: S.mon });
   try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
-  const d = S.day; S = null; $('cont').style.display = 'none';
-  sheet(`<h2>😵 たおれた</h2><p class="hint" style="font-size:17px">${STARVE_DAYS}日 ごはんを 食べなかった。<br>${d}日目で 最初からに なった。</p><div class="row two"><button onclick="$('sheet').classList.remove('on'); show('start')">最初から</button></div>`);
+  S = null; $('cont').style.display = 'none';
+  sheet(`<h2>${title}</h2><p class="hint" style="font-size:17px">${body}</p><div class="row two"><button onclick="$('sheet').classList.remove('on'); show('start')">最初から</button></div>`);
 }
 
 // ============ 🍜 蕎麦屋の 夜（監督 11/4「蕎麦屋屋台がもらえる」「屋台は、よる屋台担いで歩いて呼ばれてご飯をつくるとお金がもらえる」） ============
@@ -463,27 +465,142 @@ const UDON = [
     'うどん屋が こっちを 見た。<br>「見てたのかい。……じつは おれ、ずっと 先の 時代から 来たんだ。鍋焼きうどんの 屋台は、この 町には まだ ないんだよ。ないしょに しておくれ」'] },
 ];
 window.edoBeat = () => (S ? S.udonBeat || 0 : 0);
-let story = null;
+let story = null;   // { u: { t, pages }, i, done }＝「つづき ▶」で めくる 札。さいごまで 読むと done() が 走る（とちゅうで 札の 外を 押したら 読んだ ことに ならない）
+function tell(u, done) { story = { u, i: 0, done }; storySheet(); }
+function storySheet() {
+  const u = story.u, last = story.i === u.pages.length - 1;
+  sheet(`<h2>${u.t}</h2><p class="hint" style="font-size:17px;text-align:left">${u.pages[story.i]}</p><div class="row two"><button onclick="storyNext()">${last ? (u.end || 'とじる') : 'つづき ▶'}</button></div>`);
+}
+function storyNext() {
+  if (!story) return closeSheet();
+  if (story.i < story.u.pages.length - 1) { story.i++; return storySheet(); }
+  const d = story.done; story = null; if (d && d() === 'keep') return;   // 'keep'＝done が 次の 札を 出した
+  save(); closeSheet();
+}
 function udonSee() {
   if (!N || story) return;
   const b = S.udonBeat || 0;
   if (b >= UDON.length) return sheet(`<h2>🍜 うどん屋</h2><p class="hint" style="font-size:17px;text-align:left">うどん屋「未来の 話は ないしょだよ。そばも うどんも、夜は あったかいのが 一番だ」</p>${okBtn}`);
-  story = { b, i: 0 }; logEvent('udon_see', { b, s: Math.round((performance.now() - N.t0) / 1000) }); storySheet();
-}
-function storySheet() {
-  const u = UDON[story.b], last = story.i === u.pages.length - 1;
-  sheet(`<h2>${u.t}</h2><p class="hint" style="font-size:17px;text-align:left">${u.pages[story.i]}</p><div class="row two"><button onclick="storyNext()">${last ? 'とじる' : 'つづき ▶'}</button></div>`);
-}
-function storyNext() {
-  if (!story) return closeSheet();
-  if (story.i < UDON[story.b].pages.length - 1) { story.i++; return storySheet(); }
-  S.udonBeat = story.b + 1; if (N) N.seen++; logEvent('udon_beat', { b: story.b, done: S.udonBeat >= UDON.length }); story = null;
-  if (S.udonBeat >= UDON.length) news('🎭 落語「うどん屋」を さいごまで 見た。うどん屋の ひみつも 聞いた。', 'k');
-  else news('🍜 うどん屋は 屋台を かついで、通りの 北へ 歩いて 行った。', '');
-  save(); closeSheet();
+  logEvent('udon_see', { b, s: Math.round((performance.now() - N.t0) / 1000) });
+  tell(UDON[b], () => {
+    S.udonBeat = b + 1; if (N) N.seen++; logEvent('udon_beat', { b, done: S.udonBeat >= UDON.length });
+    if (S.udonBeat >= UDON.length) news('🎭 落語「うどん屋」を さいごまで 見た。うどん屋の ひみつも 聞いた。', 'k');
+    else news('🍜 うどん屋は 屋台を かついで、通りの 北へ 歩いて 行った。', '');
+  });
 }
 
-if (DEV) window.__e = { get N() { return N; }, sobaStart, sobaEnd, SB, UDON, get S() { return S; }, set S(v) { S = v; }, get W() { return W; }, UN, HOUSES, FOODS, JOBS, STARVE_DAYS, SAVE_KEY, refresh, workEnd, bowlEnd, save };
+// ============ 🎭 落語「死神」（監督 11/22 21:38「1 A」＝つぎの 噺は 死神）＝町はずれの 死神に 会うと、医者が できる ============
+// 噺の 筋は 資料で 確かめた（~/.claude/research/rakugo-enmoku.md。ニッポニカ＝関山和夫・千字寄席・梅内 2011/2013・レファ協）：
+//   死神に 会う → 見分け方と 呪文を 教わって 医者に なる（足元＝治る・枕元＝治らない）→ 枕元に 死神の いる 金持ちの 病人を、寝床を 回して 治す
+//   → だまされた 死神が 怒って「生命の ろうそく」の 所へ 連れて行く → 消えそうな ろうそくを 継ごうと して 継げず「ああ消える」（6代目 円生の しぐさ落ち）
+// ⚠ 入れていない もの：噺の 始まりの 場面（借金と 自殺）・元の 話が グリムか オペラか（資料が 割れている）
+// ⚠ 枕元＝治らない は 標準の 型（逆の 型＝5代目 今輔 も ある）
+// ⚠ 呪文は 演者ごとに ちがう。円朝の 原作には ない。ここは 6代目 円生の 型「あじゃらかもくれん、（まんなかの 語）、てけれッつのぱァ」＋手を 2つ から、
+//   演者と 時で 変わる まんなかの 語を ぬいた 形。ゲームの 中で「昔からの 呪文」とは 言わない
+// ⚠ 助かる 終わり方：資料に ある のは「死神が すきを 見せて 継ぎ足す」（円遊の 改作 → 3代目 金馬）と「継いだ あと くしゃみで 消す」（小三治）。
+//   「じぶんの 手で うまく 継げたら 助かる」は ゲームの 作り
+// ⚠ こちらの 決め：医者は 回覧板に のせない（監督の 17の 仕事に ない）・お礼は 五文（奉行の 1日 二十文より 少なく＝監督「奉行が一番給料が高い」）・病人は 1日 1人・
+//   だました ときの お礼 三十文（噺の 三千両／一万両／五千両は 資料で 割れる）・だませるのは 1回だけ・1人目は 足元、2人目は 枕元、あとは 半々
+// ⚠ ろうそくが 消えた ときに どうなるか は、まだ 監督に 聞いていない。SG.lose 1つで 変えられる：'money'＝お金が ぜんぶ なくなる（今は こちら。セーブは 消さない）／'restart'＝最初から
+// ponytail: 病人は 絵文字の 絵・病人の 家は 母屋 1けん, 町の 人（mob）を 作る ときに 家ごとに 分ける
+const SG = { fee: 5, trick: 30, lose: 'money', life: 12000, miss: 1500, period: 1600, z0: 33, z1: 67 };
+const SPELL = ['アジャラカモクレン', 'テケレッツのパア'], SPELL_NEED = [0, 1, 'clap', 'clap'];
+const SHINI = { t: '🧓 つえを ついた じいさん', end: 'やってみる', pages: [
+  'やせた、つえを ついた じいさんが 立っている。<br>「わしは 死神だよ」',
+  '「お金に こまったら、医者を やらないか。病人の そばには、かならず 死神が いる。おまえには 見えるように してやろう」',
+  '「死神が <b>足元</b>に いたら、呪文で 追いはらえる。病人は すぐ 治る。<br><b>枕元</b>に いたら、それは 寿命だ。手を 出しては いけないよ」',
+  `「呪文は『${SPELL[0]}、${SPELL[1]}』。となえたら、<b>手を 2つ 打つ</b>」`] };
+let SP = null, C = null;
+function shiniSheet() {
+  if (!S.doc) { logEvent('shini_meet', { day: S.day, mon: S.mon });
+    return tell(SHINI, () => { S.doc = true; S.docN = 0; logEvent('shini_doc', {}); news('🩺 医者に なった。通りの 北の 母屋に 病人が いる。', 'k'); }); }
+  const t = S.tricked ? '「二度目は ないぞ」' : `「足元なら 呪文。枕元なら 寿命だ。呪文は『${SPELL[0]}、${SPELL[1]}』、手を 2つ」`;
+  sheet(`<h2>💀 死神</h2><p class="hint" style="font-size:17px;text-align:left">${t}</p>${okBtn}`);
+}
+const bed = pos => `<div style="font-size:34px;text-align:center;letter-spacing:.1em">${pos === 'head' ? '💀' : '　'}😷🛏${pos === 'foot' ? '💀' : '　'}</div><p class="hint">← 枕元（頭の ほう）　　足元 →</p>`;
+function byoSheet() {
+  if (S.patDay === S.day) return sheet(`<h2>🩺 病人の 家</h2><p class="hint" style="font-size:17px">今日は もう 病人は いない。あした また 来よう。</p>${okBtn}`);
+  if (!S.pat || S.pat.day !== S.day) { const n = S.docN || 0;
+    S.pat = { day: S.day, pos: S.patFix || (n === 0 ? 'foot' : n === 1 ? 'head' : Math.random() < 0.5 ? 'foot' : 'head'), turned: false };
+    logEvent('pat', { n, pos: S.pat.pos }); save(); }
+  const head = S.pat.pos === 'head';
+  sheet(`<h2>🩺 病人の 家</h2>${bed(S.pat.pos)}<p class="hint" style="font-size:17px">病人が 寝ている。死神は <b>${head ? '枕元' : '足元'}</b>に いる。${S.pat.turned ? '（寝床を 回した）' : ''}</p><div class="row">` +
+    `<button onclick="spellStart()">🙏 呪文を となえる</button>` +
+    (head ? `<button onclick="patEnd('giveup')">「寿命です」と 言って 帰る</button>` : '') +
+    (head && !S.tricked ? `<button onclick="trickAsk()">🔄 寝床を ぐるっと 回す（死神を だます）</button>` : '') +
+    `</div><div class="row two"><button onclick="closeSheet()">あとで</button></div>`);
+}
+function trickAsk() {
+  sheet(`<h2>🔄 寝床を 回す？</h2><p class="hint" style="font-size:17px">寝床を 回すと、枕元の 死神が 足元に なる。<br>でも、<b>死神との 約束を やぶる</b> ことに なる。</p>` +
+    `<div class="row two"><button onclick="byoSheet()">やめる</button><button onclick="trickGo()">回す</button></div>`);
+}
+function trickGo() { if (!S.pat || S.pat.pos !== 'head' || S.tricked) return; S.pat.pos = 'foot'; S.pat.turned = true; logEvent('trick', { day: S.day, mon: S.mon }); save(); byoSheet(); }
+function spellStart() { SP = { i: 0, miss: 0, t0: performance.now() }; spellSheet(''); }
+function spellSheet(msg) {
+  const btn = [[0, SPELL[0]], [1, SPELL[1]], ['x', 'ナムナムナム'], ['clap', '👏 手を 打つ']].sort(() => Math.random() - 0.5);
+  sheet(`<h2>🙏 呪文</h2><p class="hint" style="font-size:17px">「${SPELL[0]}、${SPELL[1]}」→ 手を 2つ<br>順番に 押そう（${SP.i}／4）<br><span style="color:#ff8a80">${msg}</span></p><div class="row">` +
+    btn.map(([k, t]) => `<button data-k="${k}" onclick="spellTap('${k}')">${t}</button>`).join('') + `</div><div class="row two"><button onclick="byoSheet()">やめる</button></div>`);
+}
+function spellTap(k) {
+  if (!SP) return;
+  if (String(SPELL_NEED[SP.i]) !== k) { SP.miss++; SP.i = 0; return spellSheet('まちがえた。はじめから'); }
+  if (++SP.i < SPELL_NEED.length) return spellSheet('');
+  const head = S.pat.pos === 'head'; logEvent('spell', { ms: Math.round(performance.now() - SP.t0), miss: SP.miss, pos: S.pat.pos }); SP = null;
+  if (head) return sheet(`<h2>💀 死神は 動かない</h2>${bed('head')}<p class="hint" style="font-size:17px">枕元の 死神には 呪文が きかない。</p><div class="row two"><button onclick="byoSheet()">もどる</button></div>`);
+  patEnd('cure');
+}
+function patEnd(r) {
+  const turned = S.pat.turned, pay = r === 'cure' ? (turned ? SG.trick : SG.fee) : 0;
+  S.mon += pay; S.patDay = S.day; S.docN = (S.docN || 0) + 1; if (turned && r === 'cure') S.tricked = true;
+  logEvent('pat_end', { r, pay, turned, mon: S.mon }); save();
+  if (r === 'giveup') { news('🩺 「寿命です」と 言って 帰った（0文）。', ''); return closeSheet(); }
+  news(`🩺 死神が 消えて、病人が 治った。お礼に ${pay}文 もらった。`, 'good');
+  if (turned) return candleIntro();
+  sheet(`<h2>✨ 治った</h2>${bed('none')}<p class="hint" style="font-size:17px">手を 2つ 打つと、死神が すっと 消えた。病人は 起き上がった。<br>お礼に <b>${pay}文</b> もらった。</p>${okBtn}`);
+}
+// ---- 🕯 命の ろうそく ----
+function candleIntro() {
+  sheetLock = true; refresh();
+  tell({ t: '💀 死神が おこった', end: '🕯 ろうそくの 前へ', pages: [
+    `病人は 治って、お礼に <b>${SG.trick}文</b> もらった。<br>帰り道、死神が 腕を つかんだ。「約束を やぶったな。来い」`,
+    'ろうそくが たくさん 並んでいる。<br>「これは みんな 人の 命だ。この 消えそうなのが、おまえの ろうそくだ」',
+    '「新しい ろうそくに 火を うつせたら、助かる。うつせなければ、消える」'] }, () => { candleStart(); return 'keep'; });
+}
+function candleStart() {
+  sheetLock = true; C = { t: 0, left: SG.life, tries: 0, last: performance.now() }; logEvent('candle_start', {});
+  sheet(`<h2>🕯 命の ろうそく</h2><p class="hint" style="font-size:17px">しるしが <b>みどりの 所</b>に 来た ときに「火を うつす」を 押そう</p>` +
+    `<div style="position:relative;height:34px;background:#111;border-radius:8px;margin:10px 0;overflow:hidden"><div style="position:absolute;left:${SG.z0}%;width:${SG.z1 - SG.z0}%;top:0;bottom:0;background:#2e7d32"></div>` +
+    `<div id="cMark" style="position:absolute;top:0;bottom:0;width:8px;margin-left:-4px;background:#ffe066;left:0%"></div></div>` +
+    `<div style="height:14px;background:#111;border-radius:7px;overflow:hidden"><div id="cLife" style="height:100%;width:100%;background:#ff7043"></div></div><p class="hint">↑ ろうそくの のこり</p>` +
+    `<p class="hint" id="cMsg" style="font-size:18px;min-height:1.6em;color:#ff8a80"></p><div class="row two"><button id="cBtn" onclick="candleTry()" style="background:#8a2f1b;min-height:72px;font-size:20px">🔥 火を うつす</button></div>`);
+  C.timer = setInterval(candleTick, 30);
+}
+const candlePos = () => { const p = (C.t % SG.period) / SG.period; return (p < 0.5 ? p * 2 : 2 - p * 2) * 100; };
+function candleTick() {
+  if (!C) return;
+  const now = performance.now(), dt = Math.min(now - C.last, 100); C.last = now; C.t += dt; C.left -= dt;   // ⚠ dt に 上限＝裏の 画面に いる あいだに 消えて しまわない
+  const m = $('cMark'), l = $('cLife'); if (m) m.style.left = candlePos() + '%'; if (l) l.style.width = Math.max(0, C.left / SG.life * 100) + '%';
+  if (C.left <= 0) candleEnd(false);
+}
+function candleTry() {
+  if (!C) return;
+  const pos = candlePos(), hit = pos >= SG.z0 && pos <= SG.z1; C.tries++;
+  logEvent('candle_try', { pos: Math.round(pos), hit, left: Math.round(C.left) });
+  if (hit) return candleEnd(true);
+  C.left -= SG.miss; $('cMsg').textContent = '手が ふるえて つかない……';
+}
+function candleEnd(win) {
+  clearInterval(C.timer); logEvent('candle_end', { win, tries: C.tries, left: Math.round(C.left), lose: SG.lose }); C = null; sheetLock = false;
+  if (win) { news('🕯 火が うつった。助かった。', 'good'); save();
+    return sheet(`<h2>🕯 火が うつった！</h2><p class="hint" style="font-size:17px;text-align:left">新しい ろうそくが 明るく もえた。助かった。<br>死神「……二度目は ないぞ」<br><br>` +
+      `🎭 落語「死神」は、火が うつせなくて「ああ、消える……」と たおれる ところで 終わる（おち）。助かる 終わり方で やる 人も いる。</p>${okBtn}`); }
+  const note = '🎭 落語「死神」の おち。火が うつせなくて「ああ、消える……」と たおれる ところで 終わる。';
+  if (SG.lose === 'restart') return over('🕯 ああ、消える……', `ろうそくが 消えた。<br>${S.day}日目で 最初からに なった。<br><br>${note}`, 'candle');
+  const lost = S.mon; S.mon = 0; news(`🕯 ろうそくが 消えた……。目が さめると、お金が ぜんぶ（${lost}文）なくなっていた。`, 'bad'); save();
+  sheet(`<h2>🕯 ああ、消える……</h2><p class="hint" style="font-size:17px;text-align:left">ろうそくが 消えて、目の 前が まっくらに なった。<br><br>${note}<br><br>……目が さめると、じぶんの 家の 前に たおれていた。お金は ぜんぶ なくなっていた。</p>${okBtn}`);
+}
+
+if (DEV) window.__e = { get N() { return N; }, get C() { return C; }, get SP() { return SP; }, SG, candlePos, sobaStart, sobaEnd, SB, UDON, get S() { return S; }, set S(v) { S = v; }, get W() { return W; }, UN, HOUSES, FOODS, JOBS, STARVE_DAYS, SAVE_KEY, refresh, workEnd, bowlEnd, save };
 </script>
 
 <!-- 🚶 3D の 町（three.js は 三国志合戦と 同じ 版）。ここが 読めない・動かないときは 上の ボタン画面の まま 遊べる -->
@@ -559,6 +676,10 @@ function person(cloth, hairC) {
 }
 // ⚠ じいさんは 壁ぎわ（x=-3.6）。前は x=-3.3 で、通りの 西がわを まっすぐ 歩くと じいさんに 引っかかって 止まった（11/22 テストで 見つけた）
 const jii = person(0x7a7a6a, 0xeeeeee); jii.position.set(-3.6, 0, -6); scene.add(jii);
+const shini = person(0x2a2a2e, 0xeeeeee); shini.scale.set(0.8, 1.05, 0.8); shini.position.set(3.4, 0, 18); shini.rotation.y = -Math.PI / 2;
+{ const st = box(0.08, 1.9, 0.08, 0x5a3a1e); st.position.set(0.55, 0.95, -0.3); shini.add(st); } shini.visible = false; scene.add(shini);
+const shL1 = label('つえの じいさん', 5); const shL2 = label('死神', 3); for (const l of [shL1, shL2]) { l.position.set(3.4, 3.3, 18); l.visible = false; scene.add(l); }
+const byoL = label('🩺 病人の 家', 5.5); byoL.position.set(-9.5, 9.4, -21); byoL.visible = false; scene.add(byoL);
 const jl = label('物知りな じいさん', 5.5); jl.position.set(-3.6, 3.1, -6); scene.add(jl); boxes.push({ x: -3.6, z: -6, w: 0.8, d: 0.8 });
 
 // ---- 入れる 所（戸口の 前に 立つと「入る」が 出る）。ひらく 札は 試作1と 同じ ----
@@ -569,10 +690,13 @@ const SPOTS = [
   { k: 'jii',    x: -2.2, z: -6,  txt: () => '👴 じいさんと 話す', go: () => window.jiiSheet() },
   { k: 'sakana', x: 3.2,  z: -14, txt: () => '🐟 魚屋に 入る', go: () => window.shopSheet(1) },
   { k: 'meshi',  x: 3.2,  z: -24, hz: 2.3, txt: () => '🍚 飯屋に 入る', go: () => window.shopSheet(3) },
+  // 🎭 死神：家を 買ってから 出る（はじめての 人が 家より 先に 死神に 会わない）。病人の 家は 医者に なってから
+  { k: 'shini',  x: 3.0,  z: 18, when: () => !!S().house, txt: () => (S().doc ? '💀 死神と 話す' : '🧓 つえの じいさんと 話す'), go: () => window.shiniSheet() },
+  { k: 'byo',    x: -3.2, z: -19.2, hz: 2.4, when: () => !!S().doc, txt: () => '🩺 病人の 家に 入る', go: () => window.byoSheet() },
   { k: 'unagi',  x: 0,    z: -29.1, hz: 2.3, hw: 6.6, txt: () => '🍱 ウナギ屋に 入る', go: () => window.unagiSheet() },
 ];
 // ⚠ 丸（半径）で 判定すると 通りの まんなかで 0.4秒ぶんしか 出なかった（11/22）→ 帯に した。hw＝東西の 半分・hz＝南北の 半分
-const inSpot = s => Math.abs(P.x) < (s.hw || 4.2) && Math.abs(P.z - s.z) < (s.hz || 2.6);
+const inSpot = s => (!s.when || s.when()) && Math.abs(P.x) < (s.hw || 4.2) && Math.abs(P.z - s.z) < (s.hz || 2.6);
 const mark = new THREE.Mesh(new THREE.OctahedronGeometry(0.7), new THREE.MeshBasicMaterial({ color: 0xffe066 })); scene.add(mark);   // ➡ つぎは ここ
 
 // ---- 🌙 夜（蕎麦屋）：屋台・うどん屋（NPC）・酔っぱらい・💤 の 家。場所は 帯（南北 ±2.4m）で 見る ----
@@ -667,6 +791,7 @@ function tick(now) {
   }
   me.position.copy(P); me.rotation.y = yaw;
   homeL2.visible = !!S().house; homeB.userData.label.visible = !S().house;
+  { const sv = !!S().house && !window.edoNight(); shini.visible = sv; shL1.visible = sv && !S().doc; shL2.visible = sv && !!S().doc; byoL.visible = !!S().doc; }
   // いちばん 近い 戸口
   if (yatai.parent !== me) me.add(yatai);
   const night = window.edoNight();
