@@ -132,7 +132,7 @@
 const $ = id => document.getElementById(id);
 const URLQ = new URLSearchParams(location.search);
 const DEV = URLQ.get('dev') === '1';
-const BUILD = 'edo-1122f';   // ⚠ 版の印
+const BUILD = 'edo-1122g';   // ⚠ 版の印
 $('ver').textContent = BUILD;
 
 // ============ ゲームログ（群雄合戦と 同じ しくみ・常時ON。テストプレイは 全部 データ） ============
@@ -190,7 +190,9 @@ const STARVE_DAYS = 5;                     // 監督11/5「5日ご飯食べな�
 // ⚠ 回覧板の「場所：川ぞいの 店」も こちらの 決め（監督11/4 は「仕事の名前場所がある」まで）
 // パパ11/5「やってるうちに だんだん 次の 丼が 来る スピードが 早くなる」→ 1ぱいごとに 持ち時間が へる
 // ponytail: 数字は 仮, テストプレイの ログ（bowl の cov と ms）を 見て 直す
-const UN = { cols: 14, rows: 4, need: 0.7, bowls: 6, pay: 1, t0: 6000, tStep: 500, tMin: 3000, brush: 0.9 };
+// 🔎 11/22 の 本番ログ（パソコン・12はい）：ぜんぶ 成功なのに 100% ぬれた 回が なく（73〜98%）、毎回 持ち時間 いっぱい 待っていた＝「だんだん 速くなる」が 効いていなかった
+//   → done：9割 ぬれたら すぐ 次へ（パパ 11/22「やっとこか」）。need（7割で 一文）は そのまま
+const UN = { cols: 14, rows: 4, need: 0.7, done: 0.9, bowls: 6, pay: 1, t0: 6000, tStep: 500, tMin: 3000, brush: 0.9 };
 
 const SAVE_KEY = 'edoSave1';
 let S = null;
@@ -359,7 +361,8 @@ function paint(e) {
     if (Math.hypot(x + (c + .5) * cw - px, y + (r + .5) * ch - py) <= rad) { W.cells[i] = 1; W.n++; }
   }
   drawBowl();
-  if (W.n === W.cells.length) bowlEnd();
+  if (W.n && W.first === null) W.first = Math.round(performance.now() - W.t0);   // 指を 下ろした まま 次の どんぶりに 入った ときも 残す
+  if (W.n >= W.cells.length * UN.done) bowlEnd();
 }
 let down = false;
 cv.addEventListener('pointerdown', e => { down = true; try { cv.setPointerCapture(e.pointerId); } catch (err) {} if (W && !W.busy) { W.strokes++; if (W.first === null) W.first = Math.round(performance.now() - W.t0); W.per.push(W.n); } paint(e); });
@@ -374,7 +377,7 @@ function bowlEnd() {
   // first＝さいしょに さわるまでの ms・per＝なぞり 1本ごとに ぬれた マスの 数（持ち時間と 筆の 太さを ログから 直すため）
   const per = W.per.map((v, k) => (k + 1 < W.per.length ? W.per[k + 1] : W.n) - v);
   logEvent('bowl', { i: W.i, cov: +cov.toFixed(2), ms, limit: W.limit, ok, strokes: W.strokes, first: W.first, per: per.slice(0, 30) });
-  $('wMsg').textContent = ok ? (cov === 1 ? '◎ きれいに ぬれた！ +1文' : '○ よし！ +1文') : '× タレが たりない…';
+  $('wMsg').textContent = ok ? (cov >= UN.done ? '◎ きれいに ぬれた！ +1文' : '○ よし！ +1文') : '× タレが たりない…';
   W.i++;
   setTimeout(() => (W.i < UN.bowls ? bowlStart() : workEnd()), 800);
 }
