@@ -73,6 +73,8 @@
   #stickKnob { position: fixed; width: 50px; height: 50px; border-radius: 50%; background: rgba(255,255,255,.55); display: none; pointer-events: none; z-index: 12; }
   body.t3d #act { position: absolute; right: 14px; bottom: 28px; z-index: 12; min-height: 76px; min-width: 150px; max-width: 46%; font-size: 19px; background: #8a2f1b; border-color: #ffe066; }
   body.t3d #act.on { display: block; }
+  body.t3d #call { position: absolute; right: 14px; bottom: 118px; z-index: 12; min-height: 64px; min-width: 150px; max-width: 46%; font-size: 18px; background: #35507a; border-color: #fff; display: none; }
+  body.t3d #call.on { display: block; }
   body.t3d #keyHint { display: block; position: absolute; left: 0; right: 0; bottom: 6px; z-index: 4; text-align: center; font-size: 13px; opacity: .85; pointer-events: none; text-shadow: 1px 1px 2px #000; }
   body.t3d.touch #keyHint { display: none; }
   #ver { position: absolute; right: 6px; bottom: 4px; font-size: 10px; opacity: .4; pointer-events: none; }
@@ -103,7 +105,8 @@
   <div id="next"></div>
   <div id="stick"></div><div id="stickBase"></div><div id="stickKnob"></div>
   <button id="act"></button>
-  <div id="keyHint">W・↑ すすむ／A・D まがる／S・↓ さがる／E 入る・話す</div>
+  <button id="call">📣 売り声を 出す</button>
+  <div id="keyHint">W・↑ すすむ／A・D まがる／S・↓ さがる／E 入る・話す／Q 売り声（夜）</div>
   <div id="cmd">
     <button id="bHouse" onclick="houseSheet()">🏠 家</button>
     <button id="bBoard" onclick="boardSheet()">📋 回覧板</button>
@@ -129,7 +132,7 @@
 const $ = id => document.getElementById(id);
 const URLQ = new URLSearchParams(location.search);
 const DEV = URLQ.get('dev') === '1';
-const BUILD = 'edo-1122d';   // ⚠ 版の印
+const BUILD = 'edo-1122e';   // ⚠ 版の印
 $('ver').textContent = BUILD;
 
 // ============ ゲームログ（群雄合戦と 同じ しくみ・常時ON。テストプレイは 全部 データ） ============
@@ -180,9 +183,10 @@ const JOBS = [
 ];
 // 監督11/5「屋台は、十三文 ウナギは、20文 … 魚屋は、十八文 飯屋は、三十文」（風呂屋 十三文は ごはんでは ないので まだ 出していない）
 const FOODS = [{ k: '屋台', mon: 13 }, { k: '魚屋', mon: 18 }, { k: 'ウナギ', mon: 20 }, { k: '飯屋', mon: 30 }];
+const SOBA_I = JOBS.findIndex(j => j[0] === '蕎麦屋');
 const STARVE_DAYS = 5;                     // 監督11/5「5日ご飯食べないとゲームオーバ最初から」
 // ⚠ こちらの 決め：一晩に 6ぱい・1ぱい うまく ぬれたら 一文（最高 六文）・その晩に もらえる
-// ⚠ 監督の 給料の 話とは まだ 合わせていない：11/5「奉行が一番給料が高い20文」「給料は 回覧板で わかる・月に いっかい」／11/6「いいお酒は 二十文 奉行の給料二日ぶん」（＝20文が 1日ぶんか 月ぶんか 読みきれない）
+// ✅ 監督 11/22「2A」＝奉行の 給料は 1日で 二十文。ウナギ屋（最高 六文）と 蕎麦屋（最高 三文）は それより 少ない。月に 一回の 回覧板は まだ 作っていない。前の メモ：11/5「奉行が一番給料が高い20文」「給料は 回覧板で わかる・月に いっかい」／11/6「いいお酒は 二十文 奉行の給料二日ぶん」（＝20文が 1日ぶんか 月ぶんか 読みきれない）
 // ⚠ 回覧板の「場所：川ぞいの 店」も こちらの 決め（監督11/4 は「仕事の名前場所がある」まで）
 // パパ11/5「やってるうちに だんだん 次の 丼が 来る スピードが 早くなる」→ 1ぱいごとに 持ち時間が へる
 // ponytail: 数字は 仮, テストプレイの ログ（bowl の cov と ms）を 見て 直す
@@ -197,7 +201,7 @@ const esc = s => String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;
 function show(id) { document.querySelectorAll('.screen').forEach(x => x.classList.toggle('on', x.id === id)); }
 function sheet(html) { $('sheetBox').innerHTML = html; $('sheet').classList.add('on'); $('sheetBox').scrollTop = 0; }
 // ⚠ たおれた あと（S が ない）に ふだの 外を 押しても、町に 残らず はじめの 画面へ（町の ボタンは S が ないと 動かない）
-function closeSheet() { $('sheet').classList.remove('on'); if (!S) return show('start'); refresh(); }
+function closeSheet() { $('sheet').classList.remove('on'); story = null; if (!S) return show('start'); refresh(); }
 $('sheet').addEventListener('pointerdown', e => { if (e.target === $('sheet')) closeSheet(); });
 function news(text, cls) { const d = document.createElement('div'); if (cls) d.className = cls; d.textContent = text; $('news').prepend(d); }
 
@@ -226,13 +230,14 @@ function refresh() {
   const left = STARVE_DAYS - S.hungry;
   $('top').innerHTML = `<span class="me">${S.sex === '女' ? '👩' : '👨'} ${esc(S.name)}</span><span>💰 ${S.mon}文</span><span>📅 ${S.day}日目</span>` +
     `<span class="${left <= 2 ? 'warn' : ''}">🍚 ${S.hungry === 0 ? 'おなか いっぱい' : `${S.hungry}日 食べていない`}</span>` +
-    `<span>${S.house ? '🏠 ' + S.house : '🏠 家なし'}</span>${S.job ? `<span>🍱 ${S.job}</span>` : ''}`;
+    `<span>${S.house ? '🏠 ' + S.house : '🏠 家なし'}</span>${S.job ? `<span>🍱 ${S.job}</span>` : ''}${S.soba ? '<span>🍜 蕎麦屋</span>' : ''}`;
   $('bWork').disabled = !S.job;
-  $('next').textContent = '➡ つぎは ' + nextSpot().t;
+  if (N) sobaTick(); else $('next').textContent = '➡ つぎは ' + nextSpot().t;
 }
 // 🚶 つぎに 行く 所（じいさんの 台詞と 同じ 状態で 決める。3D の 町で 黄色い 印を 出す）
 function nextSpot() {
   if (!S.house) return { k: 'home', t: '売り家へ。家を 買おう' };
+  if (!S.job && S.soba) return { k: 'home', t: 'じぶんの 家へ。夜、屋台を 出そう' };
   if (!S.job) return S.mon < JOB_FEE && !S.lent ? { k: 'jii', t: '物知りな じいさんの 所へ' } : { k: 'home', t: 'じぶんの 家へ。回覧板を 見よう' };
   if (S.mon >= FOODS[0].mon && S.hungry > 0) return { k: 'yatai', t: '屋台へ。何か 食べよう' };
   return { k: 'unagi', t: 'ウナギ屋へ。仕事を しよう' };
@@ -269,17 +274,21 @@ function buyHouse(i) {
 // ============ 回覧板（監督11/4「回覧板が家を買うと来る 回覧板には、お仕事が紹介されている」） ============
 function boardSheet() {
   if (!S.house) return sheet(`<h2>📋 回覧板</h2><p class="hint">回覧板は 家を 買うと 来る。まず 🏠 家を 買おう</p><div class="row two"><button onclick="closeSheet()">とじる</button></div>`);
-  if (S.job) return sheet(`<h2>📋 回覧板</h2><p class="hint">いまの 仕事：<b>${S.job}</b>（道具：${S.tool}）<br>ほかの 仕事は まだ 作っている とちゅう</p><div class="row two"><button onclick="closeSheet()">とじる</button></div>`);
+  // 🍜 蕎麦屋（11/22）：仕事は いくつ 入っても いい（⚠ こちらの 決め。監督は「仕事入るのに一文必要」まで）。蕎麦屋は 歩ける 町（3D）でだけ
+  const t3d = document.body.classList.contains('t3d'), has = i => (i === 0 ? !!S.job : i === SOBA_I ? !!S.soba : false);
   sheet(`<h2>📋 回覧板：お仕事</h2><p class="hint">仕事に 入るのに <b>${JOB_FEE}文</b> いる。入ると 道具が もらえる。いま 💰 ${S.mon}文</p><div class="row">` +
-    JOBS.map(([k, tool], i) => i === 0
-      ? `<button ${S.mon >= JOB_FEE ? '' : 'disabled'} onclick="takeJob()">${k}（${tool}が もらえる）　<span class="cost">場所：川ぞいの 店</span></button>`
+    (S.soba && t3d ? `<button style="background:#35507a" onclick="$('sheet').classList.remove('on'); sobaStart()">🌙 屋台を かついで 夜の 町へ 出る（蕎麦屋）</button>` : '') +
+    JOBS.map(([k, tool], i) => has(i) ? `<button disabled>✓ ${k}（入っている。道具：${tool}）</button>`
+      : i === 0 ? `<button ${S.mon >= JOB_FEE ? '' : 'disabled'} onclick="takeJob(0)">${k}（${tool}が もらえる）　<span class="cost">場所：川ぞいの 店</span></button>`
+      : i === SOBA_I ? `<button ${S.mon >= JOB_FEE && t3d ? '' : 'disabled'} onclick="takeJob(${SOBA_I})">${k}（${tool}が もらえる）　<span class="cost">${t3d ? '夜、屋台を かついで 町を 歩く' : '歩ける 町で だけ'}</span></button>`
       : `<button disabled>${k}（${tool}が もらえる）　まだ</button>`).join('') +
     `</div><div class="row two"><button onclick="closeSheet()">やめる</button></div>`);
 }
-function takeJob() {
-  if (S.job || S.mon < JOB_FEE) return;
-  S.mon -= JOB_FEE; S.job = JOBS[0][0]; S.tool = JOBS[0][1]; logEvent('job', { k: S.job, left: S.mon });
-  news(`${S.job}に 入った（${JOB_FEE}文）。${S.tool}を もらった。`, 'good'); news('🌙 ウナギ屋へ 行って 仕事を しよう。', 'k');
+function takeJob(i = 0) {
+  if (S.mon < JOB_FEE || (i === 0 ? S.job : S.soba)) return;
+  S.mon -= JOB_FEE; logEvent('job', { k: JOBS[i][0], left: S.mon });
+  if (i === 0) { S.job = JOBS[0][0]; S.tool = JOBS[0][1]; news(`${S.job}に 入った（${JOB_FEE}文）。${S.tool}を もらった。`, 'good'); news('🌙 ウナギ屋へ 行って 仕事を しよう。', 'k'); }
+  else { S.soba = true; news(`蕎麦屋に 入った（${JOB_FEE}文）。屋台を もらった。`, 'good'); news('🌙 じぶんの 家の 回覧板から、屋台を かついで 夜の 町へ 出よう。', 'k'); }
   save(); closeSheet();
 }
 
@@ -299,10 +308,10 @@ function eat(i) {
 function jiiSheet() {
   let t;
   // ⚠ こちらの 決め：母屋を 五文で 買うと 仕事に 入る 一文が なくなって 進めなくなる → じいさんが 一回だけ 一文 かしてくれる
-  if (S.house && !S.job && S.mon < JOB_FEE && !S.lent) { S.lent = true; S.mon += JOB_FEE; logEvent('jii_lend', {}); save();
+  if (S.house && !S.job && !S.soba && S.mon < JOB_FEE && !S.lent) { S.lent = true; S.mon += JOB_FEE; logEvent('jii_lend', {}); save();
     t = '「仕事に 入る 一文も ないのかい。ほれ、一文 やろう。回覧板を 見てごらん」'; }
   else if (!S.house) t = '「江戸では まず 家だよ。長屋なら 三文で 買える。家を 買うと 回覧板が 来るんだ」';
-  else if (!S.job) t = '「回覧板を 見たかい。仕事に 入るには 一文 いる。入れば 道具が もらえるよ」';
+  else if (!S.job && !S.soba) t = '「回覧板を 見たかい。仕事に 入るには 一文 いる。入れば 道具が もらえるよ」';
   else if (S.hungry >= 3) t = `「顔色が わるいね。${STARVE_DAYS}日 食べないと たおれて 最初からだ。屋台なら 十三文だよ」`;
   else if (S.mon < FOODS[0].mon) t = '「ウナギ屋は 夜に 行くんだ。うなぎに タレを かけるだけ。むらなく ぬれば 一ぱい 一文に なる」';
   else t = '「お金が たまったら 何か 食べな。ほかの 仕事や 富くじは、いま 町で じゅんびしている ところだ」';
@@ -385,7 +394,96 @@ function starve() {
   sheet(`<h2>😵 たおれた</h2><p class="hint" style="font-size:17px">${STARVE_DAYS}日 ごはんを 食べなかった。<br>${d}日目で 最初からに なった。</p><div class="row two"><button onclick="$('sheet').classList.remove('on'); show('start')">最初から</button></div>`);
 }
 
-if (DEV) window.__e = { get S() { return S; }, set S(v) { S = v; }, get W() { return W; }, UN, HOUSES, FOODS, JOBS, STARVE_DAYS, SAVE_KEY, refresh, workEnd, bowlEnd, save };
+// ============ 🍜 蕎麦屋の 夜（監督 11/4「蕎麦屋屋台がもらえる」「屋台は、よる屋台担いで歩いて呼ばれてご飯をつくるとお金がもらえる」） ============
+// パパ 11/22「自分がやるほうは蕎麦屋にしよう」「うどん屋はNPC　実は未来人」
+// ⚠ こちらの 決め：夜は 100秒・1ぱい 一文・売れる 所は 3つ（1晩に 1回ずつ）＝最高 三文・💤 の 家の 前で 売り声を 出すと しかられる・売り声の 言葉
+// ponytail: 数字は 仮・客は 出てこない（知らせだけ）, テストプレイの ログ（soba_call・soba_end）を 見て 直す
+const SB = { secs: 100, pay: 1 };
+const SB_SELL = { south: '町の 南', sakana: '魚屋の 前', unagi: '川ぞい' };
+let N = null;
+window.edoNight = () => N;
+function sobaStart() {
+  if (!S || !S.soba || N) return;
+  N = { t0: performance.now(), earned: 0, sold: {}, scold: false, calls: 0, seen: 0 };
+  logEvent('soba_start', { day: S.day, mon: S.mon, hungry: S.hungry, beat: S.udonBeat || 0 });
+  news('🌙 夜に なった。屋台を かついで 町を 歩こう。📣 売り声で お客を 呼ぶ。しまう ときは じぶんの 家へ。', 'k');
+  N.timer = setInterval(sobaTick, 500); refresh();
+}
+function sobaTick() {
+  if (!N) return;
+  const left = SB.secs - (performance.now() - N.t0) / 1000;
+  $('next').textContent = `🌙 夜（のこり ${Math.max(0, Math.ceil(left))}秒）・売れた ${N.earned}はい`;
+  if (left <= 0 && !$('sheet').classList.contains('on')) sobaEnd('time');
+}
+const okBtn = '<div class="row two"><button onclick="closeSheet()">とじる</button></div>';
+function sobaCall(zone) {
+  if (!N) return;
+  N.calls++; let r = 'none';
+  if (zone === 'quiet') { r = 'scold'; N.scold = true;
+    sheet(`<h2>🤫 しーっ</h2><p class="hint" style="font-size:17px;text-align:left">戸が あいて、女の人が 出てきた。<br>「子どもが 寝たばかり なんだから、静かに しておくれ」</p>${okBtn}`); }
+  else if (SB_SELL[zone] && !N.sold[zone]) { r = 'sold'; N.sold[zone] = 1; N.earned += SB.pay; news(`🍜 ${SB_SELL[zone]}で そばが 1ぱい 売れた（+${SB.pay}文）。`, 'good'); }
+  else news(SB_SELL[zone] ? '📣 そばーい！ …ここでは もう 売れた。ほかの 所へ 行こう。' : '📣 そばーい！ …だれも 来ない。', '');
+  logEvent('soba_call', { zone, r, earned: N.earned, s: Math.round((performance.now() - N.t0) / 1000) });
+  sobaTick();
+}
+function sobaEnd(why) {
+  if (!N) return;
+  clearInterval(N.timer); const e = N.earned, secs = Math.round((performance.now() - N.t0) / 1000), n = N; N = null;
+  S.mon += e; S.day++; S.hungry++;
+  logEvent('soba_end', { why, earned: e, secs, calls: n.calls, scold: n.scold, seen: n.seen, mon: S.mon, day: S.day, hungry: S.hungry });
+  news(`🌙 ${why === 'time' ? '夜が 明けた。' : '屋台を しまった。'}そばを ${e}はい 売って ${e}文 もらった。朝に なった（${S.day}日目）。`, e ? 'good' : 'bad');
+  if (S.hungry >= STARVE_DAYS) return starve();
+  if (S.hungry >= 3) news(`⚠ もう ${S.hungry}日 食べていない。${STARVE_DAYS}日で たおれる。`, 'bad');
+  save(); refresh();
+}
+
+// ============ 🎭 落語「うどん屋」（監督 11/22「落語は、愛宕山、死神、うどん屋、ちりとてちん」）＝夜の 町に いる うどん屋（NPC）の 事件 ============
+// 噺の 筋は 資料で 確かめた（~/.claude/research/rakugo-enmoku.md。千字寄席・新潮社「波」2017年5月号）：
+//   屋台の うどん屋が 売り声で 流す → 婚礼帰りの 酔っぱらいに つかまる（仕立屋の 太兵衛の 娘が 婿を 取った 話を 二度 くり返し、食べずに 去る）
+//   → 売り声を あげると「子どもが寝たばかりなんだから静かにしておくれ」→ 大店の 木戸から 小声で 呼ばれ、小声で 合わせる → サゲ
+// ⚠ サゲ「うどん屋さん、あんたも風邪をひいたのかい」は 千字寄席だけが 根拠（事典では 確かめられていない）
+// 🛸 パパ 11/22「うどん屋はNPC　実は未来人」。資料に「鍋焼きうどんの 屋台は 明治から」と ある（⚠ 千字寄席のみ）＝江戸の 町に うどん屋が いる わけを、未来から 来た ことに した
+//   ⚠ 未来人の ほのめかし（うでの 光る 輪・「夜が 静かだ」）と 打ち明け話の 台詞は こちらの 作り。噺には ない
+// 3つの 場面を 順に 見る（見た 所まで セーブ＝S.udonBeat）。3つ 見ると 未来人だと 打ち明ける
+const UDON = [
+  { t: '🍶 うどん屋が 酔っぱらいに つかまっている', pages: [
+    '酔っぱらい「おい、うどん屋。おめえ、仕立屋の 太兵衛って 知ってるか」',
+    '酔っぱらい「あそこの 一人むすめの みい坊が、今夜 むこを 取ったんだ。小さい ころは おれが おんぶして やったんだ」',
+    '酔っぱらい「それが りっぱに なって『おじさん、さて このたびは』だとよ。ああ めでてえなあ、うどん屋」',
+    '酔っぱらい「……おい、うどん屋。おめえ、仕立屋の 太兵衛って 知ってるか」<br>（また 同じ 話だ。うどん屋は うでの 光る 輪を ちらっと 見た）',
+    'うどん屋「うどんは いかがです」<br>酔っぱらい「うどんは きらいだ。あばよ」<br><br>同じ 話を 二回 聞かされて、1ぱいも 売れなかった。'] },
+  { t: '🤫 うどん屋が しかられている', pages: [
+    'うどん屋が 大きな 売り声を 出した。',
+    '戸が あいて、女の人が 出てきた。<br>「子どもが 寝たばかり なんだから、静かに しておくれ」',
+    'うどん屋（小さな 声で）「……この 時代は、夜が ほんとうに 静かだなあ」'] },
+  { t: '👂 うどん屋が 小さな 声で 呼ばれた', pages: [
+    '大きな 店の 木戸が 少し あいて、かすれた 小さな 声。<br>「……うどん屋さん……ひとつ……」',
+    'うどん屋（奥に ないしょで 食べに 来たな。うまければ、かわりばんこに 来るかも しれない）<br>うどん屋も 小さな 声で「へい……おひとつ……」',
+    '客は 食べ終わって、お金を 置いて 言った。<br><b>「うどん屋さん、あんたも かぜを ひいたのかい」</b><br><br>🎭 落語「うどん屋」の おち。客は ないしょ話 ではなくて、かぜで 声が 出なかった だけ。',
+    'うどん屋が こっちを 見た。<br>「見てたのかい。……じつは おれ、ずっと 先の 時代から 来たんだ。鍋焼きうどんの 屋台は、この 町には まだ ないんだよ。ないしょに しておくれ」'] },
+];
+window.edoBeat = () => (S ? S.udonBeat || 0 : 0);
+let story = null;
+function udonSee() {
+  if (!N || story) return;
+  const b = S.udonBeat || 0;
+  if (b >= UDON.length) return sheet(`<h2>🍜 うどん屋</h2><p class="hint" style="font-size:17px;text-align:left">うどん屋「未来の 話は ないしょだよ。そばも うどんも、夜は あったかいのが 一番だ」</p>${okBtn}`);
+  story = { b, i: 0 }; logEvent('udon_see', { b, s: Math.round((performance.now() - N.t0) / 1000) }); storySheet();
+}
+function storySheet() {
+  const u = UDON[story.b], last = story.i === u.pages.length - 1;
+  sheet(`<h2>${u.t}</h2><p class="hint" style="font-size:17px;text-align:left">${u.pages[story.i]}</p><div class="row two"><button onclick="storyNext()">${last ? 'とじる' : 'つづき ▶'}</button></div>`);
+}
+function storyNext() {
+  if (!story) return closeSheet();
+  if (story.i < UDON[story.b].pages.length - 1) { story.i++; return storySheet(); }
+  S.udonBeat = story.b + 1; if (N) N.seen++; logEvent('udon_beat', { b: story.b, done: S.udonBeat >= UDON.length }); story = null;
+  if (S.udonBeat >= UDON.length) news('🎭 落語「うどん屋」を さいごまで 見た。うどん屋の ひみつも 聞いた。', 'k');
+  else news('🍜 うどん屋は 屋台を かついで、通りの 北へ 歩いて 行った。', '');
+  save(); closeSheet();
+}
+
+if (DEV) window.__e = { get N() { return N; }, sobaStart, sobaEnd, SB, UDON, get S() { return S; }, set S(v) { S = v; }, get W() { return W; }, UN, HOUSES, FOODS, JOBS, STARVE_DAYS, SAVE_KEY, refresh, workEnd, bowlEnd, save };
 </script>
 
 <!-- 🚶 3D の 町（three.js は 三国志合戦と 同じ 版）。ここが 読めない・動かないときは 上の ボタン画面の まま 遊べる -->
@@ -409,7 +507,7 @@ const camera = new THREE.PerspectiveCamera(70, 1, 0.3, 400);
 const fit = () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); };
 fit(); addEventListener('resize', fit);
 const sun = new THREE.DirectionalLight(0xffffff, 2.0); sun.position.set(40, 80, 30);
-scene.add(sun, new THREE.AmbientLight(0xd8c8a8, 1.2));
+const amb = new THREE.AmbientLight(0xd8c8a8, 1.2); scene.add(sun, amb);
 const mat = c => new THREE.MeshLambertMaterial({ color: c });
 const box = (w, h, d, c) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(c));
 
@@ -477,6 +575,30 @@ const SPOTS = [
 const inSpot = s => Math.abs(P.x) < (s.hw || 4.2) && Math.abs(P.z - s.z) < (s.hz || 2.6);
 const mark = new THREE.Mesh(new THREE.OctahedronGeometry(0.7), new THREE.MeshBasicMaterial({ color: 0xffe066 })); scene.add(mark);   // ➡ つぎは ここ
 
+// ---- 🌙 夜（蕎麦屋）：屋台・うどん屋（NPC）・酔っぱらい・💤 の 家。場所は 帯（南北 ±2.4m）で 見る ----
+const NZ = [{ k: 'south', z: 18 }, { k: 'home', z: 10 }, { k: 'quiet', z: -6 }, { k: 'sakana', z: -14 }, { k: 'unagi', z: -29.1, hw: 6.6 }];
+// うどん屋の いる 所（場面 0・1・2 と、ぜんぶ 見た あと）。⚠ ならびは こちらの 決め：通りを 北へ 歩くと 順に 出会う
+const UPOS = [{ x: 2.2, z: 3 }, { x: 2.2, z: -6 }, { x: -2.6, z: -21 }, { x: 2.2, z: 3 }];
+const N_HOME = { k: 'n_home', txt: () => '🏠 屋台を しまう（朝に する）', go: () => window.sobaEnd('home') };
+const N_UDON = { k: 'n_udon', txt: () => (window.edoBeat() >= 3 ? '🍜 うどん屋と 話す' : '👀 うどん屋の ようすを 見る'), go: () => window.udonSee() };
+function mkYatai(roof) { const g = new THREE.Group();
+  const b = box(1.5, 1.0, 0.9, 0x8a5a2a); b.position.set(0, 0.75, 0); const r = box(1.8, 0.14, 1.2, roof); r.position.set(0, 1.9, 0);
+  const l = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.42, 0.3), new THREE.MeshBasicMaterial({ color: 0xffd27a })); l.position.set(0.72, 1.55, 0);
+  for (const x of [-0.7, 0.7]) { const pole = box(0.08, 1.2, 0.08, 0x5a3a1e); pole.position.set(x, 1.3, 0); g.add(pole); }
+  g.add(b, r, l); return g; }
+const yatai = mkYatai(0xb5452a); yatai.position.z = -1.25; yatai.visible = false;
+const udonG = new THREE.Group(); { const m = person(0x3a5a6a, 0x1a1a1a); const y = mkYatai(0x2e6a8a); y.position.set(0, 0, -1.3); const l = label('うどん屋', 4); l.position.y = 3.2; udonG.add(m, y, l); }
+udonG.visible = false; scene.add(udonG);
+const drunk = person(0x6a4a3a, 0x1a1a1a); drunk.rotation.z = 0.18; drunk.visible = false; scene.add(drunk);
+const zz = label('💤 子どもが 寝ている', 6.5); zz.position.set(-8.5, 7.6, -6); zz.visible = false; scene.add(zz);
+let wasNight = false, curN = null;
+function setNight(on) {
+  const c = on ? 0x10162a : 0x9cc4e4; scene.background.set(c); scene.fog.color.set(c);
+  sun.intensity = on ? 0.35 : 2.0; amb.intensity = on ? 0.6 : 1.2;
+  yatai.visible = udonG.visible = zz.visible = on; if (!on) drunk.visible = false;
+  document.body.classList.toggle('night', on);
+}
+
 // ---- じぶん ----
 let me = null; const P = new THREE.Vector3(0, 0, 22); let yaw = 0, lastS = null, spawnT = 0, firstDoor = false, cur = null, frames = 0;
 function spawn() {                                  // ⚠ 場所は セーブしない。いつも 通りの 南の はしから（町の 形を 変えても 建物の 中から 始まらない）
@@ -493,6 +615,7 @@ const active = () => document.body.classList.contains('t3d') && $('town').classL
 const ACT_KEYS = ['KeyE', 'Enter', 'Space'], MOVE_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD'];
 addEventListener('keydown', e => {
   if (!active() || /INPUT|TEXTAREA/.test(e.target.tagName)) return;      // ⚠ 名前を 打っている あいだ・札が 出ている あいだは 何も しない
+  if (e.code === 'KeyQ') { e.preventDefault(); if (!e.repeat) callNow(); return; }
   if (ACT_KEYS.includes(e.code)) { e.preventDefault(); if (!e.repeat) act('key'); return; }
   if (MOVE_KEYS.includes(e.code)) { e.preventDefault(); keys[e.code] = true; }
 });
@@ -517,6 +640,9 @@ function act(how) {
 //   preventDefault＝同じ 指の click を 出さない（出た 札の ボタンを そのまま 押して しまわない）。マウスは click
 $('act').addEventListener('touchstart', e => { e.preventDefault(); act('touch'); }, { passive: false });
 $('act').addEventListener('click', () => act('btn'));
+function callNow() { const n = window.edoNight(); if (!active() || !n) return; window.sobaCall(curN ? curN.k : 'none'); }
+$('call').addEventListener('touchstart', e => { e.preventDefault(); callNow(); }, { passive: false });
+$('call').addEventListener('click', callNow);
 
 // ---- まわす ----
 const SPEED = 5.2, TURN = 2.2;                       // ⚠ こちらの 決め（歩き 5.2m/秒＝通りの はしから ウナギ屋まで 約10秒）
@@ -542,7 +668,19 @@ function tick(now) {
   me.position.copy(P); me.rotation.y = yaw;
   homeL2.visible = !!S().house; homeB.userData.label.visible = !S().house;
   // いちばん 近い 戸口
-  const best = SPOTS.find(inSpot) || null;
+  if (yatai.parent !== me) me.add(yatai);
+  const night = window.edoNight();
+  if (!!night !== wasNight) { wasNight = !!night; setNight(wasNight); }
+  const nz = night ? (NZ.find(z => Math.abs(P.x) < (z.hw || 4.2) && Math.abs(P.z - z.z) < 2.4) || null) : null;
+  if (nz !== curN) { curN = nz; if (nz) logEvent('near_n', { k: nz.k, s: Math.round((now - night.t0) / 1000) }); }
+  let nearU = false;
+  if (night) { const b = Math.min(window.edoBeat(), 3), u = UPOS[b];
+    udonG.position.set(u.x, 0, u.z); udonG.rotation.y = u.x > 0 ? Math.PI / 2 : -Math.PI / 2;
+    drunk.visible = b === 0; if (b === 0) drunk.position.set(u.x - 1.3, 0, u.z + 0.4);
+    nearU = Math.abs(P.x) < 4.2 && Math.abs(P.z - u.z) < 2.6; }
+  // ⚠ 夜は 家の 前から 始まる。出て すぐ「屋台を しまう」を 押して しまわないように、3秒は 出さない
+  const best = night ? (nearU ? N_UDON : nz && nz.k === 'home' && now - night.t0 > 3000 ? N_HOME : null) : (SPOTS.find(inSpot) || null);
+  const cb = $('call'), con = !!night && active(); if (cb.classList.contains('on') !== con) cb.classList.toggle('on', con);
   if (best !== cur) { cur = best;
     if (cur) { logEvent('near', { k: cur.k, ms: Math.round(now - spawnT) }); if (!firstDoor) { firstDoor = true; logEvent('first_door', { k: cur.k, ms: Math.round(now - spawnT) }); } } }
   const a = $('act'), on = !!cur && active();
@@ -550,7 +688,7 @@ function tick(now) {
   if (a.classList.contains('on') !== on) a.classList.toggle('on', on);
   // ➡ つぎは ここ
   const n = window.edoNext(), ns = n && SPOTS.find(s => s.k === n.k);
-  mark.visible = !!ns; if (ns) { mark.position.set(ns.x, 5.6 + Math.sin(now / 300) * 0.4, ns.z); mark.rotation.y = now / 500; }
+  mark.visible = !!ns && !night; if (ns) { mark.position.set(ns.x, 5.6 + Math.sin(now / 300) * 0.4, ns.z); mark.rotation.y = now / 500; }
   // カメラ（うしろ 6.5m・上 5m。⚠ 建物の 中に 入らないように、ぶつかる 手前まで 寄せて そのぶん 上げる）
   let k = 1; for (let i = 10; i >= 0; i--) { k = i / 10; if (!blocked(P.x + Math.sin(yaw) * 6.5 * k, P.z + Math.cos(yaw) * 6.5 * k, 0.4)) break; }   // 壁を 背に したら ま上まで 寄る（k=0）
   tmp.set(P.x + Math.sin(yaw) * 6.5 * k, 5 + (1 - k) * 3, P.z + Math.cos(yaw) * 6.5 * k);
@@ -566,7 +704,7 @@ if ((navigator.maxTouchPoints || 0) > 0) document.body.classList.add('touch');
 logEvent('t3d', { ok: true });
 requestAnimationFrame(tick);
 if (DEV) window.__t = { P, SPOTS, boxes, blocked, get yaw() { return yaw; }, set yaw(v) { yaw = v; }, get cur() { return cur; }, get frames() { return frames; },
-  warp(k) { const s = SPOTS.find(q => q.k === k); P.set(s.x, 0, s.z); }, keys, stick, camera };
+  warp(k) { const s = SPOTS.find(q => q.k === k); P.set(s.x, 0, s.z); }, keys, stick, camera, scene, yatai, udonG, drunk, zz, UPOS };
 } catch (e) { console.warn('⚠ 3D の 町を 出せなかった。ボタンの 画面で 遊べる', e); logEvent('t3d', { ok: false, err: String(e).slice(0, 120) }); }
 </script>
 </body>
