@@ -3,11 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>江戸の町体験 試作1</title>
+<title>江戸の町体験 試作2</title>
 <!-- 🏮 監督の 新しいゲーム「江戸の町体験」（11/4〜11/8 の SMS）。11/22「ぜんぶ」→ パパ「作りはじめてええ」で 最初の 一歩だけ 形にした。
      入っているもの：性別と 名前 → 五文で 家を 買う → 回覧板 → ウナギ屋（タレを かける ミニゲーム）→ 食べる（5日 食べないと 最初から）→ 物知りな じいさん
      ⚠ まだ ない：ほかの 仕事・mob 百人・富くじ・旅・奉行と 侍・吉原・ばくち・粋と 徳・落語の 噺・みんなでルーム（1つずつ 足す）
-     ponytail: ひとりだけ・仕事は ウナギ屋 1つ, 監督が 順番を 決めたら 1つずつ 足す -->
+     🚶 試作2（11/22）：監督 19:39「1 A」＝「三国志合戦みたいに、自分で町を歩く」→ 町を 3D で 歩いて、戸口で「入る」と 今までの 札が 出る。中身（お金・家・仕事・食べる）は 試作1の まま
+        操作は 三国志合戦と 同じ（左右で 向き・前後で 歩く）。3D が 動かない 端末では 試作1の ボタンの 画面に なる（body.t3d が 付かない）
+     ponytail: ひとりだけ・仕事は ウナギ屋 1つ・町は 通り 1本・建物の 中は ない（戸口で 札）・mob なし, 監督が 順番を 決めたら 1つずつ 足す -->
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { width: 100%; height: 100%; background: #1a1410; color: #fff; font-family: "Meiryo", "Hiragino Sans", sans-serif;
@@ -57,6 +59,22 @@
   #bar { width: min(100%, 420px); height: 14px; border-radius: 7px; background: #111; margin-top: 8px; overflow: hidden; }
   #barIn { height: 100%; width: 100%; background: #ffb300; }
   #wMsg { font-size: 22px; font-weight: bold; min-height: 1.6em; margin-top: 8px; text-align: center; }
+  /* ---- 🚶 3D の 町（body.t3d が 付いたときだけ。付かなければ 試作1の ボタン画面） ---- */
+  #view, #stick, #act, #next, #keyHint { display: none; }
+  body.t3d #scene, body.t3d #cmd { display: none; }
+  body.t3d #view { display: block; position: absolute; inset: 0; z-index: 0; }
+  body.t3d #view canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+  body.t3d #top { position: relative; z-index: 5; background: rgba(46,33,20,.82); }
+  body.t3d #news { position: relative; z-index: 5; flex: 0 0 auto; min-height: 0; max-height: 4.9em; overflow: hidden; background: rgba(0,0,0,.45); pointer-events: none; }
+  body.t3d #next { display: block; position: relative; z-index: 5; margin-top: 6px; padding: 4px 12px; border-radius: 10px; background: rgba(0,0,0,.55);
+                   color: #ffe066; font-weight: bold; font-size: 17px; text-align: center; pointer-events: none; }
+  body.t3d #stick { display: block; position: absolute; left: 0; bottom: 0; width: 50%; height: 50%; z-index: 11; touch-action: none; }
+  #stickBase { position: fixed; width: 110px; height: 110px; border: 2px solid rgba(255,255,255,.5); border-radius: 50%; display: none; pointer-events: none; z-index: 12; }
+  #stickKnob { position: fixed; width: 50px; height: 50px; border-radius: 50%; background: rgba(255,255,255,.55); display: none; pointer-events: none; z-index: 12; }
+  body.t3d #act { position: absolute; right: 14px; bottom: 28px; z-index: 12; min-height: 76px; min-width: 150px; max-width: 46%; font-size: 19px; background: #8a2f1b; border-color: #ffe066; }
+  body.t3d #act.on { display: block; }
+  body.t3d #keyHint { display: block; position: absolute; left: 0; right: 0; bottom: 6px; z-index: 4; text-align: center; font-size: 13px; opacity: .85; pointer-events: none; text-shadow: 1px 1px 2px #000; }
+  body.t3d.touch #keyHint { display: none; }
   #ver { position: absolute; right: 6px; bottom: 4px; font-size: 10px; opacity: .4; pointer-events: none; }
 </style>
 </head>
@@ -64,7 +82,7 @@
 
 <div id="start" class="screen on">
   <h1>🏮 江戸の町体験</h1>
-  <p class="sub">🧪 試作1（まだ ウナギ屋の 仕事だけ）</p>
+  <p class="sub">🧪 試作2（町を 歩ける。まだ ウナギ屋の 仕事だけ）</p>
   <p class="hint">さいしょは <b>五文</b>。まず 家を 買って、仕事で お金を ためよう。</p>
   <label for="nm">なまえ</label>
   <input type="text" id="nm" maxlength="10" placeholder="れい：くまごろう">
@@ -79,8 +97,13 @@
 
 <div id="town" class="screen">
   <div id="top"></div>
+  <div id="view"></div>
   <div id="scene">🏘🏮🌙</div>
   <div id="news"></div>
+  <div id="next"></div>
+  <div id="stick"></div><div id="stickBase"></div><div id="stickKnob"></div>
+  <button id="act"></button>
+  <div id="keyHint">W・↑ すすむ／A・D まがる／S・↓ さがる／E 入る・話す</div>
   <div id="cmd">
     <button id="bHouse" onclick="houseSheet()">🏠 家</button>
     <button id="bBoard" onclick="boardSheet()">📋 回覧板</button>
@@ -106,7 +129,7 @@
 const $ = id => document.getElementById(id);
 const URLQ = new URLSearchParams(location.search);
 const DEV = URLQ.get('dev') === '1';
-const BUILD = 'edo-1122b';   // ⚠ 版の印
+const BUILD = 'edo-1122d';   // ⚠ 版の印
 $('ver').textContent = BUILD;
 
 // ============ ゲームログ（群雄合戦と 同じ しくみ・常時ON。テストプレイは 全部 データ） ============
@@ -205,6 +228,28 @@ function refresh() {
     `<span class="${left <= 2 ? 'warn' : ''}">🍚 ${S.hungry === 0 ? 'おなか いっぱい' : `${S.hungry}日 食べていない`}</span>` +
     `<span>${S.house ? '🏠 ' + S.house : '🏠 家なし'}</span>${S.job ? `<span>🍱 ${S.job}</span>` : ''}`;
   $('bWork').disabled = !S.job;
+  $('next').textContent = '➡ つぎは ' + nextSpot().t;
+}
+// 🚶 つぎに 行く 所（じいさんの 台詞と 同じ 状態で 決める。3D の 町で 黄色い 印を 出す）
+function nextSpot() {
+  if (!S.house) return { k: 'home', t: '売り家へ。家を 買おう' };
+  if (!S.job) return S.mon < JOB_FEE && !S.lent ? { k: 'jii', t: '物知りな じいさんの 所へ' } : { k: 'home', t: 'じぶんの 家へ。回覧板を 見よう' };
+  if (S.mon >= FOODS[0].mon && S.hungry > 0) return { k: 'yatai', t: '屋台へ。何か 食べよう' };
+  return { k: 'unagi', t: 'ウナギ屋へ。仕事を しよう' };
+}
+window.edoS = () => S; window.edoNext = () => (S ? nextSpot() : null);
+// 🚶 町の 店の 札（3D の 戸口から 開く）
+function unagiSheet() {
+  sheet(`<h2>🍱 ウナギ屋</h2><p class="hint">${S.job ? '夜の 仕事：うなぎに タレを かける' : '仕事に 入るには、じぶんの 家の 回覧板を 見よう'}。いま 💰 ${S.mon}文</p><div class="row">` +
+    `<button ${S.job ? '' : 'disabled'} onclick="$('sheet').classList.remove('on'); workGo()">🌙 仕事を する（タレを かける）</button>` +
+    `<button ${S.mon >= FOODS[2].mon ? '' : 'disabled'} onclick="eat(2)">🍱 ウナギを 食べる　<span class="cost">${FOODS[2].mon}文</span></button>` +
+    `</div><div class="row two"><button onclick="closeSheet()">やめる</button></div>`);
+}
+function shopSheet(i) {
+  const f = FOODS[i];
+  sheet(`<h2>🍚 ${f.k}</h2><p class="hint">いま 💰 ${S.mon}文。${STARVE_DAYS}日 食べないと たおれて <b>最初から</b>に なる</p><div class="row">` +
+    `<button ${S.mon >= f.mon ? '' : 'disabled'} onclick="eat(${i})">${f.k}で 食べる　<span class="cost">${f.mon}文</span></button>` +
+    `</div><div class="row two"><button onclick="closeSheet()">やめる</button></div>`);
 }
 
 // ============ 家（監督11/4「まず自分の家を買う」） ============
@@ -234,7 +279,7 @@ function boardSheet() {
 function takeJob() {
   if (S.job || S.mon < JOB_FEE) return;
   S.mon -= JOB_FEE; S.job = JOBS[0][0]; S.tool = JOBS[0][1]; logEvent('job', { k: S.job, left: S.mon });
-  news(`${S.job}に 入った（${JOB_FEE}文）。${S.tool}を もらった。`, 'good'); news('🌙 夜に なったら「仕事に 行く」。', 'k');
+  news(`${S.job}に 入った（${JOB_FEE}文）。${S.tool}を もらった。`, 'good'); news('🌙 ウナギ屋へ 行って 仕事を しよう。', 'k');
   save(); closeSheet();
 }
 
@@ -341,6 +386,188 @@ function starve() {
 }
 
 if (DEV) window.__e = { get S() { return S; }, set S(v) { S = v; }, get W() { return W; }, UN, HOUSES, FOODS, JOBS, STARVE_DAYS, SAVE_KEY, refresh, workEnd, bowlEnd, save };
+</script>
+
+<!-- 🚶 3D の 町（three.js は 三国志合戦と 同じ 版）。ここが 読めない・動かないときは 上の ボタン画面の まま 遊べる -->
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+const $ = id => document.getElementById(id);
+const DEV = new URLSearchParams(location.search).get('dev') === '1';
+const logEvent = window.logEvent;
+try {
+const view = $('view');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+view.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x9cc4e4);
+scene.fog = new THREE.FogExp2(0x9cc4e4, 0.008);
+const camera = new THREE.PerspectiveCamera(70, 1, 0.3, 400);
+const fit = () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); };
+fit(); addEventListener('resize', fit);
+const sun = new THREE.DirectionalLight(0xffffff, 2.0); sun.position.set(40, 80, 30);
+scene.add(sun, new THREE.AmbientLight(0xd8c8a8, 1.2));
+const mat = c => new THREE.MeshLambertMaterial({ color: c });
+const box = (w, h, d, c) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(c));
+
+// ---- 町の 形（⚠ ならびは こちらの 決め：通り 1本。西に 長屋と 母屋、東に 屋台・魚屋・飯屋、北の 川ぞいに ウナギ屋） ----
+// ⚠ 通りを 北へ 歩くと 全部の 戸口の 前を 通る。「入る」は 戸口の 前の 帯（通りの 幅 いっぱい）で 出る＝通りの どっち側を 歩いても 出る
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), mat(0x8a9a5b)); ground.rotation.x = -Math.PI / 2; scene.add(ground);
+const road = new THREE.Mesh(new THREE.PlaneGeometry(8, 66), mat(0xb9a47a)); road.rotation.x = -Math.PI / 2; road.position.set(0, 0.02, -3); scene.add(road);
+const river = new THREE.Mesh(new THREE.PlaneGeometry(200, 16), mat(0x3f7fb5)); river.rotation.x = -Math.PI / 2; river.position.set(0, 0.03, -47); scene.add(river);
+const BOUND = { x: 34, zMin: -38, zMax: 34 };
+const boxes = [];                                   // 通れない 箱（建物・木・じいさん）
+function label(text, w = 7) {
+  const cv = document.createElement('canvas'); cv.width = 512; cv.height = 128; const c = cv.getContext('2d');
+  c.fillStyle = 'rgba(20,14,8,.82)'; c.fillRect(0, 0, 512, 128); c.strokeStyle = '#c9a86a'; c.lineWidth = 8; c.strokeRect(4, 4, 504, 120);
+  c.fillStyle = '#fff'; c.font = 'bold 64px Meiryo, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(text, 256, 68, 480);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), depthWrite: false })); sp.scale.set(w, w / 4, 1); return sp;
+}
+function building(name, x, z, w, d, h, wall, roof, noren) {
+  const g = new THREE.Group(); g.position.set(x, 0, z);
+  const b = box(w, h, d, wall); b.position.y = h / 2; g.add(b);
+  const r = box(w + 1, 0.5, d + 1, roof); r.position.y = h + 0.25; g.add(r);
+  const r2 = box(w * 0.6, 0.5, d + 1, roof); r2.position.y = h + 0.75; g.add(r2);
+  const side = x < -1 ? 1 : x > 1 ? -1 : 0;                                // 戸口と のれんは 通りの がわ
+  const n = side ? box(0.12, 1.0, 2.2, noren) : box(2.6, 1.0, 0.12, noren);
+  n.position.set(side * (w / 2 + 0.1), 2.3, side ? 0 : d / 2 + 0.1); g.add(n);
+  const dr = side ? box(0.1, 2.3, 2.0, 0x2a1a0e) : box(2.4, 2.3, 0.1, 0x2a1a0e); dr.position.set(side * (w / 2 + 0.04), 1.15, side ? 0 : d / 2 + 0.04); g.add(dr);
+  const l = label(name); l.position.y = h + 2.4; g.add(l); g.userData.label = l;
+  scene.add(g); boxes.push({ x, z, w, d }); return g;
+}
+// ponytail: 家は どれを 買っても この 1けんが「じぶんの 家」に なる, 家の 種類ごとに 建物を 分けるのは 通邸より 上を 買えるように する とき
+const homeB = building('売り家', -8.5, 10, 9, 9, 3.2, 0xc9b28a, 0x4a4a52, 0x35507a);
+const homeL2 = label('じぶんの 家'); homeL2.position.copy(homeB.userData.label.position); homeB.add(homeL2);
+building('長屋', -8.5, -6, 9, 9, 3.2, 0xc9b28a, 0x4a4a52, 0x5a5a5a);
+building('母屋', -9.5, -21, 11, 11, 4.2, 0xd8c8a0, 0x3a3a44, 0x6a3a2a);
+building('屋台', 5.4, 2, 2.6, 2.6, 2.2, 0x8a5a2a, 0xb5452a, 0xf5f1e6);
+building('魚屋', 8.5, -14, 9, 8, 3.4, 0xb9c4c9, 0x3a4a5a, 0x2e6a8a);
+building('飯屋', 8.5, -24, 9, 8, 3.4, 0xd9b98a, 0x5a3a2a, 0x8a2f1b);
+building('ウナギ屋', 0, -34.5, 13, 7, 3.6, 0xc9a070, 0x2e2e36, 0x5b2a0c);
+for (const [x, z] of [[-20, 24], [18, 16], [-22, -32], [20, -34], [24, -4], [-24, 2]]) {           // 木
+  const t = box(0.6, 2.4, 0.6, 0x5a3a1e); t.position.set(x, 1.2, z); scene.add(t);
+  const c = new THREE.Mesh(new THREE.ConeGeometry(2.2, 4.5, 7), mat(0x3f6b32)); c.position.set(x, 4.4, z); scene.add(c); boxes.push({ x, z, w: 1, d: 1 });
+}
+function person(cloth, hairC) {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.55, 1.25, 10), mat(cloth)); body.position.y = 0.72; g.add(body);
+  const obi = new THREE.Mesh(new THREE.CylinderGeometry(0.47, 0.5, 0.2, 10), mat(0x2a1a0e)); obi.position.y = 0.95; g.add(obi);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.33, 12, 10), mat(0xf0c8a0)); head.position.y = 1.68; g.add(head);
+  const hair = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 6), mat(hairC)); hair.position.y = 2.0; g.add(hair);   // まげ
+  return g;
+}
+// ⚠ じいさんは 壁ぎわ（x=-3.6）。前は x=-3.3 で、通りの 西がわを まっすぐ 歩くと じいさんに 引っかかって 止まった（11/22 テストで 見つけた）
+const jii = person(0x7a7a6a, 0xeeeeee); jii.position.set(-3.6, 0, -6); scene.add(jii);
+const jl = label('物知りな じいさん', 5.5); jl.position.set(-3.6, 3.1, -6); scene.add(jl); boxes.push({ x: -3.6, z: -6, w: 0.8, d: 0.8 });
+
+// ---- 入れる 所（戸口の 前に 立つと「入る」が 出る）。ひらく 札は 試作1と 同じ ----
+const S = () => window.edoS();
+const SPOTS = [
+  { k: 'home',   x: -3.2, z: 10,  txt: () => (S().house ? '📋 じぶんの 家（回覧板）' : '🏠 売り家を 見る'), go: () => (S().house ? window.boardSheet() : window.houseSheet()) },
+  { k: 'yatai',  x: 3.2,  z: 2,   txt: () => '🍜 屋台', go: () => window.shopSheet(0) },
+  { k: 'jii',    x: -2.2, z: -6,  txt: () => '👴 じいさんと 話す', go: () => window.jiiSheet() },
+  { k: 'sakana', x: 3.2,  z: -14, txt: () => '🐟 魚屋に 入る', go: () => window.shopSheet(1) },
+  { k: 'meshi',  x: 3.2,  z: -24, hz: 2.3, txt: () => '🍚 飯屋に 入る', go: () => window.shopSheet(3) },
+  { k: 'unagi',  x: 0,    z: -29.1, hz: 2.3, hw: 6.6, txt: () => '🍱 ウナギ屋に 入る', go: () => window.unagiSheet() },
+];
+// ⚠ 丸（半径）で 判定すると 通りの まんなかで 0.4秒ぶんしか 出なかった（11/22）→ 帯に した。hw＝東西の 半分・hz＝南北の 半分
+const inSpot = s => Math.abs(P.x) < (s.hw || 4.2) && Math.abs(P.z - s.z) < (s.hz || 2.6);
+const mark = new THREE.Mesh(new THREE.OctahedronGeometry(0.7), new THREE.MeshBasicMaterial({ color: 0xffe066 })); scene.add(mark);   // ➡ つぎは ここ
+
+// ---- じぶん ----
+let me = null; const P = new THREE.Vector3(0, 0, 22); let yaw = 0, lastS = null, spawnT = 0, firstDoor = false, cur = null, frames = 0;
+function spawn() {                                  // ⚠ 場所は セーブしない。いつも 通りの 南の はしから（町の 形を 変えても 建物の 中から 始まらない）
+  if (me) scene.remove(me);
+  me = person(S().sex === '女' ? 0xb5452a : 0x2e4a7a, 0x1a1a1a); scene.add(me);
+  P.set(0, 0, 22); yaw = 0; spawnT = performance.now(); firstDoor = false; cur = null; camera.position.set(0, 5, 28.5);
+  logEvent('spawn', {});
+}
+const blocked = (x, z, r = 0.5) => Math.abs(x) > BOUND.x || z < BOUND.zMin || z > BOUND.zMax || boxes.some(b => Math.abs(x - b.x) < b.w / 2 + r && Math.abs(z - b.z) < b.d / 2 + r);
+
+// ---- 入力（三国志合戦と 同じ 流儀：左右で 向き・前後で 歩く） ----
+const keys = {}; const stick = { active: false, x: 0, y: 0, id: null, cx: 0, cy: 0 };
+const active = () => document.body.classList.contains('t3d') && $('town').classList.contains('on') && !$('sheet').classList.contains('on') && !!S();
+const ACT_KEYS = ['KeyE', 'Enter', 'Space'], MOVE_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD'];
+addEventListener('keydown', e => {
+  if (!active() || /INPUT|TEXTAREA/.test(e.target.tagName)) return;      // ⚠ 名前を 打っている あいだ・札が 出ている あいだは 何も しない
+  if (ACT_KEYS.includes(e.code)) { e.preventDefault(); if (!e.repeat) act('key'); return; }
+  if (MOVE_KEYS.includes(e.code)) { e.preventDefault(); keys[e.code] = true; }
+});
+addEventListener('keyup', e => { keys[e.code] = false; });
+const stop = () => { for (const k in keys) keys[k] = false; stick.active = false; stick.x = stick.y = 0; $('stickBase').style.display = $('stickKnob').style.display = 'none'; };
+addEventListener('blur', stop);
+const zone = $('stick'), sb = $('stickBase'), sk = $('stickKnob');
+zone.addEventListener('touchstart', e => { const t = e.changedTouches[0]; document.body.classList.add('touch');
+  stick.active = true; stick.id = t.identifier; stick.cx = t.clientX; stick.cy = t.clientY; stick.x = stick.y = 0;
+  sb.style.display = sk.style.display = 'block'; sb.style.left = (t.clientX - 55) + 'px'; sb.style.top = (t.clientY - 55) + 'px'; sk.style.left = (t.clientX - 25) + 'px'; sk.style.top = (t.clientY - 25) + 'px'; }, { passive: true });
+zone.addEventListener('touchmove', e => { for (const t of e.changedTouches) { if (t.identifier !== stick.id) continue;
+  const dx = t.clientX - stick.cx, dy = t.clientY - stick.cy, len = Math.hypot(dx, dy), k = len > 55 ? 55 / len : 1;
+  stick.x = dx * k / 55; stick.y = dy * k / 55; sk.style.left = (stick.cx + dx * k - 25) + 'px'; sk.style.top = (stick.cy + dy * k - 25) + 'px'; } }, { passive: true });
+const rel = e => { for (const t of e.changedTouches) if (t.identifier === stick.id) stop(); };
+zone.addEventListener('touchend', rel, { passive: true }); zone.addEventListener('touchcancel', rel, { passive: true });   // ⚠ touchcancel が ないと 歩きっぱなしに なる
+function act(how) {
+  if (!active() || !cur) return;
+  logEvent('enter', { k: cur.k, how, ms: Math.round(performance.now() - spawnT) });
+  stop(); cur.go();
+}
+// ⚠ スティックを 押したまま もう 1本の 指で 押せるように touchstart で 聞く（三国志合戦の bindBtn と 同じ 流儀）。
+//   preventDefault＝同じ 指の click を 出さない（出た 札の ボタンを そのまま 押して しまわない）。マウスは click
+$('act').addEventListener('touchstart', e => { e.preventDefault(); act('touch'); }, { passive: false });
+$('act').addEventListener('click', () => act('btn'));
+
+// ---- まわす ----
+const SPEED = 5.2, TURN = 2.2;                       // ⚠ こちらの 決め（歩き 5.2m/秒＝通りの はしから ウナギ屋まで 約10秒）
+let last = performance.now(), moved = 0, sampT = 0, frN = 0, frSum = 0, frT = 0;
+const tmp = new THREE.Vector3();
+function tick(now) {
+  requestAnimationFrame(tick);
+  const raw = (now - last) / 1000; last = now; const dt = Math.min(raw, 0.05);
+  if (!$('town').classList.contains('on') || !S()) return;
+  if (S() !== lastS) { lastS = S(); spawn(); }
+  frames++;
+  if (active()) {
+    let sx = 0, sy = 0;
+    if (keys.ArrowLeft || keys.KeyA) sx = -1; if (keys.ArrowRight || keys.KeyD) sx = 1;
+    if (keys.ArrowUp || keys.KeyW) sy = -1; if (keys.ArrowDown || keys.KeyS) sy = 1;
+    if (stick.active) { sx = stick.x; sy = stick.y; }
+    yaw -= sx * TURN * dt;
+    const step = -sy * SPEED * dt, nx = P.x - Math.sin(yaw) * step, nz = P.z - Math.cos(yaw) * step, ox = P.x, oz = P.z;
+    if (!blocked(nx, P.z)) P.x = nx;                 // x と z を 別々に＝壁に そって すべる
+    if (!blocked(P.x, nz)) P.z = nz;
+    moved += Math.hypot(P.x - ox, P.z - oz);
+  }
+  me.position.copy(P); me.rotation.y = yaw;
+  homeL2.visible = !!S().house; homeB.userData.label.visible = !S().house;
+  // いちばん 近い 戸口
+  const best = SPOTS.find(inSpot) || null;
+  if (best !== cur) { cur = best;
+    if (cur) { logEvent('near', { k: cur.k, ms: Math.round(now - spawnT) }); if (!firstDoor) { firstDoor = true; logEvent('first_door', { k: cur.k, ms: Math.round(now - spawnT) }); } } }
+  const a = $('act'), on = !!cur && active();
+  if (on) { const t = cur.txt(); if (a.textContent !== t) a.textContent = t; }
+  if (a.classList.contains('on') !== on) a.classList.toggle('on', on);
+  // ➡ つぎは ここ
+  const n = window.edoNext(), ns = n && SPOTS.find(s => s.k === n.k);
+  mark.visible = !!ns; if (ns) { mark.position.set(ns.x, 5.6 + Math.sin(now / 300) * 0.4, ns.z); mark.rotation.y = now / 500; }
+  // カメラ（うしろ 6.5m・上 5m。⚠ 建物の 中に 入らないように、ぶつかる 手前まで 寄せて そのぶん 上げる）
+  let k = 1; for (let i = 10; i >= 0; i--) { k = i / 10; if (!blocked(P.x + Math.sin(yaw) * 6.5 * k, P.z + Math.cos(yaw) * 6.5 * k, 0.4)) break; }   // 壁を 背に したら ま上まで 寄る（k=0）
+  tmp.set(P.x + Math.sin(yaw) * 6.5 * k, 5 + (1 - k) * 3, P.z + Math.cos(yaw) * 6.5 * k);
+  camera.position.lerp(tmp, 1 - Math.pow(0.001, dt));
+  camera.lookAt(P.x - Math.sin(yaw) * (1 + 5 * k), 1.6, P.z - Math.cos(yaw) * (1 + 5 * k));   // 寄ったときは 足もとを 見る＝じぶんが 画面から 消えない
+  renderer.render(scene, camera);
+  // ログ：場所（動いた ときだけ 1.5秒ごと）・コマの 重さ（10秒ごと）
+  if (now - sampT > 1500 && moved > 0.5) { sampT = now; moved = 0; logEvent('pos', { x: +P.x.toFixed(1), z: +P.z.toFixed(1), yaw: +yaw.toFixed(2) }); }
+  frN++; frSum += raw; if (now - frT > 10000) { if (frT) logEvent('frame', { ms: +(frSum / frN * 1000).toFixed(1), n: frN }); frT = now; frN = 0; frSum = 0; }
+}
+document.body.classList.add('t3d');
+if ((navigator.maxTouchPoints || 0) > 0) document.body.classList.add('touch');
+logEvent('t3d', { ok: true });
+requestAnimationFrame(tick);
+if (DEV) window.__t = { P, SPOTS, boxes, blocked, get yaw() { return yaw; }, set yaw(v) { yaw = v; }, get cur() { return cur; }, get frames() { return frames; },
+  warp(k) { const s = SPOTS.find(q => q.k === k); P.set(s.x, 0, s.z); }, keys, stick, camera };
+} catch (e) { console.warn('⚠ 3D の 町を 出せなかった。ボタンの 画面で 遊べる', e); logEvent('t3d', { ok: false, err: String(e).slice(0, 120) }); }
 </script>
 </body>
 </html>
