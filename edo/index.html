@@ -215,7 +215,7 @@
 const $ = id => document.getElementById(id);
 const URLQ = new URLSearchParams(location.search);
 const DEV = URLQ.get('dev') === '1';
-const BUILD = 'edo-1123h';   // ⚠ 版の印
+const BUILD = 'edo-1123i';   // ⚠ 版の印
 // 🎨 見た目：パパ 11/23「2の漆」で 決まり（?ui=1／3 は 比べる 用に 残す）
 const UI = ['1', '2', '3'].includes(URLQ.get('ui')) ? URLQ.get('ui') : '2';
 document.body.classList.add('ui' + UI); window.edoUI = UI;
@@ -774,6 +774,9 @@ function takeTap(k) {
     news(`🎭 落語「ちりとてちん」を さいごまで 見た。旦那から お礼に ${CH.pay}文。`, 'good'); });
 }
 
+// 👥 町の 人と 話す（台詞は 3D の がわで その人の いまの ようすから 作る）
+function mobSheet(role, line) { sheet(`<h2>💬 ${esc(role)}</h2><p class="hint say">「${esc(line)}」</p>${okBtn}`); }
+
 if (DEV) window.__e = { get N() { return N; }, get C() { return C; }, get SP() { return SP; }, get MX() { return MX; }, get TK() { return TK; }, CH, TAKE, SG,candlePos, sobaStart, sobaEnd, SB, UDON, get S() { return S; }, set S(v) { S = v; }, get W() { return W; }, UN, HOUSES, FOODS, JOBS, STARVE_DAYS, SAVE_KEY, refresh, workEnd, bowlEnd, save };
 </script>
 
@@ -1021,6 +1024,93 @@ const dnL = label('🎂 旦那の 誕生日', 6); dnL.position.set(NPC_L, 3.3, 2
 const byoL = label('🩺 病人の 家', 5.5); byoL.position.set(-9.5, 9.4, -21); byoL.visible = false; scene.add(byoL);
 const jl = label('物知りな じいさん', 5.5); jl.position.set(-NPC_L, 3.3, -6); scene.add(jl); boxes.push({ x: -3.45, z: -6, w: 0.6, d: 0.8 });
 
+// ---- 👥 町の 人（mob）：監督 11/5 16:22「最初に一人でやるは、mobが百人自由に仕事についたり家を買ったりする」／パパ 11/23「色んな人がそれぞれ自律的に生活してる感じ」 ----
+// 1人 1人に 家（町家の 戸口）・仕事（監督の 17の 仕事＝JOBS）・仕事場（地図の 地名）が あって、仕事場 → ごはん（はじめの 通りの 屋台・魚屋・飯屋）→ 仕事場 → 家 を くり返す
+// ⚠ こちらの 決め：人数 100（?mob=N で 変えられる）・歩く 速さ・家や 店に いる 時間・家は はじめの 通りの 近くに 半分・見た目の 色・台詞
+// ⚠ 地図の ます目は 町並みの 作り直しで 変わる → 場所は ぜんぶ 読みこんだ ます目から 決める（決めうちの 座標は 店の 戸口 3つ だけ）
+// ponytail: 仕事を 変えない・家を 買わない・ゲームの 日と つながらない・夜は みんな 家（見えない）・mob どうしは よけない, 監督の「仕事に ついたり 家を 買ったり」を 作る とき・町並みを 作り直す とき
+const MOB_N = Math.max(0, Math.min(200, parseInt(new URLSearchParams(location.search).get('mob') ?? '100', 10) || 0));
+const MOB = { see: 80, talk: 2.3, near: 1.1, hit: 0.75, lane: 0.9 };
+let mrs = 777; const mrand = () => (mrs = (mrs * 16807) % 2147483647) / 2147483647, mpick = a => a[Math.floor(mrand() * a.length)];   // ⚠ mob だけの 種（いつも 同じ 町）
+const mobs = []; let mobVis = 0;
+if (G && MOB_N) {
+  const n = MAP.n, c = MAP.cell, h0 = MAP.half, idx = (x, z) => Math.floor((z + h0) / c) * n + Math.floor((x + h0) / c), cx = v => (v % n) * c - h0 + c / 2, cz = v => Math.floor(v / n) * c - h0 + c / 2;
+  const D4 = [[1, 0], [-1, 0], [0, 1], [0, -1]], big = boxes.filter(b => b.w > 1.5), ok = new Uint8Array(n * n);
+  for (let v = 0; v < n * n; v++) { if (!walk(G[v])) continue; const x = cx(v), z = cz(v); if (!big.some(b => Math.abs(x - b.x) < b.w / 2 + 1 && Math.abs(z - b.z) < b.d / 2 + 1)) ok[v] = 1; }
+  const comp = new Uint8Array(n * n), s0 = idx(0, 22); { const q = [s0]; comp[s0] = 1; for (let k = 0; k < q.length; k++) { const v = q[k], i = v % n, j = (v / n) | 0;   // はじめの 場所から 歩いて 行ける ますだけ
+    for (const [a, b] of D4) { const ii = i + a, jj = j + b; if (ii < 0 || jj < 0 || ii >= n || jj >= n) continue; const w = jj * n + ii; if (ok[w] && !comp[w]) { comp[w] = 1; q.push(w); } } } }
+  const prev = new Int32Array(n * n);
+  const route = (a, b) => { prev.fill(-1); prev[a] = a; const q = [a]; for (let k = 0; k < q.length && prev[b] < 0; k++) { const v = q[k], i = v % n, j = (v / n) | 0;
+      for (const [da, db] of D4) { const ii = i + da, jj = j + db; if (ii < 0 || jj < 0 || ii >= n || jj >= n) continue; const w = jj * n + ii; if (comp[w] && prev[w] < 0) { prev[w] = v; q.push(w); } } }
+    if (prev[b] < 0) return null; const p = []; for (let v = b; v !== a; v = prev[v]) p.push(v); p.push(a); return p.reverse(); };
+  const nearCell = (x, z) => { const v0 = idx(x, z), i0 = v0 % n, j0 = (v0 / n) | 0; for (let r = 0; r < 6; r++) for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) { const ii = i0 + di, jj = j0 + dj; if (ii >= 0 && jj >= 0 && ii < n && jj < n && comp[jj * n + ii]) return jj * n + ii; } return -1; };
+  const PL = MAP.places || [], placeAt = (x, z) => { let best = '', bd = 1e9; for (const q of PL) { const d = Math.hypot(q[1] - x, q[2] - z); if (d < bd) { bd = d; best = q[0]; } } return best || 'この あたり'; };
+  // 家＝町家に 面した ます（戸口の 向き つき）
+  const doors = []; for (let v = 0; v < n * n; v++) { if (!comp[v]) continue; const i = v % n, j = (v / n) | 0; for (const [a, b] of D4) { const ii = i + a, jj = j + b; if (ii >= 0 && jj >= 0 && ii < n && jj < n && G[jj * n + ii] === T.BLOCK) { doors.push({ v, dx: a, dz: b }); break; } } }
+  const doorsNear = doors.filter(d => Math.abs(cx(d.v)) < 60 && cz(d.v) > -70 && cz(d.v) < 45), doorsFar = doors.filter(d => Math.hypot(cx(d.v), cz(d.v) + 60) < 230);
+  const works = PL.filter(q => Math.hypot(q[1], q[2] + 40) < 260).map(q => ({ v: nearCell(q[1], q[2]), name: q[0] })).filter(w => w.v >= 0);
+  const EATS = [{ x: 2, z: 2, name: '屋台', dx: 1 }, { x: 2, z: -14, name: '魚屋', dx: 1 }, { x: 2, z: -24, name: '飯屋', dx: 1 }].map(e => ({ v: nearCell(e.x, e.z), name: e.name, dx: e.dx, dz: 0 }));   // はじめの 通りの 東がわの 店
+  const CLOTH = [0x2e4a7a, 0x6a3a2a, 0x3a5a3a, 0x7a6a4a, 0x5a2a4a, 0x2a5a6a, 0x8a5a2a, 0x4a4a5a, 0x6a6a3a, 0x9a4a3a], geoC = {};
+  const mobGeo = (cloth, hair) => geoC[cloth + '|' + hair] || (geoC[cloth + '|' + hair] = (() => {   // ⚠ 1人 1つの 形に まとめる（person() の まま だと 1人 17こ＝100人で 電話が もたない）
+    const g = person(cloth, hair); g.updateMatrixWorld(true); const P2 = [], N2 = [], C2 = [];
+    g.traverse(o => { if (!o.isMesh) return; const ge = o.geometry.clone().applyMatrix4(o.matrixWorld).toNonIndexed(), p = ge.attributes.position.array, nn = ge.attributes.normal.array, cl = o.material.color;
+      for (let i = 0; i < p.length; i += 3) { P2.push(p[i], p[i + 1], p[i + 2]); N2.push(nn[i], nn[i + 1], nn[i + 2]); C2.push(cl.r, cl.g, cl.b); } });
+    const bg = new THREE.BufferGeometry(); bg.setAttribute('position', new THREE.Float32BufferAttribute(P2, 3)); bg.setAttribute('normal', new THREE.Float32BufferAttribute(N2, 3)); bg.setAttribute('color', new THREE.Float32BufferAttribute(C2, 3)); return bg; })());
+  const mobMat = new THREE.MeshLambertMaterial({ vertexColors: true }), ROLES = JOBS.map(j => j[0]);   // 監督 11/4 の 17の 仕事
+  for (let k = 0; k < MOB_N && doors.length && works.length; k++) {
+    const role = ROLES[k % ROLES.length], home = mpick(k % 2 && doorsNear.length ? doorsNear : doorsFar.length ? doorsFar : doors), work = mpick(works);
+    const cloth = role === '奉行' ? 0x2a2a3a : role === '泥棒' ? 0x22304a : mpick(CLOTH), hair = mrand() < 0.25 ? 0xdddddd : 0x1a1a1a;
+    const mesh = new THREE.Mesh(mobGeo(cloth, hair), mobMat); if (role === '力士') mesh.scale.set(1.35, 1.05, 1.35); mesh.visible = false; scene.add(mesh);
+    const m = { role, home: { ...home, name: placeAt(cx(home.v), cz(home.v)) }, work, plan: Math.floor(mrand() * 4), mesh, x: 0, z: 0, spd: 1.1 + mrand() * 0.6, ph: mrand() * 6, inside: false, t: 0, talkT: 0, path: null, k: 0 };
+    mobs.push(m); mobGo(m, home.v, true);
+  }
+  // つぎの 行き先へ（plan：0 仕事場 → 1 ごはん → 2 仕事場 → 3 家）
+  function mobGo(m, from, first) {
+    for (let tries = 0; tries < 4; tries++) {
+      const kind = ['work', 'eat', 'work', 'home'][m.plan], g = kind === 'home' ? m.home : kind === 'eat' ? mpick(EATS) : m.work;
+      const p = g.v >= 0 && route(from, g.v);
+      if (p && p.length > 1) { m.goal = { ...g, kind }; m.path = p; m.k = first ? Math.floor(mrand() * (p.length - 1)) : 0; m.x = cx(p[m.k]); m.z = cz(p[m.k]); m.inside = false; return; }
+      m.plan = (m.plan + 1) % 4; }
+    m.path = null; m.t = 30;   // 行けない ときは その場で 少し 待つ
+  }
+  window.__mobGo = mobGo;
+  function mobPoint(m) {   // つぎに 向かう 点（進む 向きの 右がわ＝向かいから 来る 人と すれちがう。⚠ じいさんたちに ぶつかる ときは まんなか）
+    const p = m.path, a = p[m.k], b = p[m.k + 1];
+    if (m.k + 1 === p.length - 1 && m.goal.kind !== 'work') return { x: cx(b) + (m.goal.dx || 0) * 1.5, z: cz(b) + (m.goal.dz || 0) * 1.5 };   // さいごは 戸口へ
+    const dx = Math.sign(cx(b) - cx(a)), dz = Math.sign(cz(b) - cz(a)), x = cx(b) - dz * MOB.lane, z = cz(b) + dx * MOB.lane;
+    return blocked(x, z, 0.5) ? { x: cx(b), z: cz(b) } : { x, z };
+  }
+  window.__mobTick = (dt, now, night) => {
+    mobVis = 0;
+    for (const m of mobs) {
+      if (night) { m.mesh.visible = false; continue; }
+      if (m.t > 0) { m.t -= dt; m.moving = false; if (m.t <= 0) { m.plan = (m.plan + 1) % 4; mobGo(m, m.path ? m.path[m.path.length - 1] : m.home.v, false); } }
+      else if (m.path) {
+        const pd = Math.hypot(m.x - P.x, m.z - P.z), stopT = now < m.talkT || pd < MOB.near;   // じぶんの すぐ 前では 止まる（体に 入らない）
+        if (!stopT) { const q = mobPoint(m), dx = q.x - m.x, dz = q.z - m.z, d = Math.hypot(dx, dz), st = m.spd * dt;
+          if (d <= st) { m.x = q.x; m.z = q.z; m.k++;
+            if (m.k >= m.path.length - 1) { const g = m.goal; m.t = g.kind === 'home' ? 25 + mrand() * 35 : g.kind === 'eat' ? 12 + mrand() * 13 : 20 + mrand() * 30; m.inside = g.kind !== 'work'; } }
+          else { m.x += dx / d * st; m.z += dz / d * st; m.mesh.rotation.y = Math.atan2(-dx, -dz); m.ph += st * 3.2; } }
+        else if (now < m.talkT) m.mesh.rotation.y = Math.atan2(-(P.x - m.x), -(P.z - m.z));
+        m.moving = !stopT && m.t <= 0;
+      }
+      const vis = !m.inside && Math.hypot(m.x - P.x, m.z - P.z) < MOB.see; m.mesh.visible = vis;
+      if (vis) { mobVis++; m.mesh.position.set(m.x, m.moving ? Math.abs(Math.sin(m.ph)) * 0.07 : 0, m.z); }
+    }
+  };
+}
+// 💬 話しかけられる 人（いちばん 近い・見えている・家の 中に いない）
+const mobNear = () => { let best = null, bd = MOB.talk; for (const m of mobs) { if (!m.mesh.visible) continue; const d = Math.hypot(m.x - P.x, m.z - P.z); if (d < bd) { bd = d; best = m; } } return best; };
+const mobHit = (x, z) => mobs.some(m => { if (!m.mesh.visible) return false; const d = Math.hypot(m.x - x, m.z - z); return d < MOB.hit && d < Math.hypot(m.x - P.x, m.z - P.z); });   // 近づく 向きだけ 止める（重なった ときに 動けなく ならない）
+let talkM = null;
+const MOB_SPOT = { k: 'mob', txt: () => `💬 ${talkM ? talkM.role : ''}と 話す`, go: () => { const m = talkM; if (!m) return; m.talkT = performance.now() + 5000;
+  const g = m.goal || {}, line = m.t > 0 ? `いまは ${m.role}の 仕事の とちゅうだ。ここは ${m.work.name}の あたりだよ`
+    : m.role === '泥棒' && g.kind === 'work' ? '……な、なにも してないよ'
+    : g.kind === 'work' ? `${m.role}の 仕事で、${m.work.name}へ 行くところだ`
+    : g.kind === 'eat' ? `おなかが すいた。${g.name}で 何か 食べよう`
+    : `今日の 仕事は おしまい。${m.home.name}の 家へ 帰るところだ`;
+  logEvent('mob_talk', { role: m.role, kind: g.kind || '', stay: m.t > 0 }); window.mobSheet(m.role, line); } };
+
 // ---- 入れる 所（戸口の 前に 立つと「入る」が 出る）。ひらく 札は 試作1と 同じ ----
 const S = () => window.edoS();
 const SPOTS = [
@@ -1142,8 +1232,8 @@ function tick(now) {
     if (stick.active) { sx = stick.x; sy = stick.y; }
     yaw -= sx * TURN * dt;
     const step = -sy * SPEED * dt, nx = P.x - Math.sin(yaw) * step, nz = P.z - Math.cos(yaw) * step, ox = P.x, oz = P.z;
-    if (!blocked(nx, P.z)) P.x = nx;                 // x と z を 別々に＝壁に そって すべる
-    if (!blocked(P.x, nz)) P.z = nz;
+    if (!blocked(nx, P.z) && !mobHit(nx, P.z)) P.x = nx;                 // x と z を 別々に＝壁に そって すべる。町の 人の 体にも 入らない
+    if (!blocked(P.x, nz) && !mobHit(P.x, nz)) P.z = nz;
     moved += Math.hypot(P.x - ox, P.z - oz);
     if (!walked && Math.hypot(P.x, P.z - 22) > 3) { walked = true; document.body.classList.add('walking'); logEvent('first_walk', { ms: Math.round(now - spawnT), how: stick.active ? 'stick' : 'key' }); }
   }
@@ -1164,10 +1254,13 @@ function tick(now) {
     drunk.visible = b === 0; if (b === 0) drunk.position.set(u.x - 1.3, 0, u.z + 0.4);
     nearU = Math.abs(P.x) < 4.2 && Math.abs(P.z - u.z) < 2.6; }
   // ⚠ 夜は 家の 前から 始まる。出て すぐ「屋台を しまう」を 押して しまわないように、3秒は 出さない
-  const best = night ? (nearU ? N_UDON : nz && nz.k === 'home' && now - night.t0 > 3000 ? N_HOME : null) : (SPOTS.find(inSpot) || null);
+  if (window.__mobTick) window.__mobTick(dt, now, !!night);
+  talkM = night ? null : mobNear();
+  const best = night ? (nearU ? N_UDON : nz && nz.k === 'home' && now - night.t0 > 3000 ? N_HOME : null) : (SPOTS.find(inSpot) || (talkM && MOB_SPOT) || null);   // ⚠ 戸口が 先（町の 人より）
   const cb = $('call'), con = !!night && active(); if (cb.classList.contains('on') !== con) cb.classList.toggle('on', con);
   if (best !== cur) { cur = best;
-    if (cur) { logEvent('near', { k: cur.k, ms: Math.round(now - spawnT) }); if (!firstDoor) { firstDoor = true; logEvent('first_door', { k: cur.k, ms: Math.round(now - spawnT) }); } } }
+    if (cur && cur.k === 'mob') logEvent('mob_near', { role: talkM.role });
+    else if (cur) { logEvent('near', { k: cur.k, ms: Math.round(now - spawnT) }); if (!firstDoor) { firstDoor = true; logEvent('first_door', { k: cur.k, ms: Math.round(now - spawnT) }); } } }
   const a = $('act'), on = !!cur && active();
   if (on) { const t = cur.txt(); if (a.textContent !== t) a.textContent = t; }
   if (a.classList.contains('on') !== on) a.classList.toggle('on', on);
@@ -1187,7 +1280,7 @@ function tick(now) {
   silhouette();
   // ログ：場所（動いた ときだけ 1.5秒ごと）・コマの 重さ（10秒ごと）
   if (now - sampT > 1500 && moved > 0.5) { sampT = now; moved = 0; logEvent('pos', { x: +P.x.toFixed(1), z: +P.z.toFixed(1), yaw: +yaw.toFixed(2) }); }
-  frN++; frSum += raw; if (now - frT > 10000) { if (frT) logEvent('frame', { ms: +(frSum / frN * 1000).toFixed(1), n: frN }); frT = now; frN = 0; frSum = 0; }
+  frN++; frSum += raw; if (now - frT > 10000) { if (frT) logEvent('frame', { ms: +(frSum / frN * 1000).toFixed(1), n: frN, mob: mobs.length, vis: mobVis, calls: renderer.info.render.calls }); frT = now; frN = 0; frSum = 0; }
 }
 // 📍 いま いる あたりの 地名（地図データ）＝45m より 近い いちばん 近い 名前
 const PLACES = MAP ? MAP.places : []; let placeT = 0, placeName = '';
@@ -1201,7 +1294,7 @@ if ((navigator.maxTouchPoints || 0) > 0) document.body.classList.add('touch');
 logEvent('t3d', { ok: true });
 requestAnimationFrame(tick);
 if (DEV) window.__t = { P, SPOTS, boxes, blocked, get yaw() { return yaw; }, set yaw(v) { yaw = v; }, get cur() { return cur; }, get frames() { return frames; },
-  warp(k) { const s = SPOTS.find(q => q.k === k); P.set(s.x, 0, s.z); }, MAP, cellAt, nHouse, sil, get silOn() { return silOn; }, silCount() { silhouette(); if (!silOn) return 0; const gl = sil.getContext(), w = gl.drawingBufferWidth, h = gl.drawingBufferHeight, px = new Uint8Array(w * h * 4); gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px); let n = 0; for (let i = 3; i < px.length; i += 4) if (px[i]) n++; return n; }, keys, stick, camera, scene, yatai, udonG, drunk, zz, UPOS };
+  warp(k) { const s = SPOTS.find(q => q.k === k); P.set(s.x, 0, s.z); }, MAP, cellAt, nHouse, sil, get silOn() { return silOn; }, silCount() { silhouette(); if (!silOn) return 0; const gl = sil.getContext(), w = gl.drawingBufferWidth, h = gl.drawingBufferHeight, px = new Uint8Array(w * h * 4); gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px); let n = 0; for (let i = 3; i < px.length; i += 4) if (px[i]) n++; return n; }, keys, stick, camera, scene, yatai, udonG, drunk, zz, UPOS, mobs, get mobVis() { return mobVis; }, renderer, mobNear, mobHit, get talkM() { return talkM; } };
 } catch (e) { console.warn('⚠ 3D の 町を 出せなかった。ボタンの 画面で 遊べる', e); logEvent('t3d', { ok: false, err: String(e).slice(0, 120) }); }
 </script>
 </body>
