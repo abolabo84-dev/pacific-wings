@@ -220,7 +220,7 @@
 const $ = id => document.getElementById(id);
 const URLQ = new URLSearchParams(location.search);
 const DEV = URLQ.get('dev') === '1';
-const BUILD = 'edo-1123k';   // ⚠ 版の印
+const BUILD = 'edo-1123l';   // ⚠ 版の印
 // 🎨 見た目：パパ 11/23「2の漆」で 決まり（?ui=1／3 は 比べる 用に 残す）
 const UI = ['1', '2', '3'].includes(URLQ.get('ui')) ? URLQ.get('ui') : '2';
 document.body.classList.add('ui' + UI); window.edoUI = UI;
@@ -271,7 +271,13 @@ const JOB_FEE = 1;                         // 監督11/5「仕事入るのに一
 const JOBS = [
   ['ウナギ屋', 'タレ'], ['寿司屋', '屋台'], ['てんぷら屋', '屋台'], ['蕎麦屋', '屋台'], ['うどん屋', '屋台'], ['大工', '道具箱'], ['奉行', '十手'], ['力士', 'ふんどし'],
   ['行司', '軍配'], ['歌舞伎役者', 'メイク道具'], ['絵師', '筆'], ['茶人', '釜'], ['和傘職人', 'のり'], ['植木屋', 'ハサミ'], ['火消し', '提灯'], ['駕籠屋', 'かご'], ['泥棒', '鍵'],
+  ['魚屋', 'てんびん棒'], ['船頭', 'さお'],   // 監督 11/23 15:04「職業に魚屋 船頭をいれて」。⚠ 道具は こちらの 決め（監督は 名前だけ）
 ];
+// 監督 11/23 14:47「すべてのお仕事の給料プラス７文」→ ⚠ こちらの 読み：1日の 給料＝うまく できた ぶん ＋ 七文（0ぱいでも 七文）
+const PAY_PLUS = 7;
+// 監督 11/23 15:16「いっかいご飯食べたら二日分かいふく」（パパ 15:12「5日食べてない人が 食べたら ケロッと してるの 変じゃない？」への 答え）
+const HEAL_DAYS = 2;
+const eatHeal = () => { S.hungry = Math.max(0, S.hungry - HEAL_DAYS); };
 // 監督11/5「屋台は、十三文 ウナギは、20文 … 魚屋は、十八文 飯屋は、三十文」（風呂屋 十三文は ごはんでは ないので まだ 出していない）
 const FOODS = [{ k: '屋台', mon: 13 }, { k: '魚屋', mon: 18 }, { k: 'ウナギ', mon: 20 }, { k: '飯屋', mon: 30 }];
 const SOBA_I = JOBS.findIndex(j => j[0] === '蕎麦屋');
@@ -378,7 +384,7 @@ function boardSheet() {
   if (!S.house) return sheet(`<h2>📋 回覧板</h2><p class="hint">回覧板は 家を 買うと 来る。まず 🏠 家を 買おう</p><div class="row two"><button onclick="closeSheet()">とじる</button></div>`);
   // 🍜 蕎麦屋（11/22）：仕事は いくつ 入っても いい（⚠ こちらの 決め。監督は「仕事入るのに一文必要」まで）。蕎麦屋は 歩ける 町（3D）でだけ
   const t3d = document.body.classList.contains('t3d'), has = i => (i === 0 ? !!S.job : i === SOBA_I ? !!S.soba : false);
-  sheet(`<h2>📋 回覧板：お仕事</h2><p class="hint">仕事に 入るのに <b>${JOB_FEE}文</b> いる。入ると 道具が もらえる。いま 💰 ${S.mon}文</p><div class="row">` +
+  sheet(`<h2>📋 回覧板：お仕事</h2><p class="hint">仕事に 入るのに <b>${JOB_FEE}文</b> いる。入ると 道具が もらえる。給料は 1日 <b>${PAY_PLUS}文 ＋ うまく できた ぶん</b>。いま 💰 ${S.mon}文</p><div class="row">` +
     (S.soba && t3d ? `<button style="background:#35507a" onclick="$('sheet').classList.remove('on'); sobaStart()">🌙 屋台を かついで 夜の 町へ 出る（蕎麦屋）</button>` : '') +
     JOBS.map(([k, tool], i) => has(i) ? `<button disabled>✓ ${k}（入っている。道具：${tool}）</button>`
       : i === 0 ? `<button ${S.mon >= JOB_FEE ? '' : 'disabled'} onclick="takeJob(0)">${k}（${tool}が もらえる）　<span class="cost">場所：川ぞいの 店</span></button>`
@@ -396,14 +402,14 @@ function takeJob(i = 0) {
 
 // ============ 食べる（監督11/5 の 値段・「5日ご飯食べないとゲームオーバ最初から」） ============
 function eatSheet() {
-  sheet(`<h2>🍚 食べる</h2><p class="hint">いま 💰 ${S.mon}文。${STARVE_DAYS}日 食べないと たおれて <b>最初から</b>に なる</p><div class="row">` +
+  sheet(`<h2>🍚 食べる</h2><p class="hint">いま 💰 ${S.mon}文。1回 食べると <b>${HEAL_DAYS}日ぶん</b> もどる。${STARVE_DAYS}日 食べないと たおれて <b>最初から</b>に なる</p><div class="row">` +
     FOODS.map((f, i) => `<button ${S.mon >= f.mon ? '' : 'disabled'} onclick="eat(${i})">${f.k}　<span class="cost">${f.mon}文</span></button>`).join('') +
     `</div><div class="row two"><button onclick="closeSheet()">やめる</button></div>`);
 }
 function eat(i) {
   const f = FOODS[i]; if (S.mon < f.mon) return;
-  S.mon -= f.mon; logEvent('eat', { k: f.k, mon: f.mon, hungry: S.hungry, left: S.mon }); S.hungry = 0;
-  news(`${f.k}で 食べた（${f.mon}文）。おなか いっぱい。`, 'good'); save(); closeSheet();
+  S.mon -= f.mon; logEvent('eat', { k: f.k, mon: f.mon, hungry: S.hungry, left: S.mon }); eatHeal();
+  news(`${f.k}で 食べた（${f.mon}文）。${S.hungry === 0 ? 'おなか いっぱい。' : `まだ ${S.hungry}日ぶん すいている。`}`, 'good'); save(); closeSheet();
 }
 
 // ============ 物知りな じいさん（監督11/4「ある長屋に物知りなじいさんがいていろんなことを教えてくれる」） ============
@@ -483,10 +489,10 @@ function bowlEnd() {
 }
 function workEnd() {
   const e = W.earned; W = null;
-  S.mon += e; S.day++; S.hungry++;
-  logEvent('work_end', { earned: e, mon: S.mon, day: S.day, hungry: S.hungry });
+  S.mon += e + PAY_PLUS; S.day++; S.hungry++;
+  logEvent('work_end', { earned: e, plus: PAY_PLUS, mon: S.mon, day: S.day, hungry: S.hungry });
   show('town');
-  news(`🌙 ウナギ屋で ${UN.bowls}ぱい 作って ${e}文 もらった。朝に なった（${S.day}日目）。`, e ? 'good' : 'bad');
+  news(`🌙 ウナギ屋で ${UN.bowls}ぱい 作った。うまく できた ぶん ${e}文 ＋ 給料 ${PAY_PLUS}文 ＝ ${e + PAY_PLUS}文 もらった。朝に なった（${S.day}日目）。`, e ? 'good' : 'bad');
   if (S.hungry >= STARVE_DAYS) return starve();
   if (S.hungry >= 3) news(`⚠ もう ${S.hungry}日 食べていない。${STARVE_DAYS}日で たおれる。`, 'bad');
   save(); refresh();
@@ -534,9 +540,9 @@ function sobaCall(zone) {
 function sobaEnd(why) {
   if (!N) return;
   clearInterval(N.timer); const e = N.earned, secs = Math.round((performance.now() - N.t0) / 1000), n = N; N = null;
-  S.mon += e; S.day++; S.hungry++;
-  logEvent('soba_end', { why, earned: e, secs, calls: n.calls, scold: n.scold, seen: n.seen, mon: S.mon, day: S.day, hungry: S.hungry });
-  news(`🌙 ${why === 'time' ? '夜が 明けた。' : '屋台を しまった。'}そばを ${e}はい 売って ${e}文 もらった。朝に なった（${S.day}日目）。`, e ? 'good' : 'bad');
+  S.mon += e + PAY_PLUS; S.day++; S.hungry++;
+  logEvent('soba_end', { why, earned: e, plus: PAY_PLUS, secs, calls: n.calls, scold: n.scold, seen: n.seen, mon: S.mon, day: S.day, hungry: S.hungry });
+  news(`🌙 ${why === 'time' ? '夜が 明けた。' : '屋台を しまった。'}そばを ${e}はい 売った。売れた ぶん ${e}文 ＋ 給料 ${PAY_PLUS}文 ＝ ${e + PAY_PLUS}文 もらった。朝に なった（${S.day}日目）。`, e ? 'good' : 'bad');
   if (S.hungry >= STARVE_DAYS) return starve();
   if (S.hungry >= 3) news(`⚠ もう ${S.hungry}日 食べていない。${STARVE_DAYS}日で たおれる。`, 'bad');
   save(); refresh();
@@ -712,7 +718,7 @@ function candleEnd(win) {
 // ⚠ まぜる ものは 資料で 割れる（唐辛子／醤油・ワサビ・梅干）。ここは 桂南光の 型（しょうゆ・わさび・梅干し）だけ。名前の もとは となりの 三味線の 音（資料 3つ）
 // ⚠ こちらの 作り：酒は 出さない（ごちそうだけ。品は 資料に ないので「ごちそう」とだけ）・だれが 思いついたか・まぜる ミニゲーム（さとう・お茶は はずれ）・
 //   竹を その気に させる 3回の やりとり（ばらすと 竹が 帰って あした やりなおし）・竹の 食べる ようす・あとの 旦那の 一言
-// ⚠ こちらの 決め：ごちそうで おなか いっぱい（1回だけ）・お礼 五文（死神の 足元と 同じ。奉行の 1日 二十文より 少なく）
+// ⚠ こちらの 決め：ごちそうは ごはん 1回と 同じ（2日ぶん もどる・1回だけ）・お礼 五文（死神の 足元と 同じ。奉行の 1日 二十文より 少なく）
 // ⚠ 噺の まま 入れた もの（パパに 聞く）：腐った 豆腐を だまして 食べさせる 筋・長崎を「におう 名物」の 産地に する こと
 const CH = { pay: 5, mix: ['しょうゆ', 'わさび', '梅干し'], miss: { 'さとう': '旦那「あまく しては だめだ」', 'お茶': '旦那「それは 飲む ものだよ」' } };
 const TAKE = [   // 竹との やりとり。[竹を その気に させる 言葉, 竹の 返事]
@@ -751,8 +757,8 @@ function mixTap(t) {
   tell({ t: '🪕 となりから 三味線', end: '竹を 待つ', pages: [
     'まぜて、小さな びんに つめた。<br>そのとき、となりの 家から 三味線の 音が 聞こえた。<br><b>♪ チリ・トテ・チン</b>',
     '旦那「それだ！ 名前は『ちりとてちん』。長崎の 名物と いう ことに しよう」'] }, () => {
-    S.chiri = 1; S.hungry = 0; logEvent('chiri_made', {}); save();
-    news('🍱 旦那の ごちそうで おなか いっぱい。ちりとてちんが できた。', 'good'); takeStart(); return 'keep'; });
+    S.chiri = 1; eatHeal(); logEvent('chiri_made', {}); save();
+    news('🍱 旦那の ごちそうを 食べた。ちりとてちんが できた。', 'good'); takeStart(); return 'keep'; });
 }
 function takeStart() {
   TK = { n: 0, t0: performance.now(), wrong: 0 }; logEvent('take_start', { day: S.day });
@@ -1056,7 +1062,7 @@ const geoC = {}, mergedGeo = (cloth, hair) => geoC[cloth + '|' + hair] || (geoC[
     for (let i = 0; i < p.length; i += 3) { P2.push(p[i], p[i + 1], p[i + 2]); N2.push(nn[i], nn[i + 1], nn[i + 2]); C2.push(cl.r, cl.g, cl.b); } });
   const bg = new THREE.BufferGeometry(); bg.setAttribute('position', new THREE.Float32BufferAttribute(P2, 3)); bg.setAttribute('normal', new THREE.Float32BufferAttribute(N2, 3)); bg.setAttribute('color', new THREE.Float32BufferAttribute(C2, 3)); return bg; })());
 // ---- 👥 町の 人（mob）：監督 11/5 16:22「最初に一人でやるは、mobが百人自由に仕事についたり家を買ったりする」／パパ 11/23「色んな人がそれぞれ自律的に生活してる感じ」 ----
-// 1人 1人に 家（町家の 戸口）・仕事（監督の 17の 仕事＝JOBS）・仕事場（地図の 地名）が あって、仕事場 → ごはん（はじめの 通りの 屋台・魚屋・飯屋）→ 仕事場 → 家 を くり返す
+// 1人 1人に 家（町家の 戸口）・仕事（監督の 仕事＝JOBS・11/23 に 魚屋と 船頭を 足して 19）・仕事場（地図の 地名）が あって、仕事場 → ごはん（はじめの 通りの 屋台・魚屋・飯屋）→ 仕事場 → 家 を くり返す
 // ⚠ こちらの 決め：人数 100（?mob=N で 変えられる）・歩く 速さ・家や 店に いる 時間・家は はじめの 通りの 近くに 半分・見た目の 色・台詞
 // ⚠ 地図の ます目は 町並みの 作り直しで 変わる → 場所は ぜんぶ 読みこんだ ます目から 決める（決めうちの 座標は 店の 戸口 3つ だけ）
 // ponytail: 仕事を 変えない・家を 買わない・ゲームの 日と つながらない・夜は みんな 家（見えない）, 監督の「仕事に ついたり 家を 買ったり」を 作る とき・町並みを 作り直す とき
@@ -1083,7 +1089,7 @@ if (G && MOB_N) {
   const EATS = [{ x: 2, z: 2, name: '屋台', dx: 1 }, { x: 2, z: -14, name: '魚屋', dx: 1 }, { x: 2, z: -24, name: '飯屋', dx: 1 }].map(e => ({ v: nearCell(e.x, e.z), name: e.name, dx: e.dx, dz: 0 }));   // はじめの 通りの 東がわの 店
   const CLOTH = [0x2e4a7a, 0x6a3a2a, 0x3a5a3a, 0x7a6a4a, 0x5a2a4a, 0x2a5a6a, 0x8a5a2a, 0x4a4a5a, 0x6a6a3a, 0x9a4a3a];
   const mobGeo = mergedGeo;
-  const mobMat = new THREE.MeshLambertMaterial({ vertexColors: true }), ROLES = JOBS.map(j => j[0]);   // 監督 11/4 の 17の 仕事
+  const mobMat = new THREE.MeshLambertMaterial({ vertexColors: true }), ROLES = JOBS.map(j => j[0]);   // 監督 11/4 の 17の 仕事＋11/23 の 魚屋・船頭
   for (let k = 0; k < MOB_N && doors.length && works.length; k++) {
     const role = ROLES[k % ROLES.length], home = mpick(k % 2 && doorsNear.length ? doorsNear : doorsFar.length ? doorsFar : doors), work = mpick(works);
     const cloth = role === '奉行' ? 0x2a2a3a : role === '泥棒' ? 0x22304a : mpick(CLOTH), hair = mrand() < 0.25 ? 0xdddddd : 0x1a1a1a;
