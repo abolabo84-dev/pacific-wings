@@ -259,8 +259,8 @@
   <div id="rowScale" style="display:flex; justify-content:center; gap:6px; flex-wrap:wrap"></div>
   <p id="scaleDesc" style="font-size:.8rem; opacity:.8; margin:.2em 12px .4em; min-height:1.4em"></p>
   <button class="btn" id="btnGo">🪖 しゅつげき！</button>
-  <p style="margin-top:1em; font-size:.85rem; opacity:.75">
-    かんそうを書くときの あいことば：<b id="titleWord" style="font-size:1.1rem"></b></p>
+  <p style="margin-top:1em; font-size:.75rem; opacity:.6">
+    <!-- 👥 11/23：「あいことば」は 部屋（みんなで あそぶ）の ことばに する。こちらは v6 と 同じ「きろくの番号」（パパ「みんながすんなりいくかたちに」） -->きろくの番号：<b id="titleWord"></b></p>
 </div>
 
 <div class="overlay" id="endScreen" style="display:none">
@@ -1880,7 +1880,7 @@ let lastT = performance.now(), fireCd = 0, grenCd = 0, skillCd = 0, knifeCd = 0;
 const DEVMODE = new URLSearchParams(location.search).get('dev') === '1';
 // ⚠ 版の印。監督がスマホで試して報告してくるので、**どの版を見ているか**が分からないと
 //    直したはずの物を「まだ直ってない」と言われる（古いキャッシュを見ているだけ、が起きる）
-const BUILD = 'sango-0930a';
+const BUILD = 'sango-1123a';
 { const e = document.getElementById('buildTag'); if (e) e.textContent = '版:' + BUILD; }
 const devPump = (() => {
   if (!DEVMODE) return null;

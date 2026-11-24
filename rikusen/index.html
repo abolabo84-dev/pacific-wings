@@ -254,8 +254,8 @@
   <div id="rowScale" style="display:flex; justify-content:center; gap:6px; flex-wrap:wrap"></div>
   <p id="scaleDesc" style="font-size:.8rem; opacity:.8; margin:.2em 12px .4em; min-height:1.4em"></p>
   <button class="btn" id="btnGo">🪖 しゅつげき！</button>
-  <p style="margin-top:1em; font-size:.85rem; opacity:.75">
-    かんそうを書くときの あいことば：<b id="titleWord" style="font-size:1.1rem"></b></p>
+  <p style="margin-top:1em; font-size:.75rem; opacity:.6">
+    <!-- 👥 11/23：「あいことば」は 部屋（みんなで あそぶ）の ことばに する。こちらは v6 と 同じ「きろくの番号」（パパ「みんながすんなりいくかたちに」） -->きろくの番号：<b id="titleWord"></b></p>
 </div>
 
 <div class="overlay" id="endScreen" style="display:none">
@@ -881,7 +881,10 @@ function buildPicks() {
 // 中身は 江戸の町体験と 同じ 部品（../common/net.js＝太平洋の翼 v6 の GAS 中継所の 写し）。部屋の 名前は 'riku-r'+あいことば＝江戸・翼とは 別の 部屋
 // 1本目に 入れたもの：部屋・名前（頭の 上）・部隊の 名前・装備の 色・AI あり/なし・相手の 姿が 同じ 地図の 同じ 場所に 見える
 // ⚠ こちらの 決め：同じ国＝味方（同じ がわから 出る）／ちがう国＝敵（反対がわから 出る）。3つ以上の 国が いる ときは「先に 出撃して いる 人」に 合わせる
-// ponytail: 弾・当たり・勝ち負けは まだ 伝えない（姿が 見える だけ）, 2本目で 撃った 弾と 当たりを 送る
+// 2本目（11/23 パパ「2本目（撃ち合いと勝ち負け）に進んでええ」）：弾が みんなの 画面に 飛ぶ・敵の 人に 当たると 体力が へる・たおすと「たおした数」・じぶんの 足で 首都を のっとると 同じ がわは 勝ち／反対がわは 負け
+// ⚠ 味方（同じ国）の 弾は 当たらない（こちらの 決め）
+// ponytail: 当たりは 撃った 人の 画面で 決める（ずるが できる・回線が おそいと 少し ずれる）, 本番の ログ（net_hurt）に へんな 当たりが 出たら 受ける がわでも 距離を 見る
+// ponytail: 敵の 人が じぶんの 要塞に 入っても「のっとられそう」は 出ない・人の 蘇生は ない（すぐ 要塞から 出なおす）, 監督が 遊んで 言ったら 足す
 // ponytail: AI は 1人ずつ 別（みんなの 画面で 同じ では ない）, 監督が「AI あり」で 遊んで 変だと 言ったら あずかり役が AI を 動かして 配る
 // ponytail: 人数は 10人まで（9/6）, 監督の 答え（10人か 430人か）が 来たら 何人まで いけるか 測って 決める
 const EQUIPS = [{ name: 'ふつう', c: null }, { name: '⬛ 黒', c: 0x262626 }, { name: '⬜ 白', c: 0xeeeeee }, { name: '🟨 金', c: 0xd4af37 },
@@ -918,6 +921,40 @@ function netAvatar(q) {
   q.grp.position.set(q.tx || 0, standH(q.tx || 0, q.tz || 0), q.tz || 0);
   attachHpBar(q, 3.1); netLabel(q, p.n, p.u); scene.add(q.grp);
 }
+// ---- 2本目：送る がわ ----
+// ⚠ 上限＝いちばん 強い 一撃（けん 100 × 練度 1.4＝140）より 少し 上。これより 大きい 当たりは うそ か こわれた データ
+const NET_DMG_MAX = 150;
+const netOn = () => !!(NETW && NETW.on && G.running && !G.training);
+// 当たりを 調べる 相手＝見えて いる 敵の 人
+const netFoes = () => [...PEERS.values()].filter(q => q.grp && q.grp.visible && q.foe);
+function netHit(q, dmg, how) {
+  NETW.send('h', { t: q.id, d: Math.min(NET_DMG_MAX, Math.round(dmg)) });
+  logEvent('net_hit', { dmg: Math.round(dmg), how, k: q.prof.k });
+}
+function netShot(o) {   // じぶんの 弾を みんなの 画面にも 飛ばす
+  if (!netOn()) return;
+  const r = v => +v.toFixed(2);
+  NETW.send('s', [r(o.pos.x), r(o.pos.y), r(o.pos.z), r(o.vel.x), r(o.vel.y), r(o.vel.z), o.gravity || 0, o.blast || 0, o.size || 0.14, o.life || 1.8, o.color || 0xffee58]);
+}
+// 弾が 敵の 人に 当たったか（じぶんの 画面で 見えて いる 姿で 決める）
+function netBulletHit(pp, p) {
+  if (!netOn()) return false;
+  for (const q of netFoes()) {
+    if (pp.distanceTo(q.grp.position.clone().setY(q.grp.position.y + 1)) < 1.5) {
+      if (p.blast) { explode(pp.clone(), true); blastDamage(pp, p.blast, p.dmg, p.owner); }
+      else netHit(q, p.dmg, 'gun');
+      return true;
+    }
+  }
+  return false;
+}
+function netBlast(pos, r, dmg) { if (netOn()) for (const q of netFoes()) if (q.grp.position.distanceTo(pos) < r) netHit(q, dmg, 'blast'); }
+// ナイフ・けん：前に いて 近い 敵の 人（reach・arc は じぶんの AI と 同じ ものさし）
+function netMelee(P, reach, arc) {
+  if (!netOn()) return [];
+  return netFoes().filter(q => { const g = q.grp.position, d = Math.hypot(g.x - P.x, g.z - P.z); if (d > reach) return false;
+    return (-Math.sin(player.yaw)) * (g.x - P.x) / (d || 1) + (-Math.cos(player.yaw)) * (g.z - P.z) / (d || 1) >= arc; });
+}
 function netDrop(id) { const q = PEERS.get(id); if (!q) return; if (q.grp) scene.remove(q.grp); PEERS.delete(id);
   if (G.running && q.prof) showMessage('👥 ' + (q.prof.n || 'ななし') + 'が 出た', 2); }
 // 向き：⚠ こちらの 決め（上の ⚠）。先に 出撃して いる 人が いれば その人に 合わせる＝あとから 来た 人で くずれない
@@ -945,6 +982,34 @@ if (NETW) {
     const [x, z, dy, yaw, hp, down, cr, sd, play] = d;
     if (Math.abs(x) > 320 || Math.abs(z) > 320 || dy < -3 || dy > 20 || hp < 0 || hp > 1 || play < 0 || (sd !== 'w' && sd !== 'e')) return;
     const q = peerOf(id); Object.assign(q, { tx: x, tz: z, tdy: dy, tyaw: yaw, hp, down: !!down, crouch: !!cr, side: sd === 'e' ? 'east' : 'west', play, last: performance.now() });
+  });
+  // ---- 2本目（11/23）：弾・当たり・たおした・勝ち負け ----
+  // 当たりは「撃った 人の 画面」で 決めて 知らせる。受け取る がわは ⚠ 送り主が 敵か・ダメージが 上限の 中かを 見てから 使う（信頼境界）
+  const liveFoe = id => { const q = PEERS.get(id); return q && q.prof && netFoe(q) && performance.now() - q.last < 4000 ? q : null; };
+  NETW.on_('s', (d, id) => {   // 弾（見える だけ。当たりは 撃った 人が 決める）
+    if (!Array.isArray(d) || d.length !== 11 || !d.every(Number.isFinite) || !G.running || G.training) return;
+    const [px, py, pz, vx, vy, vz, gr, bl, sz, lf, col] = d;
+    if (Math.max(Math.abs(px), Math.abs(pz)) > 400 || Math.abs(py) > 200 || Math.hypot(vx, vy, vz) > 150 || gr < 0 || gr > 30 || bl < 0 || bl > 20 || sz < 0.05 || sz > 1 || lf <= 0 || lf > 8) return;
+    shoot({ pos: new THREE.Vector3(px, py, pz), vel: new THREE.Vector3(vx, vy, vz), owner: 'net', dmg: 0, gravity: gr, blast: bl, size: sz, life: lf, color: col & 0xffffff });
+  });
+  NETW.on_('h', (d, id) => {   // じぶんに 当たった
+    if (!d || d.t !== NETW.me || !G.running || G.training) return;
+    const q = liveFoe(id); if (!q || !Number.isFinite(d.d) || d.d <= 0 || d.d > NET_DMG_MAX) return;   // ⚠ 味方からの 当たり・大きすぎる ダメージは 受けない
+    G.hitBy = id; G.hitByT = performance.now(); logEvent('net_hurt', { dmg: Math.round(d.d), by: q.prof.k });
+    hitPlayer(d.d);
+  });
+  NETW.on_('k', (d, id) => {   // じぶんが たおした（たおれた 人が 知らせて くる）
+    if (!d || d.t !== NETW.me || !G.running) return;
+    const q = liveFoe(id); if (!q) return;
+    G.kills++; $('killCt').textContent = 'たおした ' + G.kills; showMessage('🎯 ' + (q.prof.n || 'ななし') + 'を たおした！', 2);
+    logEvent('net_kill', { k: q.prof.k });
+  });
+  NETW.on_('w', (d, id) => {   // だれかが 敵の 首都を のっとった
+    if (!d || (d.s !== 'west' && d.s !== 'east') || !G.running || G.training) return;
+    const q = PEERS.get(id); if (!q || !q.prof) return;
+    const nm = q.prof.n || 'ななし'; logEvent('net_end', { s: d.s, mine: d.s === G.side });
+    if (d.s === G.side) { win(); $('endTitle').textContent = '🏆 ' + nm + 'が 敵の首都を のっとった！！'; }
+    else { lose(); $('endTitle').textContent = '😢 ' + nm + '（敵）に 首都を のっとられた…'; }
   });
   NETW.onJoin(() => { netSendProf(); netList(); });
   NETW.onLeave(id => { netDrop(id); netList(); });
@@ -1266,6 +1331,7 @@ function shoot(opt) {   // {pos, vel, owner('me'|'ally'|'foe'), dmg, gravity, bl
   scene.add(m);
   projs.push({ mesh: m, vel: opt.vel.clone(), owner: opt.owner, dmg: opt.dmg,
     gravity: opt.gravity || 0, blast: opt.blast || 0, life: opt.life || 1.8 });
+  if (opt.owner === 'me') netShot(opt);   // 👥 みんなの 画面にも 飛ばす（owner 'net'＝見える だけの 弾）
 }
 function explode(pos, big) {
   const m = new THREE.Mesh(new THREE.SphereGeometry(big ? 5 : 1.4, 8, 8),
@@ -1285,6 +1351,7 @@ function blastDamage(pos, r, dmg, owner) {
   } else if (owner === 'me' && player.group.position.distanceTo(pos) < r*0.6) {
     hitPlayer(dmg*0.5);   // 自爆はちょっとだけ手かげん
   }
+  if (owner === 'me') netBlast(pos, r, dmg);   // 👥 爆発の 中の 敵の 人
 }
 function hitSoldier(s, dmg, owner) {
   s.hp -= dmg; updateHpBar(s);
@@ -1302,8 +1369,12 @@ function hitPlayer(dmg) {
   G.hp -= dmg; G.hurtT = 0;
   if (G.hp <= 0) {
     explode(player.group.position.clone(), false);
-    logEvent('player_down', {});
-    showMessage('💥 たおれた！ じぶんの要塞から さいしゅつげき…', 3);
+    // 👥 さいごの 一撃が 人（1秒 以内）なら、その人に「たおされた」を 知らせる（その人の「たおした数」が ふえる）
+    const byNet = NETW && G.hitBy && performance.now() - (G.hitByT || 0) < 1000 ? PEERS.get(G.hitBy) : null;
+    logEvent('player_down', byNet ? { by: 'net', k: byNet.prof && byNet.prof.k } : {});
+    if (byNet) NETW.send('k', { t: byNet.id });
+    G.hitBy = null;
+    showMessage(byNet ? '💥 ' + ((byNet.prof && byNet.prof.n) || 'ななし') + 'に たおされた！ じぶんの要塞から さいしゅつげき…' : '💥 たおれた！ じぶんの要塞から さいしゅつげき…', 3);
     respawn();
   }
 }
@@ -1320,7 +1391,7 @@ let lastT = performance.now(), fireCd = 0, grenCd = 0, skillCd = 0, knifeCd = 0;
 const DEVMODE = new URLSearchParams(location.search).get('dev') === '1';
 // ⚠ 版の印。監督がスマホで試して報告してくるので、**どの版を見ているか**が分からないと
 //    直したはずの物を「まだ直ってない」と言われる（古いキャッシュを見ているだけ、が起きる）
-const BUILD = 'riku-1123a';
+const BUILD = 'riku-1123b';
 { const e = document.getElementById('buildTag'); if (e) e.textContent = '版:' + BUILD; }
 const devPump = (() => {
   if (!DEVMODE) return null;
@@ -1396,7 +1467,9 @@ function tick() {
       if (dot < 0.35) continue;
       bestD = d; hit = s2;
     }
+    const nk = hit ? [] : netMelee(P, 3.0, 0.35);   // 👥 AI が いなければ 敵の 人
     if (hit) { hitSoldier(hit, 70); showMessage('🔪 さした！', 1); logEvent('knife', { hit: true }); }
+    else if (nk.length) { netHit(nk[0], 70, 'knife'); showMessage('🔪 さした！', 1); logEvent('knife', { hit: true, net: true }); }
     else { showMessage('🔪 空ぶり…（もっと近づく）', 0.9); logEvent('knife', { hit: false }); }
   }
   const firing = keys['Space'] || firePressed;
@@ -1417,6 +1490,7 @@ function tick() {
       // 📈 7BC：レベル6〜13のあいだ けんが つよくなる
       hitSoldier(s2, Math.round(G.cls.melee * rendoDmgMul())); hit++;
     }
+    for (const q of netMelee(P, SABER_REACH, SABER_ARC)) { netHit(q, G.cls.melee * rendoDmgMul(), 'saber'); hit++; }   // 👥 敵の 人も なぎ払う
     // 見た目：けんを ふる
     const w2 = player.group && player.group.userData.weapon;
     if (w2) { w2.rotation.y = -1.2; setTimeout(() => { if (w2) w2.rotation.y = 0; }, 130); }
@@ -1692,12 +1766,14 @@ function tick() {
     }
     // 地面
     if (!done && pp.y <= H(pp.x, pp.z)) {
-      if (p.blast) { explode(pp.clone(), true); blastDamage(pp, p.blast, p.dmg, p.owner); }
+      if (p.blast) { explode(pp.clone(), true); if (p.owner !== 'net') blastDamage(pp, p.blast, p.dmg, p.owner); }
       done = true;
     }
     // 兵にあたる
     if (!done) {
-      if (p.owner === 'foe') {
+      if (p.owner === 'net') {
+        // 👥 ほかの 人の 弾は 見える だけ（当たりは 撃った 人の 画面が 決めて 知らせて くる）
+      } else if (p.owner === 'foe') {
         if (pp.distanceTo(P) < (G.crouch ? 0.9 : 1.2) + 0.4) { hitPlayer(p.dmg); done = true; }
         if (!done) for (const s of soldiers) {
           if (s.faction !== 'ally' || s.state !== 'fight') continue;
@@ -1712,6 +1788,7 @@ function tick() {
             done = true; break;
           }
         }
+        if (!done && p.owner === 'me' && netBulletHit(pp, p)) done = true;   // 👥 敵の 人に 当たった
       }
     }
     if (done || p.life <= 0) { scene.remove(p.mesh); projs.splice(i, 1); }
@@ -1779,7 +1856,8 @@ function tick() {
       }
       if (F.side === 'ally' && F.capT > 1 && !F.warned) { F.warned = true; showMessage('⚠⚠ じぶんの要塞が のっとられそう！！ もどれ！！', 3); }
       if (F.capT >= 3) {
-        if (F.side === 'foe') return win();
+        // 👥 じぶんの 足で のっとった ときだけ みんなに 知らせる（AI は 1人ずつ 別なので、AI が 取った 勝ちは じぶんの 画面だけ）
+        if (F.side === 'foe') { if (meIn && netOn()) { NETW.send('w', { s: G.side }); logEvent('net_win_send', {}); } return win(); }
         else return lose();
       }
     } else { F.capT = Math.max(0, F.capT - dt*2); F.warned = false; }
