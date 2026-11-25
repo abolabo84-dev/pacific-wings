@@ -220,7 +220,7 @@
 const $ = id => document.getElementById(id);
 const URLQ = new URLSearchParams(location.search);
 const DEV = URLQ.get('dev') === '1';
-const BUILD = 'edo-1125d';   // ⚠ 版の印
+const BUILD = 'edo-1126a';   // ⚠ 版の印
 // 🎨 見た目：パパ 11/23「2の漆」で 決まり（?ui=1／3 は 比べる 用に 残す）
 const UI = ['1', '2', '3'].includes(URLQ.get('ui')) ? URLQ.get('ui') : '2';
 document.body.classList.add('ui' + UI); window.edoUI = UI;
@@ -817,17 +817,58 @@ function mobSheet(o) {
   sheet(`<h2>💬 ${esc(mobTitle(o))}</h2><p class="hint say">「${esc(line)}」</p><div class="row">${btns.join('')}</div>${okBtn}`);
 }
 function mobTalkMenu() { const o = talkO; if (!o) return closeSheet();
-  sheet(`<h2>🗣 ${esc(mobTitle(o))}と 話す</h2><p class="hint">何の 話を する？</p><div class="row">` + TOPICS.map((t, i) => `<button onclick="mobSay(${i})">${t[0]}</button>`).join('') + `</div>${okBtn}`); }
-function mobSay(i) {
-  const o = talkO; if (!o || !TOPICS[i]) return closeSheet();
-  const ans = TOPICS[i][1](o); S.fr[o.id] = (S.fr[o.id] || 0) + 1;
+  sheet(`<h2>🗣 ${esc(mobTitle(o))}と 話す</h2><p class="hint">何の 話を する？</p><div class="row">` + TOPICS.map((t, i) => `<button onclick="mobSay(${i})">${t[0]}</button>`).join('') + `<button onclick="mobFreeMenu()">✏ 自分で 書いて 話す</button></div>${okBtn}`); }
+// 1回 話した：数えて、顔見知りに なったら 知らせる（話題・返事・自分で 書いた 話 の 3つが ここを 通る）
+function talkDone(o, ans, ev, info) {
+  S.fr[o.id] = (S.fr[o.id] || 0) + 1;
   const n = S.fr[o.id]; let after = '';
-  logEvent('mob_say', { id: o.id, role: o.role, sex: o.sex, topic: i, n });
+  logEvent(ev, { id: o.id, role: o.role, sex: o.sex, n, ...info });
   if (n === KNOW_N && !isFriend(o.id)) { after = `<p class="hint">👋 <b>${esc(o.name)}と 顔見知りに なった。</b>何か 困って いる ことが ある らしい</p>`; news(`👋 ${o.name}（${o.role}）と 顔見知りに なった。`, 'k'); logEvent('know', { id: o.id, role: o.role }); }
   else if (n < KNOW_N) after = `<p class="hint">あと ${KNOW_N - n}回 話すと 顔見知りに なれそう</p>`;
   save();
   sheet(`<h2>🗣 ${esc(mobTitle(o))}</h2><p class="hint say">「${esc(ans)}」</p>${after}<div class="row">${n === KNOW_N && !isFriend(o.id) && !S.quest ? '<button onclick="questAsk()">🙏 頼みごとを 聞く</button>' : ''}</div>${okBtn}`);
 }
+function mobSay(i) {
+  const o = talkO; if (!o || !TOPICS[i]) return closeSheet();
+  talkDone(o, TOPICS[i][1](o), 'mob_say', { topic: i });
+}
+// ✏ 監督 11/26「挨拶、天気のほかに打って相手に話せる」：書いた 文の 中に 知って いる ことばが あれば それに 答える。なければ あいづち
+// ⚠ こちらの 決め：40文字まで・書いた 文は ログに 残す（ほかの プレイヤーには 送らない）
+// ponytail: ことばの 表 11こ と あいづち だけ, ログで 答えられなかった 文が 多かったら 表を 足す
+const FREE = [
+  ['name', /名前|なまえ|だれ|誰/, o => (o.sex === '女' ? `わたしは ${o.name}よ` : `おれは ${o.name}だ`)],
+  ['job', /仕事|しごと|なにして|何して/, o => (o.town ? (o.sex === '女' ? '家の ことで いそがしいの' : '日やといで いろいろ やってるよ') : `${o.role}を やってるよ`)],
+  ['food', /すき|好き|食べ|たべ|ごはん|ご飯|おなか|お腹|はら/, o => ['うなぎが 大好きだね', 'そばを すするのが 一番', '屋台で すしを つまむのが 好き', 'てんぷらが 好きだね'][o.id % 4]],
+  ['hello', /こんにちは|こんにちわ|おはよう|こんばんは|やあ|よろしく/, () => 'こんにちは。いい 日だね'],
+  ['bye', /さよなら|さようなら|またね|じゃあね|ばいばい|バイバイ/, () => 'またね。気を つけて'],
+  ['thanks', /ありがと/, () => 'どう いたしまして'],
+  ['weather', /天気|てんき|雨|あめ|晴|はれ|暑|寒|あつい|さむい/, () => '空を 見ると、あしたも 晴れそうだね'],
+  ['home', /家|いえ|すんで|住んで/, o => `${o.home}の あたりに 住んで いるよ`],
+  ['age', /何歳|なんさい|いくつ|年は/, o => ['二十歳だよ', '三十を すぎたよ', 'もう 五十だよ'][o.id % 3]],
+  ['edo', /江戸|えど/, () => '江戸は 人が 多くて にぎやかだろう'],
+  ['friend', /友だち|友達|ともだち/, o => (isFriend(o.id) ? 'あんたとは もう 友だちだよ' : 'もっと 話せば 仲よく なれるよ')],
+];
+const freeAns = (o, w) => { const f = FREE.find(q => q[1].test(w)); return f ? [f[0], f[2](o)] : ['', ['へえ、そうなんだ', 'なるほどねえ', 'ふうん。おもしろい ことを 言うね'][(o.id + w.length) % 3]]; };
+function mobFreeMenu() { const o = talkO; if (!o) return closeSheet();
+  sheet(`<h2>✏ ${esc(mobTitle(o))}に 話す</h2><p class="hint">話したい ことを 書いてね</p><input type="text" id="freeW" maxlength="40" placeholder="れい：すきな 食べものは？" onkeydown="if (event.key === 'Enter' && !event.isComposing) mobFree()"><div class="row"><button onclick="mobFree()">💬 話す</button></div>${okBtn}`);
+  setTimeout(() => { const e = $('freeW'); if (e) e.focus(); }, 50); }
+function mobFree() { const o = talkO, e = $('freeW'), w = ((e && e.value) || '').trim().slice(0, 40); if (!o) return closeSheet(); if (!w) return e && e.focus();
+  const [key, ans] = freeAns(o, w); talkDone(o, ans, 'mob_free', { key, text: w, len: w.length }); }
+// 💬 監督 11/25「…相手からも話しかけられる」「話しかけられたら内容を読むと返事」：3D の がわで 近くの 人が 声を かける → ボタンで 読む → 返事を えらぶ
+// ⚠ こちらの 決め：返事も 1回 話した ことに 数える。顔見知りなら 名前で よぶ
+const CALLS = [
+  { say: 'いい 天気だね。どこへ 行くの？', re: [['🚶 ちょっと 散歩', 'そうなんだ。気を つけて 行ってね'], ['🏠 家に 帰る ところ', 'そうか。また 会おう']] },
+  { say: 'ちょいと、道を 聞いても いい？ 日本橋は どっち？', re: [['👉 あっちだよ', 'ありがとう、助かったよ'], ['🤔 わからない', 'そうか。ほかの 人に 聞いて みるよ']] },
+  { say: '見ない 顔だね。江戸は はじめて？', re: [['🙂 そうなんだ', '江戸は いい 所だよ。よろしくね'], ['💪 もう なれたよ', 'へえ、たいした もんだ']] },
+  { say: 'はらが へったなあ。この へんで うまい 店、知らない？', re: [['🍢 屋台が あるよ', 'いい ことを 聞いた。行って みるよ'], ['🍱 ウナギ屋が いいよ', 'うなぎか、ぜいたくだなあ']] },
+  { say: '今日は 人が 多いね。何か あるのかな', re: [['🎉 お祭りかも', 'それは 楽しみだね'], ['🤷 わからない', 'まあ、江戸は いつも にぎやかだからね']] },
+];
+let callK = 0;
+function mobCallSheet(o, k) { talkO = o; S.fr = S.fr || {}; S.friends = S.friends || []; S.jobsOpen = S.jobsOpen || {}; callK = k % CALLS.length;
+  const c = CALLS[callK], say = (S.fr[o.id] ? `おや、${S.name}！ ` : '') + c.say;
+  logEvent('mob_call_read', { id: o.id, k: callK });
+  sheet(`<h2>💬 ${esc(mobTitle(o))}が 話しかけて きた</h2><p class="hint say">「${esc(say)}」</p><p class="hint">返事を えらんでね</p><div class="row">${c.re.map((r, i) => `<button onclick="mobReply(${i})">${r[0]}</button>`).join('')}<button onclick="mobTalkMenu()">🗣 ほかの 話を する</button></div>${okBtn}`); }
+function mobReply(i) { const o = talkO, r = CALLS[callK].re[i]; if (!o || !r) return closeSheet(); talkDone(o, r[1], 'mob_reply', { k: callK, re: i }); }
 function questAsk() {
   const o = talkO; if (!o || S.quest || !window.mobQuest) return closeSheet();
   const q = window.mobQuest(o); if (!q) return sheet(`<h2>🙏 ${esc(o.name)}</h2><p class="hint say">「いまは だいじょうぶ。また こんど たのむよ」</p>${okBtn}`);
@@ -1259,13 +1300,22 @@ if (G && MOB_N) {
 // 💬 話しかけられる 人（いちばん 近い・見えている・家の 中に いない）
 const mobNear = () => { let best = null, bd = MOB.talk; for (const m of mobs) { if (!m.mesh.visible) continue; const d = Math.hypot(m.x - P.x, m.z - P.z); if (d < bd) { bd = d; best = m; } } return best; };
 let talkM = null;
+// 💬 監督 11/25「相手からも話しかけられる」：40〜70秒に 1回、4m より 近くを 歩いて いる 人が 立ち止まり、こちらを 向いて 声を かける（9秒 待って くれる）
+let callT = performance.now() + 20000, callM = null;
+const mobCaller = now => { if (callM && now > callM.calling) callM = null; if (callM || now < callT || !active()) return;
+  let best = null, bd = 4; for (const m of mobs) { if (!m.mesh.visible || m.t > 0 || !m.path) continue; const d = Math.hypot(m.x - P.x, m.z - P.z); if (d < bd) { bd = d; best = m; } }
+  if (!best) { callT = now + 3000; return; }   // 近くに だれも いない → 3秒 後に また 見る
+  callT = now + 40000 + Math.random() * 30000; callM = best; best.calling = best.talkT = now + 9000; best.callK = Math.floor(Math.random() * 5);
+  window.news(`💬 ${mobWho(best)}が 話しかけて きた`, 'k'); logEvent('mob_call', { id: best.id, role: best.role, k: best.callK, d: +bd.toFixed(1) }); };
 // 💬 監督 11/24「話すとき仕事の他に性別も」「職業不明な人は、話すとき町人」→ ボタンと 札に「仕事（男／女）」
 const questAt = () => { const q = S() && S().quest; return q ? (q.kind === 'find' && q.step ? { x: q.hx, z: q.hz } : { x: q.x, z: q.z }) : null; };
 const QUEST_SPOT = { k: 'quest', txt: () => { const q = S().quest; return q.kind === 'deliver' ? `📦 ${q.who}に 届ける` : q.step ? `🏠 ${q.name}に 返す` : `🔍 ${q.item}を 拾う`; }, go: () => window.questStep() };
 const questNear = () => { const t = questAt(); return t && Math.hypot(P.x - t.x, P.z - t.z) < 3.5 ? QUEST_SPOT : null; };
 const mobWho = m => { const s = window.edoS(), f = s && s.friends && s.friends.some(q => q.id === m.id); return (s && s.fr && s.fr[m.id] ? `${m.name}（${m.role}・${m.sex || '男'}）` : `${m.role}（${m.sex || '男'}）`) + (f ? ' 🤝' : ''); };
 const TOWN_SAY = [g => `${g.name}の ほうへ 用事に 行く ところ`, g => `${g.name}まで 買い物に 行く ところ`, g => `${g.name}に 知り合いが いてね。顔を 見に 行く ところ`];
-const MOB_SPOT = { k: 'mob', txt: () => `💬 ${talkM ? mobWho(talkM) : ''}と 話す`, go: () => { const m = talkM; if (!m) return; m.talkT = performance.now() + 5000;
+const mobInfo = (m, line) => ({ id: m.id, name: m.name, role: m.role, sex: m.sex || '男', town: !!m.town, home: m.home.name, line });
+const MOB_SPOT = { k: 'mob', txt: () => (talkM && talkM === callM ? `💬 ${mobWho(talkM)}に 返事を する` : `💬 ${talkM ? mobWho(talkM) : ''}と 話す`), go: () => { const m = talkM; if (!m) return; m.talkT = performance.now() + 5000;
+  if (m === callM) { callM = null; m.calling = 0; logEvent('mob_talk', { role: m.role, sex: m.sex, id: m.id, kind: 'call' }); return window.mobCallSheet(mobInfo(m, ''), m.callK); }
   const g = m.goal || {}, line = m.t > 0 ? (m.town ? `${g.name || m.work.name}で 用事を すませて いる ところ` : `いまは ${m.role}の 仕事の とちゅうだ。ここは ${m.work.name}の あたりだよ`)
     : m.role === '泥棒' && g.kind === 'work' ? '……な、なにも してないよ'
     : g.kind === 'work' ? `${m.role}の 仕事で、${m.work.name}へ 行くところだ`
@@ -1444,7 +1494,8 @@ function tick(now) {
   // ⚠ 夜は 家の 前から 始まる。出て すぐ「屋台を しまう」を 押して しまわないように、3秒は 出さない
   if (window.__mobTick) window.__mobTick(dt, now, !!night);
   netTick(now, dt);
-  talkM = night ? null : mobNear();
+  if (!night) mobCaller(now);
+  talkM = night ? null : callM && Math.hypot(callM.x - P.x, callM.z - P.z) < 4.5 ? callM : mobNear();
   const best = night ? (nearU ? N_UDON : nz && nz.k === 'home' && now - night.t0 > 3000 ? N_HOME : null) : (SPOTS.find(inSpot) || questNear() || (talkM && MOB_SPOT) || null);   // ⚠ 戸口が 先（町の 人より）
   const cb = $('call'), con = !!night && active(); if (cb.classList.contains('on') !== con) cb.classList.toggle('on', con);
   if (best !== cur) { cur = best;
@@ -1482,7 +1533,7 @@ document.body.classList.add('t3d');
 if ((navigator.maxTouchPoints || 0) > 0) document.body.classList.add('touch');
 logEvent('t3d', { ok: true });
 requestAnimationFrame(tick);
-if (DEV) window.__t = { P, SPOTS, boxes, blocked, get yaw() { return yaw; }, set yaw(v) { yaw = v; }, get cur() { return cur; }, get frames() { return frames; },
+if (DEV) window.__t = { P, SPOTS, boxes, blocked, callSoon() { callT = 0; }, get callM() { return callM; }, get yaw() { return yaw; }, set yaw(v) { yaw = v; }, get cur() { return cur; }, get frames() { return frames; },
   warp(k) { const s = SPOTS.find(q => q.k === k); P.set(s.x, 0, s.z); }, MAP, cellAt, nHouse, sil, get silOn() { return silOn; }, silCount() { silhouette(); if (!silOn) return 0; const gl = sil.getContext(), w = gl.drawingBufferWidth, h = gl.drawingBufferHeight, px = new Uint8Array(w * h * 4); gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px); let n = 0; for (let i = 3; i < px.length; i += 4) if (px[i]) n++; return n; }, keys, stick, camera, scene, yatai, udonG, drunk, zz, UPOS, mobs, get mobVis() { return mobVis; }, renderer, mobNear, PEERS, get talkM() { return talkM; } };
 } catch (e) { console.warn('⚠ 3D の 町を 出せなかった。ボタンの 画面で 遊べる', e); logEvent('t3d', { ok: false, err: String(e).slice(0, 120) }); }
 </script>
