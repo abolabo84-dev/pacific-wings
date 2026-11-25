@@ -220,7 +220,7 @@
 const $ = id => document.getElementById(id);
 const URLQ = new URLSearchParams(location.search);
 const DEV = URLQ.get('dev') === '1';
-const BUILD = 'edo-1125c';   // ⚠ 版の印
+const BUILD = 'edo-1125d';   // ⚠ 版の印
 // 🎨 見た目：パパ 11/23「2の漆」で 決まり（?ui=1／3 は 比べる 用に 残す）
 const UI = ['1', '2', '3'].includes(URLQ.get('ui')) ? URLQ.get('ui') : '2';
 document.body.classList.add('ui' + UI); window.edoUI = UI;
@@ -349,6 +349,8 @@ function refresh() {
 }
 // 🚶 つぎに 行く 所（じいさんの 台詞と 同じ 状態で 決める。3D の 町で 黄色い 印を 出す）
 function nextSpot() {
+  if (S.quest && S.hungry < 3) {   // 🙏 頼みごとの とちゅうは その 場所を 先に 案内（⚠ 3日 食べて いない ときは ごはんが 先）
+    const q = S.quest; return { k: 'quest', t: q.kind === 'deliver' ? `${q.place}の ${q.who}に 包みを 届ける` : q.step ? `${q.name}の 家へ ${q.item}を 返す` : `${q.place}で ${q.item}を さがす` }; }
   if (!S.house) return { k: 'home', t: '売り家へ。家を 買おう' };
   if (!S.job && S.soba) return { k: 'home', t: 'じぶんの 家へ。夜、屋台を 出そう' };
   if (!S.job) return S.mon < JOB_FEE && !S.lent ? { k: 'jii', t: '物知りな じいさんの 所へ' } : { k: 'home', t: 'じぶんの 家へ。回覧板を 見よう' };
@@ -793,38 +795,61 @@ function takeTap(k) {
 
 // 👥 町の 人と 話す（台詞は 3D の がわで その人の いまの ようすから 作る）
 // 🤝 11/25 監督 11/24「話しかけるとボタンに自分も話すをつくって」「話すと友達になれる」／パパ 11/23「街の人と話してイベントをこなすと だんだん やれる 仕事が 増える」（監督「これいいね」）
-// ⚠ こちらの 決め：話の たね 3つ・同じ 人と 3回 話すと 友だち（1回 話しかける ごとに 1回）・友だちに なった 仕事の 人は その 仕事を 回覧板に のせて くれる（遊べるのは これから の 仕事も ある）
-// ponytail: 友だちは 数えるだけ（遊びに 行く・地図・結婚は まだ）, つくる 順番の 3「地図」4「家の中」10「結婚」で 使う
-const FRIEND_N = 3;
+// 🙏 パパ 11/25「3回 話すのは 顔見知り。友達に なるには サブクエスト 次第」→ 顔見知りに なると 頼みごとを 聞ける。やりとげると 友だち（1と 2：届けもの・探しもの から）
+// ⚠ こちらの 決め：話の たね 3つ・3回で 顔見知り・頼みごとは 1度に 1つ・友だちに なった 仕事の 人は その 仕事を 回覧板に のせて くれる（遊べるのは これから の 仕事も ある）
+// ponytail: 頼みごとは 届けもの・探しもの の 2つだけ, 買いもの（つくる 順番の 5「お店」）・落語の 噺を 足す とき
+const KNOW_N = 3;
 const TOPICS = [
   ['👋 あいさつ する', o => (S.fr[o.id] ? 'やあ、また 会ったね。' : '') + (o.sex === '女' ? `わたしは ${o.name}。よろしくね` : `おれは ${o.name}だ。よろしくな`)],
   ['☀ 天気の 話を する', o => ['いい 天気だね。せんたく物が よく かわく', '風が 強いね。火の 元に 気を つけなきゃ', '雲が 出て きた。雨に なる 前に 帰ろう'][(o.id + (S.fr[o.id] || 0)) % 3]],
   ['🔨 仕事の 話を 聞く', o => o.town ? (o.sex === '女' ? '家の ことで いそがしいの。水くみ、せんたく、買い物…' : '日やといで いろいろ やってるよ。きょうは 荷運びだ') : `${o.role}の 仕事は たいへんだけど、おもしろいよ`],
 ];
 let talkO = null;
-const mobTitle = o => (S.fr && S.fr[o.id] ? `${o.name}（${o.role}・${o.sex}）` : `${o.role}（${o.sex}）`) + (S.friends && S.friends.some(f => f.id === o.id) ? ' 🤝' : '');
+const isFriend = id => (S.friends || []).some(f => f.id === id), isKnown = id => ((S.fr || {})[id] || 0) >= KNOW_N;
+const mobTitle = o => (S.fr && S.fr[o.id] ? `${o.name}（${o.role}・${o.sex}）` : `${o.role}（${o.sex}）`) + (isFriend(o.id) ? ' 🤝 友だち' : isKnown(o.id) ? ' 👋 顔見知り' : '');
 function mobSheet(o) {
   talkO = o; S.fr = S.fr || {}; S.friends = S.friends || []; S.jobsOpen = S.jobsOpen || {};
-  sheet(`<h2>💬 ${esc(mobTitle(o))}</h2><p class="hint say">「${esc(o.line)}」</p><div class="row"><button onclick="mobTalkMenu()">🗣 じぶんも 話す</button></div>${okBtn}`);
+  const q = S.quest, mine = q && q.from === o.id;
+  const fem = o.sex === '女', line = mine ? (q.kind === 'find' && q.step ? (fem ? `${q.item}、見つけて くれたの？ 家に 持って きて ちょうだい` : `${q.item}、見つけて くれたか。家に 持って きて くれ`) : (fem ? 'さっきの 頼みごと、よろしくね' : 'さっきの 頼みごと、よろしく たのむよ')) : o.line;
+  const btns = [`<button onclick="mobTalkMenu()">🗣 じぶんも 話す</button>`];
+  if (mine) btns.push(`<button onclick="questDrop()">🙅 頼みごとを やめる</button>`);
+  else if (isKnown(o.id) && !isFriend(o.id)) btns.push(q ? `<button disabled>🙏 いまは ${esc(q.name)}の 頼みごとの とちゅう</button>` : `<button onclick="questAsk()">🙏 頼みごとを 聞く</button>`);
+  sheet(`<h2>💬 ${esc(mobTitle(o))}</h2><p class="hint say">「${esc(line)}」</p><div class="row">${btns.join('')}</div>${okBtn}`);
 }
 function mobTalkMenu() { const o = talkO; if (!o) return closeSheet();
   sheet(`<h2>🗣 ${esc(mobTitle(o))}と 話す</h2><p class="hint">何の 話を する？</p><div class="row">` + TOPICS.map((t, i) => `<button onclick="mobSay(${i})">${t[0]}</button>`).join('') + `</div>${okBtn}`); }
 function mobSay(i) {
   const o = talkO; if (!o || !TOPICS[i]) return closeSheet();
   const ans = TOPICS[i][1](o); S.fr[o.id] = (S.fr[o.id] || 0) + 1;
-  const n = S.fr[o.id], isF = S.friends.some(f => f.id === o.id); let after = '';
+  const n = S.fr[o.id]; let after = '';
   logEvent('mob_say', { id: o.id, role: o.role, sex: o.sex, topic: i, n });
-  if (!isF && n >= FRIEND_N) {
-    S.friends.push({ id: o.id, name: o.name, role: o.role, sex: o.sex, home: o.home, day: S.day });
-    after = `<p class="hint">🤝 <b>${esc(o.name)}と 友だちに なった！</b>（家は ${esc(o.home)}の あたり）</p>`;
-    news(`🤝 ${o.name}（${o.role}）と 友だちに なった。`, 'good'); logEvent('friend', { id: o.id, role: o.role, sex: o.sex, n: S.friends.length });
-    if (!o.town && JOBS.some(j => j[0] === o.role) && !S.jobsOpen[o.role]) {
-      S.jobsOpen[o.role] = 1; after += `<p class="hint">📋 ${esc(o.name)}「${esc(o.role)}の 仕事、やって みるかい？ 回覧板に のせて おくよ」</p>`;
-      news(`📋 ${o.name}が ${o.role}の 仕事を 回覧板に のせて くれた。`, 'k'); logEvent('job_open', { k: o.role });
-    }
-  } else if (!isF) after = `<p class="hint">あと ${FRIEND_N - n}回 話すと 友だちに なれそう</p>`;
+  if (n === KNOW_N && !isFriend(o.id)) { after = `<p class="hint">👋 <b>${esc(o.name)}と 顔見知りに なった。</b>何か 困って いる ことが ある らしい</p>`; news(`👋 ${o.name}（${o.role}）と 顔見知りに なった。`, 'k'); logEvent('know', { id: o.id, role: o.role }); }
+  else if (n < KNOW_N) after = `<p class="hint">あと ${KNOW_N - n}回 話すと 顔見知りに なれそう</p>`;
   save();
-  sheet(`<h2>🗣 ${esc(mobTitle(o))}</h2><p class="hint say">「${esc(ans)}」</p>${after}${okBtn}`);
+  sheet(`<h2>🗣 ${esc(mobTitle(o))}</h2><p class="hint say">「${esc(ans)}」</p>${after}<div class="row">${n === KNOW_N && !isFriend(o.id) && !S.quest ? '<button onclick="questAsk()">🙏 頼みごとを 聞く</button>' : ''}</div>${okBtn}`);
+}
+function questAsk() {
+  const o = talkO; if (!o || S.quest || !window.mobQuest) return closeSheet();
+  const q = window.mobQuest(o); if (!q) return sheet(`<h2>🙏 ${esc(o.name)}</h2><p class="hint say">「いまは だいじょうぶ。また こんど たのむよ」</p>${okBtn}`);
+  S.quest = q; save(); logEvent('quest_give', { from: o.id, kind: q.kind, place: q.place });
+  const ask = q.kind === 'deliver' ? (o.sex === '女' ? `この 包みを、${q.place}に 住む 親せきの ${q.who}に 届けて くれない？` : `この 包みを、${q.place}に 住む 親せきの ${q.who}に 届けて くれないか`) : o.sex === '女' ? `${q.place}の あたりで ${q.item}を 落として しまったの。見つけたら 家まで 持って きて ちょうだい` : `${q.place}の あたりで ${q.item}を 落として しまった。見つけたら 家まで 持って きて くれ`;
+  news(`🙏 ${o.name}の 頼みごと：${q.kind === 'deliver' ? q.place + 'の ' + q.who + 'に 包みを 届ける' : q.place + 'で ' + q.item + 'を さがす'}`, 'k');
+  sheet(`<h2>🙏 ${esc(o.name)}の 頼みごと</h2><p class="hint say">「${esc(ask)}」</p><p class="hint">黄色い 印と 矢じるしが 場所を 教えて くれる</p>${okBtn}`);
+}
+function questDrop() { const q = S.quest; if (!q) return closeSheet(); logEvent('quest_drop', { from: q.from, kind: q.kind, step: q.step }); S.quest = null; save(); news(`🙅 ${q.name}の 頼みごとを やめた。`, ''); closeSheet(); }
+// 3D の がわから：頼みごとの 場所で「入る」を 押した
+function questStep() {
+  const q = S.quest; if (!q) return;
+  if (q.kind === 'find' && !q.step) { q.step = 1; save(); logEvent('quest_step', { from: q.from, kind: q.kind, step: 1 }); news(`🔍 ${q.item}を 見つけた！ ${q.name}の 家（${q.home}）へ 返しに 行こう。`, 'good');
+    return sheet(`<h2>🔍 ${esc(q.item)}を 見つけた</h2><p class="hint">${esc(q.name)}の 家（${esc(q.home)}の あたり）へ 持って いこう</p>${okBtn}`); }
+  const thanks = q.kind === 'deliver' ? `${q.who}「おや、${q.name}から かい。ありがとう。よろしく つたえて おくれ」` : q.sex === '女' ? `${q.name}「ありがとう！ これ、大事な ものだったの」` : `${q.name}「ありがとう！ これは 大事な ものだったんだ」`;
+  S.quest = null; S.friends = S.friends || []; S.jobsOpen = S.jobsOpen || {}; S.friends.push({ id: q.from, name: q.name, role: q.role, sex: q.sex, home: q.home, day: S.day });
+  let after = `<p class="hint">🤝 <b>${esc(q.name)}と 友だちに なった！</b></p>`;
+  news(`🤝 ${q.name}（${q.role}）と 友だちに なった。`, 'good'); logEvent('friend', { id: q.from, role: q.role, sex: q.sex, kind: q.kind, n: S.friends.length });
+  if (!q.town && JOBS.some(j => j[0] === q.role) && !S.jobsOpen[q.role]) {
+    S.jobsOpen[q.role] = 1; after += `<p class="hint">📋 ${esc(q.name)}「${esc(q.role)}の 仕事、やって みるかい？ 回覧板に のせて おくよ」</p>`;
+    news(`📋 ${q.name}が ${q.role}の 仕事を 回覧板に のせて くれた。`, 'k'); logEvent('job_open', { k: q.role }); }
+  save(); sheet(`<h2>${q.kind === 'deliver' ? '📦 届けた' : '🏠 返した'}</h2><p class="hint say">「${esc(thanks)}」</p>${after}${okBtn}`);
 }
 
 // ============ 👥 みんなで あそぶ（監督 11/5 16:25「すべてのゲームにみんなでルームを作りたい」・パパ 11/23「全部のゲームがマルチプレイ対応」）============
@@ -1157,6 +1182,13 @@ if (G && MOB_N) {
     const m = { id: k, name: (sex === '女' ? NM_F : NM_M)[Math.floor(R() * (sex === '女' ? NM_F : NM_M).length)], role, sex, town, eatOk, near, home: { ...home, name: placeAt(hx, hz) }, work: pick(near), plan: Math.floor(R() * 4), mesh, x: 0, z: 0, spd: (sex === '女' ? 1.0 : 1.1) + R() * 0.6, ph: R() * 6, inside: false, t: 0, talkT: 0, path: null, k: 0, hx: 0, hz: -1, side: 0, wo: [(R() - 0.5) * 2.2, (R() - 0.5) * 2.2], say: Math.floor(R() * 3) };
     mobs.push(m); mobGo(m, home.v, true);
   }
+  // 🙏 頼みごと（パパ 11/25）：届け先・落とし物の 場所＝いまの 場所から 50〜170m の 戸口。家に 返す ときは 頼んだ 人の 家の 戸口
+  const WHO = ['おじさん', 'おばさん', 'じいさま', 'ばあさま', 'いとこ'], ITEM = ['財布', 'かんざし', '手ぬぐい', 'たばこ入れ', '鍵'];
+  window.mobQuest = o => { const m = mobs.find(q => q.id === o.id); if (!m) return null; const s = window.edoS();
+    const cand = doors.filter(d => { const dd = Math.hypot(cx(d.v) - P.x, cz(d.v) - P.z); return dd > 50 && dd < 170; }); if (!cand.length) return null;
+    const R = rngOf(o.id * 31 + (s.friends || []).length + (s.day || 0)), d = cand[Math.floor(R() * cand.length)], x = cx(d.v), z = cz(d.v);
+    return { from: o.id, name: o.name, role: o.role, sex: o.sex, town: !!o.town, home: o.home, kind: (o.id + (s.friends || []).length) % 2 ? 'find' : 'deliver', step: 0,
+      x: +x.toFixed(1), z: +z.toFixed(1), place: placeAt(x, z), who: WHO[Math.floor(R() * WHO.length)], item: ITEM[Math.floor(R() * ITEM.length)], hx: +cx(m.home.v).toFixed(1), hz: +cz(m.home.v).toFixed(1) }; };
   // つぎの 行き先へ（plan：0 仕事場 → 1 ごはん → 2 仕事場 → 3 家）
   function mobGo(m, from, first) {
     for (let tries = 0; tries < 4; tries++) {
@@ -1197,7 +1229,7 @@ if (G && MOB_N) {
       if (!blocked(a.x - rx * k, a.z - rz * k, 0.45)) { a.x -= rx * k; a.z -= rz * k; }
       if (!blocked(b.x + rx * k, b.z + rz * k, 0.45)) { b.x += rx * k; b.z += rz * k; } }
     for (const a of act) { const rx = a.x - P.x, rz = a.z - P.z, d = Math.hypot(rx, rz) || 0.01;   // じぶんには 押し分けられる（じぶんは 動かない）
-      if (d < 0.9) { const k = (0.9 - d) / d; if (!blocked(a.x + rx * k, a.z + rz * k, 0.45)) { a.x += rx * k; a.z += rz * k; } } }
+      if (d < 0.9) { const k = (0.9 - d) / d; if (!blocked(a.x + rx * k, a.z + rz * k, 0.45)) { a.x += rx * k; a.z += rz * k; } else if (!blocked(P.x - rx * k, P.z - rz * k, 0.45)) { P.x -= rx * k; P.z -= rz * k; } } }   // 11/25：壁ぎわで 押せない 人には じぶんが 止められる（体に 入らない）
   }
   window.__mobTick = (dt, now, night) => {
     mobVis = 0;
@@ -1228,6 +1260,9 @@ if (G && MOB_N) {
 const mobNear = () => { let best = null, bd = MOB.talk; for (const m of mobs) { if (!m.mesh.visible) continue; const d = Math.hypot(m.x - P.x, m.z - P.z); if (d < bd) { bd = d; best = m; } } return best; };
 let talkM = null;
 // 💬 監督 11/24「話すとき仕事の他に性別も」「職業不明な人は、話すとき町人」→ ボタンと 札に「仕事（男／女）」
+const questAt = () => { const q = S() && S().quest; return q ? (q.kind === 'find' && q.step ? { x: q.hx, z: q.hz } : { x: q.x, z: q.z }) : null; };
+const QUEST_SPOT = { k: 'quest', txt: () => { const q = S().quest; return q.kind === 'deliver' ? `📦 ${q.who}に 届ける` : q.step ? `🏠 ${q.name}に 返す` : `🔍 ${q.item}を 拾う`; }, go: () => window.questStep() };
+const questNear = () => { const t = questAt(); return t && Math.hypot(P.x - t.x, P.z - t.z) < 3.5 ? QUEST_SPOT : null; };
 const mobWho = m => { const s = window.edoS(), f = s && s.friends && s.friends.some(q => q.id === m.id); return (s && s.fr && s.fr[m.id] ? `${m.name}（${m.role}・${m.sex || '男'}）` : `${m.role}（${m.sex || '男'}）`) + (f ? ' 🤝' : ''); };
 const TOWN_SAY = [g => `${g.name}の ほうへ 用事に 行く ところ`, g => `${g.name}まで 買い物に 行く ところ`, g => `${g.name}に 知り合いが いてね。顔を 見に 行く ところ`];
 const MOB_SPOT = { k: 'mob', txt: () => `💬 ${talkM ? mobWho(talkM) : ''}と 話す`, go: () => { const m = talkM; if (!m) return; m.talkT = performance.now() + 5000;
@@ -1410,7 +1445,7 @@ function tick(now) {
   if (window.__mobTick) window.__mobTick(dt, now, !!night);
   netTick(now, dt);
   talkM = night ? null : mobNear();
-  const best = night ? (nearU ? N_UDON : nz && nz.k === 'home' && now - night.t0 > 3000 ? N_HOME : null) : (SPOTS.find(inSpot) || (talkM && MOB_SPOT) || null);   // ⚠ 戸口が 先（町の 人より）
+  const best = night ? (nearU ? N_UDON : nz && nz.k === 'home' && now - night.t0 > 3000 ? N_HOME : null) : (SPOTS.find(inSpot) || questNear() || (talkM && MOB_SPOT) || null);   // ⚠ 戸口が 先（町の 人より）
   const cb = $('call'), con = !!night && active(); if (cb.classList.contains('on') !== con) cb.classList.toggle('on', con);
   if (best !== cur) { cur = best;
     if (cur && cur.k === 'mob') logEvent('mob_near', { role: talkM.role });
@@ -1419,7 +1454,7 @@ function tick(now) {
   if (on) { const t = cur.txt(); if (a.textContent !== t) a.textContent = t; }
   if (a.classList.contains('on') !== on) a.classList.toggle('on', on);
   // ➡ つぎは ここ
-  const n = window.edoNext(), ns = n && SPOTS.find(s => s.k === n.k);
+  const n = window.edoNext(), ns = n && (n.k === 'quest' ? questAt() : SPOTS.find(s => s.k === n.k));
   { const cmp = $('compass'); if (ns && !night) { const dx = ns.x - P.x, dz = ns.z - P.z, near = Math.hypot(dx, dz) < 9;   // ➤ つぎの 所の 方角（じぶんの 前が 上）
       const a = Math.atan2(dx, dz) - Math.atan2(-Math.sin(yaw), -Math.cos(yaw)); cmp.style.transform = `rotate(${(-a * 180 / Math.PI).toFixed(0)}deg)`; cmp.style.visibility = near ? 'hidden' : 'visible'; mark.userData.near = near; }
     else cmp.style.visibility = 'hidden'; }
