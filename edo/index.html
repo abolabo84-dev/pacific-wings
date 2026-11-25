@@ -220,7 +220,7 @@
 const $ = id => document.getElementById(id);
 const URLQ = new URLSearchParams(location.search);
 const DEV = URLQ.get('dev') === '1';
-const BUILD = 'edo-1123l';   // ⚠ 版の印
+const BUILD = 'edo-1125a';   // ⚠ 版の印
 // 🎨 見た目：パパ 11/23「2の漆」で 決まり（?ui=1／3 は 比べる 用に 残す）
 const UI = ['1', '2', '3'].includes(URLQ.get('ui')) ? URLQ.get('ui') : '2';
 document.body.classList.add('ui' + UI); window.edoUI = UI;
@@ -257,7 +257,9 @@ async function sendLog() {
 }
 setInterval(sendLog, 60000);
 addEventListener('beforeunload', () => { if (!DEV && sentCount < gameLog.length) try { navigator.sendBeacon(CLOUD_URL, cloudBody(gameLog.slice(sentCount))); } catch (e) {} });
-logEvent('open', { build: BUILD, w: innerWidth, h: innerHeight, touch: (navigator.maxTouchPoints || 0) > 0 });
+logEvent('open', { build: BUILD, w: innerWidth, h: innerHeight, touch: (navigator.maxTouchPoints || 0) > 0, ua: navigator.userAgent.slice(0, 160) });
+// 🔍 11/25：3D の 部品（module）が 動かなかった ときも ログに 残す（11/24 の iPhone では 何も 残らなかった）
+setTimeout(() => { if (!window.__edo3d) logEvent('t3d', { ok: false, err: '3D の 部品が 動かなかった（module 未実行）' }); }, 10000);
 addEventListener('pointerdown', e => logEvent('tap', { x: Math.round(e.clientX), y: Math.round(e.clientY), id: (e.target.closest('[id]') || {}).id || '' }), true);
 
 // ============ きまり（監督の 数字は そのまま。⚠ は こちらの 決め） ============
@@ -816,7 +818,8 @@ if (DEV) window.__e = { get N() { return N; }, get C() { return C; }, get SP() {
 { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
 </script>
 <script type="module">
-import * as THREE from 'three';
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';   // ⚠ 11/25：importmap を 使わず 直接 読む（iOS 15 の Safari は importmap が 使えず、3D が 動かなかった。監督 11/24「歩けなくなって ボタンと 台詞に なった」）
+window.__edo3d = 1;   // module が 動いた 印（↑ の 見張りが 見る）
 const $ = id => document.getElementById(id);
 const DEV = new URLSearchParams(location.search).get('dev') === '1';
 const logEvent = window.logEvent;

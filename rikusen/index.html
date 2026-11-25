@@ -271,7 +271,7 @@
 { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
 </script>
 <script type="module">
-import * as THREE from 'three';
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';   // ⚠ 11/25：importmap を 使わず 直接 読む（iOS 15 の Safari は importmap が 使えず、3D が 動かなかった。監督 11/24「歩けなくなって ボタンと 台詞に なった」）
 
 // ============ ゲームログ（v6と同じ・常時ON。テストプレイは全部データ） ============
 const LOG_TAG = new URLSearchParams(location.search).get('tag') || 'rikusen';
@@ -1391,7 +1391,7 @@ let lastT = performance.now(), fireCd = 0, grenCd = 0, skillCd = 0, knifeCd = 0;
 const DEVMODE = new URLSearchParams(location.search).get('dev') === '1';
 // ⚠ 版の印。監督がスマホで試して報告してくるので、**どの版を見ているか**が分からないと
 //    直したはずの物を「まだ直ってない」と言われる（古いキャッシュを見ているだけ、が起きる）
-const BUILD = 'riku-1123b';
+const BUILD = 'riku-1125a';
 { const e = document.getElementById('buildTag'); if (e) e.textContent = '版:' + BUILD; }
 const devPump = (() => {
   if (!DEVMODE) return null;
