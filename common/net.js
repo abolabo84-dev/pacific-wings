@@ -36,10 +36,18 @@
     net.send = (kind, d) => { if (!net.on) return; const msg = JSON.stringify({ a: kind, d });
       for (const id in net.conns) { const c = net.conns[id]; if (c.dc && c.dc.readyState === 'open' && net.seatOk(id)) { try { c.dc.send(msg); } catch (e) {} } } };
     function drop(id) { const c = net.conns[id]; if (!c) return; delete net.conns[id]; try { c.pc.close(); } catch (e) {} if (c.open) { log('net_peer_leave', { id }); net.leaveFns.forEach(f => f(id)); } }
+    // 🔧 11/24（10人で 測った：同時に 入ると 240秒で 45本中 11本しか つながらなかった。tools/measure_mesh.js）
+    //   ① ICE を 1通ずつ 送らない：集め終わるまで（長くて GATHER_MS）待って、offer／answer の 中に 入れて 1通で 送る（道1本 約10通 → 2通）
+    //   ② 手紙が 届かなかった・とちゅうで 止まった 道は 作り直す（送れなかったら すぐ／OPEN_MS たっても ひらかなければ）
+    const GATHER_MS = 2500, OPEN_MS = 20000;
+    // ponytail: GAS 中継所は 1列に 並ぶ（1回 約0.27秒・11/24 測定）＝同時に 入るのは 10人まで（手元で 10人 70秒・20人は つながらない）, 20人より 多く・鋼の 430人は まん中で 配る サーバー（WebSocket など）に 移す
+    const gathered = pc => pc.iceGatheringState === 'complete' ? Promise.resolve() : new Promise(ok => {
+      const t = setTimeout(ok, GATHER_MS); pc.addEventListener('icegatheringstatechange', () => { if (pc.iceGatheringState === 'complete') { clearTimeout(t); ok(); } }); });
+    const sendDesc = (id, c, t) => gathered(c.pc).then(() => { if (net.conns[id] !== c) return; return call({ action: 'send', room: room(), me: net.me, to: id, m: { t, s: c.pc.localDescription } }); })
+      .catch(() => { if (net.conns[id] === c) drop(id); });   // 中継所が いっぱいで 送れなかった＝道を 消して つぎの 見回りで やり直す
     function conn(id, initiator) {
       if (net.conns[id]) return net.conns[id];
-      const gen = net.gen, c = { pc: new RTCPeerConnection(ICE), dc: null, open: false, pend: [] }; net.conns[id] = c;
-      c.pc.onicecandidate = e => { if (e.candidate && gen === net.gen) call({ action: 'send', room: room(), me: net.me, to: id, m: { t: 'ice', c: e.candidate } }).catch(() => {}); };
+      const c = { pc: new RTCPeerConnection(ICE), dc: null, open: false, pend: [], t0: Date.now() }; net.conns[id] = c;
       c.pc.onconnectionstatechange = () => { if (['failed', 'closed'].includes(c.pc.connectionState) && net.conns[id] === c) drop(id); };   // 切れたら 消す＝つぎの 見回りで 道を 作り直す
       const wire = dc => { c.dc = dc;
         dc.onopen = () => { c.open = true; log('net_peer_join', { id, n: net.count() }); net.joinFns.forEach(f => f(id)); };
@@ -47,18 +55,22 @@
         dc.onmessage = ev => { if (!net.seatOk(id)) return; let p; try { p = JSON.parse(ev.data); } catch (e) { return; } const h = p && net.acts[p.a]; if (h) { try { h(p.d, id); } catch (e) { log('net_bad', { a: String(p.a).slice(0, 8), msg: String(e).slice(0, 80) }); } } };
       };
       if (initiator) { wire(c.pc.createDataChannel('game'));
-        c.pc.createOffer().then(o => c.pc.setLocalDescription(o)).then(() => call({ action: 'send', room: room(), me: net.me, to: id, m: { t: 'offer', s: c.pc.localDescription } })).catch(() => {}); }
+        c.pc.createOffer().then(o => c.pc.setLocalDescription(o)).then(() => sendDesc(id, c, 'offer')).catch(() => { if (net.conns[id] === c) drop(id); }); }
       else c.pc.ondatachannel = e => wire(e.channel);
       return c;
     }
     async function onMsg(from, m) {
       if (!m || typeof m !== 'object') return;
+      // 新しい offer が 来た＝相手が 道を 作り直した → こちらの 古い 道は 捨てる（古い 道に 重ねると こわれて 二度と ひらかない）
+      if (m.t === 'offer' && net.conns[from] && (net.conns[from].pc.remoteDescription || net.conns[from].open)) drop(from);
       const c = conn(from, false), flush = async () => { for (const i of c.pend.splice(0)) await c.pc.addIceCandidate(i).catch(() => {}); };
-      if (m.t === 'offer') { await c.pc.setRemoteDescription(m.s); await c.pc.setLocalDescription(await c.pc.createAnswer());
-        await call({ action: 'send', room: room(), me: net.me, to: from, m: { t: 'answer', s: c.pc.localDescription } }); await flush(); }
-      else if (m.t === 'answer') { await c.pc.setRemoteDescription(m.s); await flush(); }
-      else if (m.t === 'ice') { if (c.pc.remoteDescription) await c.pc.addIceCandidate(m.c).catch(() => {}); else c.pend.push(m.c); }   // 手紙の 順番が 入れかわる ことが ある
+      if (m.t === 'offer') { await c.pc.setRemoteDescription(m.s); await c.pc.setLocalDescription(await c.pc.createAnswer()); await flush();
+        sendDesc(from, c, 'answer'); }   // ⚠ 待たない（ICE を 集める 間に ほかの 手紙を 読む）
+      else if (m.t === 'answer') { if (c.pc.signalingState === 'have-local-offer') { await c.pc.setRemoteDescription(m.s); await flush(); } }
+      else if (m.t === 'ice') { if (c.pc.remoteDescription) await c.pc.addIceCandidate(m.c).catch(() => {}); else c.pend.push(m.c); }   // 前の 版（1通ずつ 送る）から 来ても 受ける
     }
+    // ② とちゅうで 止まった 道（offer か answer が 消えた）を 消す → ID の 小さい ほうが つぎの 見回りで 作り直す
+    const sweep = () => { const now = Date.now(); for (const id of Object.keys(net.conns)) { const c = net.conns[id]; if (!c.open && now - c.t0 > OPEN_MS) { log('net_retry', { id }); drop(id); } } };
     async function loop(gen) {
       if (net.stop || gen !== net.gen) return;
       let wait = 3000;
@@ -67,6 +79,7 @@
         if (gen !== net.gen) return;
         if (!j || !Array.isArray(j.peers)) throw new Error('GAS の 返事に peers が ない');
         if (net.err) { net.err = ''; }
+        sweep();
         for (const id of j.peers) if (typeof id === 'string' && id !== net.me && !net.conns[id] && net.me < id) conn(id, true);   // ④ ID の 小さい ほうから
         for (const it of (j.msgs || [])) await onMsg(it.from, it.m).catch(() => {});
         const ids = Object.keys(net.conns), allOpen = ids.length > 0 && ids.every(k => net.conns[k].open);
@@ -83,7 +96,7 @@
       if (!/^\d{1,8}$/.test(word)) { setStatus('あいことばは 数字だけ／1〜8けたで 打ってね'); return false; }
       if (net.on && net.word === word) return true;   // ② 同じ あいことばの 押し直し・連打は 何も しない
       net.leave(true); net.gen++; net.word = word; net.on = true; net.stop = false;
-      log('net_join', { word, me: net.me, game: opt.game }); setStatus('つないでいます…（すこし まってね）');
+      log('net_join', { word, me: net.me, game: opt.game, v: 'net-1124a' }); setStatus('つないでいます…（すこし まってね）');
       loop(net.gen); return true;
     };
     net.leave = quiet => { if (!net.on) return; net.stop = true; net.gen++; for (const id of Object.keys(net.conns)) drop(id); net.on = false; if (!quiet) { log('net_leave', { word: net.word }); setStatus(''); } net.word = ''; };
