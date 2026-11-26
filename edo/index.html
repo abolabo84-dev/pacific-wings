@@ -235,7 +235,7 @@
 const $ = id => document.getElementById(id);
 const URLQ = new URLSearchParams(location.search);
 const DEV = URLQ.get('dev') === '1';
-const BUILD = 'edo-1126e';   // ⚠ 版の印
+const BUILD = 'edo-1126f';   // ⚠ 版の印
 // 🎨 見た目：パパ 11/23「2の漆」で 決まり（?ui=1／3 は 比べる 用に 残す）
 const UI = ['1', '2', '3'].includes(URLQ.get('ui')) ? URLQ.get('ui') : '2';
 document.body.classList.add('ui' + UI); window.edoUI = UI;
@@ -1285,7 +1285,9 @@ const geoC = {}, mergedGeo = (cloth, hair) => geoC[cloth + '|' + hair] || (geoC[
 // ⚠ こちらの 決め：人数 100（?mob=N で 変えられる）・歩く 速さ・家や 店に いる 時間・家は はじめの 通りの 近くに 半分・見た目の 色・台詞
 // ⚠ 地図の ます目は 町並みの 作り直しで 変わる → 場所は ぜんぶ 読みこんだ ます目から 決める（決めうちの 座標は 店の 戸口 3つ だけ）
 // ponytail: 仕事を 変えない・家を 買わない・ゲームの 日と つながらない・夜は みんな 家（見えない）, 監督の「仕事に ついたり 家を 買ったり」を 作る とき・町並みを 作り直す とき
-const MOB_N = Math.max(0, Math.min(200, parseInt(new URLSearchParams(location.search).get('mob') ?? '100', 10) || 0));
+// 🏙 11/26 監督（パパとの 雑談）「ローディングなどを上手くやって、自然で生き生きとした街にしたい」→ 600人。近くの 人だけ 毎コマ 動かし、遠くの 人は 0.5秒に 1回 ざっと 動かす（下の farStep）
+//   測った こと（6倍 おそく した CPU）：前は 町の 人の 計算が 100人で 1コマ 2.2ms・600人で 14ms（人数に 比例）。見える 人は はじめの 通りで 7人 → 600人で 38人
+const MOB_N = Math.max(0, Math.min(1000, parseInt(new URLSearchParams(location.search).get('mob') ?? '600', 10) || 0));
 const MOB = { see: 80, talk: 2.3, lane: 0.9 };
 let mrs = 777; const mrand = () => (mrs = (mrs * 16807) % 2147483647) / 2147483647, mpick = a => a[Math.floor(mrand() * a.length)];   // ⚠ mob だけの 種（いつも 同じ 町）
 const mobs = []; let mobVis = 0;
@@ -1320,8 +1322,11 @@ if (G && MOB_N) {
   const doorsNear = doors.filter(d => Math.abs(cx(d.v)) < 60 && cz(d.v) > -70 && cz(d.v) < 45), doorsFar = doors.filter(d => Math.hypot(cx(d.v), cz(d.v) + 60) < 230);
   const rngOf = k => { let r = ((k + 1) * 2654435761) % 2147483647 || 1; return () => (r = (r * 16807) % 2147483647) / 2147483647; };   // 1人 1人 べつの 種＝人数や 仕事の 数が 変わっても ほかの 人は 変わらない
   const FEM = [0xa83a4a, 0xb0506a, 0x8a3a6a, 0xc0603a, 0x9a4a5a, 0x7a3a5a];
-  const NM_M = ['八五郎', '熊五郎', '吉兵衛', '与太郎', '甚兵衛', '清八', '喜六', '源太', '金太', '留吉', '辰五郎', '半次'], NM_F = ['おみつ', 'おきく', 'おはな', 'おとし', 'おせん', 'おまつ', 'おかね', 'おふく', 'おさよ', 'おたけ'];   // ⚠ こちらの 決め（落語に よく 出る 名前）
-  let jobN = 0;
+  const NM_M = ['八五郎', '熊五郎', '吉兵衛', '与太郎', '甚兵衛', '清八', '喜六', '源太', '金太', '留吉', '辰五郎', '半次'], NM_F = ['おみつ', 'おきく', 'おはな', 'おとし', 'おせん', 'おまつ', 'おかね', 'おふく', 'おさよ', 'おたけ'];
+  // ⚠ 101人目からは 名前を 足した 表から（100人目までの 名前は 変えない＝友だちの 名前が 変わらない）。足した 名前も こちらの 決め
+  const NM_M2 = [...NM_M, '半七', '佐吉', '平助', '伊之助', '長吉', '新助', '太助', '権兵衛', '茂兵衛', '庄助', '弥太郎', '亀吉', '松五郎', '寅吉'], NM_F2 = [...NM_F, 'おけい', 'おしず', 'おなつ', 'おゆき', 'おりん', 'おちよ', 'おたね', 'おもと', 'おくに', 'おいと'];   // ⚠ こちらの 決め（落語に よく 出る 名前）
+  let jobN = 0, nLater = 0; const MOB_NEAR0 = 260, mobT0 = performance.now();
+  let r2s = 4242; const R2 = () => (r2s = (r2s * 16807) % 2147483647) / 2147483647;   // ⚠ 1人 1人の 種（R）は 使わない（使うと 101人目からの 人が 変わる）
   for (let k = 0; k < MOB_N && doors.length && works.length; k++) {
     const R = rngOf(k), pick = a => a[Math.floor(R() * a.length)], town = k % 10 < 3, sex = town && R() < 0.75 ? '女' : '男';
     const role = town ? '町人' : ROLES[jobN++ % ROLES.length];
@@ -1333,8 +1338,11 @@ if (G && MOB_N) {
     const cloth = role === '奉行' ? 0x2a2a3a : role === '泥棒' ? 0x22304a : sex === '女' ? pick(FEM) : pick(CLOTH), hair = sex === '男' && R() < 0.25 ? 0xdddddd : 0x1a1a1a;
     const mesh = new THREE.Mesh(mobGeo(cloth, hair), mobMat); if (role === '力士') mesh.scale.set(1.35, 1.05, 1.35); if (sex === '女') mesh.scale.set(0.94, 0.95, 0.94); mesh.visible = false; scene.add(mesh);
     const eatOk = SPREAD === 'near' || EATS.some(e => e.v >= 0 && Math.hypot(cx(e.v) - hx, cz(e.v) - hz) < 220);
-    const m = { id: k, name: (sex === '女' ? NM_F : NM_M)[Math.floor(R() * (sex === '女' ? NM_F : NM_M).length)], role, sex, town, eatOk, near, home: { ...home, name: placeAt(hx, hz) }, work: pick(near), plan: Math.floor(R() * 4), mesh, x: 0, z: 0, spd: (sex === '女' ? 1.0 : 1.1) + R() * 0.6, ph: R() * 6, inside: false, t: 0, talkT: 0, path: null, k: 0, hx: 0, hz: -1, side: 0, wo: [(R() - 0.5) * 2.2, (R() - 0.5) * 2.2], say: Math.floor(R() * 3) };
-    mobs.push(m); mobGo(m, home.v, true);
+    const NL = k < 100 ? (sex === '女' ? NM_F : NM_M) : (sex === '女' ? NM_F2 : NM_M2);
+    const m = { id: k, name: NL[Math.floor(R() * NL.length)], role, sex, town, eatOk, near, home: { ...home, name: placeAt(hx, hz) }, work: pick(near), plan: Math.floor(R() * 4), mesh, x: 0, z: 0, spd: (sex === '女' ? 1.0 : 1.1) + R() * 0.6, ph: R() * 6, inside: false, t: 0, talkT: 0, path: null, k: 0, hx: 0, hz: -1, side: 0, wo: [(R() - 0.5) * 2.2, (R() - 0.5) * 2.2], say: Math.floor(R() * 3) };
+    mobs.push(m);
+    if (Math.hypot(hx, hz - 22) < MOB_NEAR0) mobGo(m, home.v, true);
+    else { m.x = hx; m.z = hz; m.inside = true; m.plan = 3; m.t = R2() * 45; nLater++; }   // 遠くの 人：家の 中から 0〜45秒の あいだに 1人ずつ 出て くる
   }
   // 🙏 頼みごと（パパ 11/25）：届け先・落とし物の 場所＝いまの 場所から 50〜170m の 戸口。家に 返す ときは 頼んだ 人の 家の 戸口
   const WHO = ['おじさん', 'おばさん', 'じいさま', 'ばあさま', 'いとこ'], ITEM = ['財布', 'かんざし', '手ぬぐい', 'たばこ入れ', '鍵'];
@@ -1355,6 +1363,8 @@ if (G && MOB_N) {
     m.path = null; m.t = 30;   // 行けない ときは その場で 少し 待つ
   }
   window.__mobGo = mobGo;
+  logEvent('mob_init', { n: mobs.length, later: nLater, ms: Math.round(performance.now() - mobT0) });
+  window.__mobFar = () => farN;
   function mobPoint(m) {   // つぎに 向かう 点（進む 向きの 右がわ＝向かいから 来る 人と すれちがう。⚠ じいさんたちに ぶつかる ときは まんなか）
     const p = m.path, a = p[m.k], b = p[m.k + 1];
     if (m.k + 1 === p.length - 1 && m.goal.kind !== 'work' && m.goal.kind !== 'walk') return { x: cx(b) + (m.goal.dx || 0) * 1.5, z: cz(b) + (m.goal.dz || 0) * 1.5 };   // さいごは 戸口へ
@@ -1364,7 +1374,7 @@ if (G && MOB_N) {
   }
   // 🚶‍♂️ よけ合う（パパ 11/23「町の人どうしがよけ合う」）：前に 同じ 向きの 人 → 速さを 合わせて ついて行く／止まって いる 人・向かいから 来る 人 → 横に よける／
   //   それでも 体が 重なったら 押し分ける。⚠ よける 強さ・きょりは こちらの 決め
-  // ponytail: 近くの 人を 毎コマ ぜんぶ 比べる（100人で 5000組）, 200人より 増やす ときは ます目で 分ける
+  // ponytail: 近くの 人を 毎コマ ぜんぶ 比べる（90m の 中の 人だけ。600人で はじめの 通り 約50人＝2500組）, 90m の 中が 100人を こえる ときは ます目で 分ける
   const AVOID = new URLSearchParams(location.search).get('avoid') !== '0';   // ?avoid=0＝よけない（比べる 用）
   function mobAvoid(act, dt) {
     for (const m of act) { m.slow = 1; m.dodge = false; }
@@ -1385,19 +1395,31 @@ if (G && MOB_N) {
     for (const a of act) { const rx = a.x - P.x, rz = a.z - P.z, d = Math.hypot(rx, rz) || 0.01;   // じぶんには 押し分けられる（じぶんは 動かない）
       if (d < 0.9) { const k = (0.9 - d) / d; if (!blocked(a.x + rx * k, a.z + rz * k, 0.45)) { a.x += rx * k; a.z += rz * k; } else if (!blocked(P.x - rx * k, P.z - rz * k, 0.45)) { P.x -= rx * k; P.z -= rz * k; } } }   // 11/25：壁ぎわで 押せない 人には じぶんが 止められる（体に 入らない）
   }
+  const arrive = m => { const g = m.goal; m.t = g.kind === 'home' ? 25 + mrand() * 35 : g.kind === 'eat' ? 12 + mrand() * 13 : g.kind === 'walk' ? 10 + mrand() * 15 : 20 + mrand() * 30; m.inside = g.kind === 'home' || g.kind === 'eat'; };
+  const FAR2 = 110 * 110;   // ⚠ こちらの 決め：110m より 遠い 人は ざっと 動かす（見えるのは 80m まで）
+  function farStep(m, dt) {
+    m.moving = false;
+    if (m.t > 0) { m.t -= dt; if (m.t <= 0) { m.plan = (m.plan + 1) % 4; mobGo(m, m.path ? m.path[m.path.length - 1] : m.home.v, false); } return; }
+    if (!m.path) return; let st = m.spd * dt;
+    while (st > 0 && m.k < m.path.length - 1) { const b = m.path[m.k + 1], bx = cx(b), bz = cz(b), dx = bx - m.x, dz = bz - m.z, d = Math.hypot(dx, dz);
+      if (d <= st) { m.x = bx; m.z = bz; m.k++; st -= d; } else { m.x += dx / d * st; m.z += dz / d * st; st = 0; } }
+    if (m.k >= m.path.length - 1) arrive(m);
+  }
+  let farN = 0;
   window.__mobTick = (dt, now, night) => {
-    mobVis = 0;
+    mobVis = 0; farN = 0;
     const act = night || !AVOID ? [] : mobs.filter(m => !m.inside && m.path && Math.hypot(m.x - P.x, m.z - P.z) < MOB.see + 10);
     mobAvoid(act, dt);
     for (const m of mobs) {
       if (night) { m.mesh.visible = false; continue; }
+      { const ex = m.x - P.x, ez = m.z - P.z; if (ex * ex + ez * ez > FAR2) { farN++; m.acc = (m.acc || 0) + dt; if (m.acc >= 0.5) { farStep(m, m.acc); m.acc = 0; } continue; } if (m.acc) { m.acc = 0; } }
       if (m.t > 0) { m.t -= dt; m.moving = false; if (m.t <= 0) { m.plan = (m.plan + 1) % 4; mobGo(m, m.path ? m.path[m.path.length - 1] : m.home.v, false); } }
       else if (m.path) {
         const stopT = now < m.talkT;   // 話して いる 間だけ 止まる（じぶんは よける 相手）
         if (!stopT) { const q = mobPoint(m), dx = q.x - m.x, dz = q.z - m.z, d = Math.hypot(dx, dz), st = m.spd * dt * (m.slow ?? 1);
           if (d > 0.01) { m.hx = dx / d; m.hz = dz / d; }
           if (d <= st) { m.x = q.x; m.z = q.z; m.k++;
-            if (m.k >= m.path.length - 1) { const g = m.goal; m.t = g.kind === 'home' ? 25 + mrand() * 35 : g.kind === 'eat' ? 12 + mrand() * 13 : g.kind === 'walk' ? 10 + mrand() * 15 : 20 + mrand() * 30; m.inside = g.kind === 'home' || g.kind === 'eat'; } }
+            if (m.k >= m.path.length - 1) arrive(m); }
           else { m.x += dx / d * st; m.z += dz / d * st; m.mesh.rotation.y = Math.atan2(-dx, -dz); m.ph += st * 3.2; } }
         else if (now < m.talkT) m.mesh.rotation.y = Math.atan2(-(P.x - m.x), -(P.z - m.z));
         m.moving = !stopT && m.t <= 0;
@@ -1405,7 +1427,7 @@ if (G && MOB_N) {
     }
     mobPush(act);
     for (const m of mobs) { if (night) continue;
-      const vis = !m.inside && Math.hypot(m.x - P.x, m.z - P.z) < MOB.see; m.mesh.visible = vis;
+      const ex = m.x - P.x, ez = m.z - P.z, vis = !m.inside && ex * ex + ez * ez < MOB.see * MOB.see; m.mesh.visible = vis;
       if (vis) { mobVis++; m.mesh.position.set(m.x, m.moving && (m.slow ?? 1) > 0 ? Math.abs(Math.sin(m.ph)) * 0.07 : 0, m.z); }
     }
   };
@@ -1854,7 +1876,8 @@ function tick(now) {
   silhouette();
   // ログ：場所（動いた ときだけ 1.5秒ごと）・コマの 重さ（10秒ごと）
   if (now - sampT > 1500 && moved > 0.5) { sampT = now; moved = 0; logEvent('pos', { x: +P.x.toFixed(1), z: +P.z.toFixed(1), yaw: +yaw.toFixed(2) }); }
-  frN++; frSum += raw; if (now - frT > 10000) { if (frT) logEvent('frame', { ms: +(frSum / frN * 1000).toFixed(1), n: frN, mob: mobs.length, vis: mobVis, calls: renderer.info.render.calls }); frT = now; frN = 0; frSum = 0; }
+  frN++; frSum += raw; if (now - frT > 10000) { if (frT && frSum / frN > 0.04 && MOB.see > 50 && mobs.length) { MOB.see -= 15; logEvent('mob_see', { see: MOB.see, ms: +(frSum / frN * 1000).toFixed(1) }); }   // 🐢 25コマ/秒より おそい 電話では 町の 人を 見せる きょりを 15m ずつ ちぢめる（50m まで）。⚠ 30コマ/秒の 電話（省電力）は そのまま
+  if (frT) logEvent('frame', { ms: +(frSum / frN * 1000).toFixed(1), n: frN, mob: mobs.length, vis: mobVis, far: window.__mobFar ? window.__mobFar() : 0, calls: renderer.info.render.calls }); frT = now; frN = 0; frSum = 0; }
 }
 // 📍 いま いる あたりの 地名（地図データ）＝45m より 近い いちばん 近い 名前
 const PLACES = MAP ? MAP.places : []; let placeT = 0, placeName = '';
