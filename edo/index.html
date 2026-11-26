@@ -159,6 +159,18 @@
   #mapInfo { display: none; margin-top: 18px; font-size: 14px; min-height: 52px; padding: 6px 14px; opacity: .85; }
   #netB { display: none; }
   body.t3d #netB { display: block; position: absolute; right: 8px; top: 8px; z-index: 6; width: auto; min-width: 52px; min-height: 52px; margin: 0; padding: 4px 10px; border-radius: 999px; font-size: 18px; background: rgba(14,10,8,.86); border: 1px solid #c9a24a; color: #ffe7a8; }
+  /* 🗺 地図を 見る：右上（👥 の 下）。夜（蕎麦屋）は 出さない */
+  #mapB { display: none; }
+  body.t3d #mapB { display: block; position: absolute; right: 8px; top: 68px; z-index: 6; width: auto; min-width: 52px; min-height: 52px; margin: 0; padding: 4px 10px; border-radius: 999px; font-size: 22px; background: rgba(14,10,8,.86); border: 1px solid #c9a24a; color: #ffe7a8; }
+  body.t3d.night #mapB { display: none; }
+  #mapV { display: none; position: fixed; inset: 0; z-index: 40; background: #d8ccb0; }
+  #mapV.on { display: block; }
+  #mapCv { position: absolute; inset: 0; touch-action: none; }
+  #mapBar { position: absolute; left: 0; right: 0; bottom: 0; padding: 8px 10px 12px; background: rgba(243,234,216,.94); border-top: 2px solid #2a2520; color: #2a2520; }
+  #mapBar .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0; }
+  #mapBar button { margin: 0; min-height: 52px; font-size: 17px; }
+  #mapLeg { font-size: 13px; line-height: 1.5; margin-bottom: 6px; }
+  #mapLeg i { display: inline-block; width: 12px; height: 12px; border: 1px solid #555; vertical-align: -1px; margin: 0 3px 0 8px; }
   #ver { position: absolute; right: 6px; bottom: 4px; font-size: 10px; opacity: .4; pointer-events: none; }
 </style>
 </head>
@@ -192,7 +204,8 @@
   <button id="act"></button>
   <button id="call">📣 売り声</button>
   <button id="netB" onclick="roomSheet()" aria-label="みんなで あそぶ">👥</button>
-  <div id="keyHint">W・↑ すすむ／A・D まがる／S・↓ さがる／E 入る・話す／Q 売り声（夜）</div>
+  <button id="mapB" aria-label="地図を 見る">🗺</button>
+  <div id="keyHint">W・↑ すすむ／A・D まがる／S・↓ さがる／E 入る・話す／Q 売り声（夜）／M 地図</div>
   <div id="cmd">
     <button id="bHouse" onclick="houseSheet()">🏠 家</button>
     <button id="bBoard" onclick="boardSheet()">📋 回覧板</button>
@@ -211,6 +224,7 @@
 </div>
 
 <div id="sheet"><div id="sheetBox"></div></div>
+<div id="mapV"><canvas id="mapCv"></canvas><div id="mapBar"><div id="mapLeg"><i style="background:#8c8c88"></i>町家<i style="background:#e2c46a"></i>道・橋<i style="background:#6fa3c8"></i>川・堀<i style="background:#fbf8ef"></i>武家屋敷<br>宿と 船乗り場は これから 作るよ</div><div class="row"><button id="mapZ">🔍 町ぜんたい</button><button id="mapX">✕ とじる</button></div></div></div>
 <div id="stickHint"><span>ここを おして<br>ゆびを うごかす</span></div>
 <div id="ver"></div>
 
@@ -220,7 +234,7 @@
 const $ = id => document.getElementById(id);
 const URLQ = new URLSearchParams(location.search);
 const DEV = URLQ.get('dev') === '1';
-const BUILD = 'edo-1126c';   // ⚠ 版の印
+const BUILD = 'edo-1126d';   // ⚠ 版の印
 // 🎨 見た目：パパ 11/23「2の漆」で 決まり（?ui=1／3 は 比べる 用に 残す）
 const UI = ['1', '2', '3'].includes(URLQ.get('ui')) ? URLQ.get('ui') : '2';
 document.body.classList.add('ui' + UI); window.edoUI = UI;
@@ -1421,7 +1435,8 @@ const blocked = (x, z, r = 0.5) => outside(x, z, r) || boxes.some(b => Math.abs(
 
 // ---- 入力（三国志合戦と 同じ 流儀：左右で 向き・前後で 歩く） ----
 const keys = {}; const stick = { active: false, x: 0, y: 0, id: null, cx: 0, cy: 0 };
-const active = () => document.body.classList.contains('t3d') && $('town').classList.contains('on') && !$('sheet').classList.contains('on') && !!S();
+let mapOn = false;   // 🗺 地図が 出ている あいだは 歩かない・話さない（下の 地図の ところ）
+const active = () => document.body.classList.contains('t3d') && $('town').classList.contains('on') && !$('sheet').classList.contains('on') && !mapOn && !!S();
 const ACT_KEYS = ['KeyE', 'Enter', 'Space'], MOVE_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD'];
 addEventListener('keydown', e => {
   if (!active() || /INPUT|TEXTAREA/.test(e.target.tagName)) return;      // ⚠ 名前を 打っている あいだ・札が 出ている あいだは 何も しない
@@ -1454,6 +1469,91 @@ function callNow() { const n = window.edoNight(); if (!active() || !n) return; w
 $('call').addEventListener('touchstart', e => { e.preventDefault(); callNow(); }, { passive: false });
 $('call').addEventListener('click', callNow);
 
+// ---- 🗺 地図を 見る（監督 11/24「地図を見るボタン → 江戸の町の地図（宿・船乗り場・遊郭・仕事場・自分の家・買える家・店）」「地図に友達の家も」）----
+// 見た目：パパ 11/25 の 見本（航空写真＋地名と 印）。色は 切絵図の 決まり（灰＝町屋・黄＝道と 橋・青＝川・白＝武家。港郷土資料館 第2号）。家は 1けんずつ 上から 描く
+// ⚠ こちらの 決め：開くと「近く」（じぶんの まわり 180m 四方。300m だと はじめの 通りの 店の 名前が 重なって 消えた）→ ボタンで「町ぜんたい」。上が ほぼ 北（町の 通りに あわせて 27° 回して いる）。夜（蕎麦屋）は 開けない
+// ⚠ 出すのは いま ある 所だけ（家・売り家・店・仕事場・頼みごと・友だちの 家・ほかの プレイヤー）。宿・船乗り場は まだ ない。死神などは 出る 時だけ
+// 遊郭：パパ 11/26「地図の はしに 矢印だけ。中身は 11/22 の 決め」→ 矢印と 名前だけ（押しても 何も 起きない）。方角は 地名データの 新吉原町・品川歩行新宿
+// ponytail: 近く／町ぜんたい の 2つだけ, 監督が「動かしたい」「広げたい」と 言ったら 指で ずらす・広げるを 足す
+let mapAll = false, mapT0 = 0, mapBase = null, mapLast = [];
+const FAR = [{ t: '吉原（遊郭）', x: -383, z: -4885 }, { t: '品川宿（遊郭）', x: 238, z: 7436 }];
+const vx = v => (v % MAP.n) * MAP.cell - MAP.half + MAP.cell / 2, vz = v => Math.floor(v / MAP.n) * MAP.cell - MAP.half + MAP.cell / 2;
+function mapBaseDraw() {                              // 町の 絵（1回だけ）：1px＝1m
+  const n = MAP.n, c = MAP.cell, cv = document.createElement('canvas'); cv.width = cv.height = n * c; const g = cv.getContext('2d');
+  g.fillStyle = '#efe7d4'; g.fillRect(0, 0, cv.width, cv.height);
+  const COL = { [T.STREET]: '#e2c46a', [T.BRIDGE]: '#b98a42', [T.WATER]: '#6fa3c8', [T.BIG]: '#fbf8ef' };
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { const t = G[j * n + i];
+    if (t === T.BLOCK) { const h = ((((i >> 1) * 73856093) ^ ((j >> 1) * 19349663)) >>> 0) % 30, v = 124 + h; g.fillStyle = `rgb(${v},${v},${v - 6})`; }   // 町家：2×2 ますで 1けん（3D と 同じ）。屋根の 灰を 1けんずつ 少し かえる
+    else if (t === T.BIG && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, b]) => G[(j + b) * n + i + a] === T.WATER)) g.fillStyle = '#b3a88f';   // 水ぎわの 入れない ます＝石垣の 色（白い 段々に 見えた）
+    else if (COL[t]) g.fillStyle = COL[t]; else continue;
+    g.fillRect(i * c, j * c, c, c);
+    if (t === T.BLOCK) { g.fillStyle = 'rgba(40,36,32,.45)';   // となりの 家との さかい
+      if (i % 2 === 1 && G[j * n + i + 1] === T.BLOCK) g.fillRect(i * c + c - 0.6, j * c, 0.6, c);
+      if (j % 2 === 1 && G[(j + 1) * n + i] === T.BLOCK) g.fillRect(i * c, j * c + c - 0.6, c, 0.6); } }
+  g.fillStyle = '#7a7a76'; for (const b of boxes) if (b.w > 1.5) g.fillRect(b.x - b.w / 2 + MAP.half, b.z - b.d / 2 + MAP.half, b.w, b.d);   // はじめの 通りの 手作りの 家
+  return cv; }
+const SPOT_NAME = { home: () => (S().house ? '🏠 じぶんの 家' : '🏷 売り家'), yatai: () => '🍜 屋台', jii: () => '👴 じいさん', sakana: () => '🐟 魚屋', meshi: () => '🍚 飯屋',
+  unagi: () => (S().job ? '🍱 ウナギ屋（仕事場）' : '🍱 ウナギ屋'), shini: () => (S().doc ? '💀 死神' : '🧓 つえの じいさん'), byo: () => '🩺 病人の 家', chiri: () => '🎂 旦那' };
+function mapDraw() {
+  const cv = $('mapCv'), dpr = Math.min(devicePixelRatio || 1, 2), W = innerWidth, H = innerHeight - $('mapBar').offsetHeight;
+  cv.width = W * dpr; cv.height = innerHeight * dpr; cv.style.width = W + 'px'; cv.style.height = innerHeight + 'px';
+  const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const sc = mapAll ? Math.min(W, H) / (2 * MAP.half) : Math.min(W, H) / 180, c0x = mapAll ? 0 : P.x, c0z = mapAll ? 0 : P.z;
+  const sx = x => W / 2 + (x - c0x) * sc, sy = z => H / 2 + (z - c0z) * sc;
+  g.fillStyle = '#d8ccb0'; g.fillRect(0, 0, W, innerHeight);
+  g.drawImage(mapBase, sx(-MAP.half), sy(-MAP.half), 2 * MAP.half * sc, 2 * MAP.half * sc);
+  const taken = [], out = [];
+  const text = (x, y, t, o = {}) => {                 // 字（白い ふち）。重なる ときは 書かない（o.must は 必ず）
+    g.font = `bold ${o.size || 14}px sans-serif`; const w = g.measureText(t).width, h = (o.size || 14) + 4, bx = o.left ? x : x - w / 2, by = y - h / 2;
+    if (bx < 2 || bx + w > W - 2 || by < 2 || by + h > H) { if (!o.must) return false; }
+    if (!o.must && taken.some(r => bx < r[2] && bx + w > r[0] && by < r[3] && by + h > r[1])) return false;
+    taken.push([bx - 2, by - 1, bx + w + 2, by + h + 1]);
+    g.textAlign = 'left'; g.textBaseline = 'middle'; g.lineJoin = 'round'; g.lineWidth = 4; g.strokeStyle = 'rgba(255,252,240,.95)'; g.strokeText(t, bx, y); g.fillStyle = o.col || '#2a2520'; g.fillText(t, bx, y);
+    out.push(t); return true; };
+  const pin = (x, z, t, col, o = {}) => { const X = sx(x), Y = sy(z); if (X < -20 || X > W + 20 || Y < -20 || Y > H + 20) return;
+    g.beginPath(); g.arc(X, Y, o.r || 6, 0, 7); g.fillStyle = col; g.fill(); g.lineWidth = 2; g.strokeStyle = '#fff'; g.stroke();
+    out.push('•' + t);   // 印は 字が 重なって 書けなくても 出ている（検査 用に 数える）
+    if (!text(X + 9, Y, t, { left: true, size: 14, must: o.must, col: o.tcol })) text(X - 9 - g.measureText(t).width, Y, t, { left: true, size: 14, col: o.tcol }); };
+  // じぶん（向きつき）
+  { const X = sx(P.x), Y = sy(P.z), fx = -Math.sin(yaw), fz = -Math.cos(yaw), a = Math.atan2(fz, fx);
+    g.save(); g.translate(X, Y); g.rotate(a); g.beginPath(); g.moveTo(13, 0); g.lineTo(-8, 8); g.lineTo(-4, 0); g.lineTo(-8, -8); g.closePath();
+    g.fillStyle = '#c0392b'; g.fill(); g.lineWidth = 2.5; g.strokeStyle = '#fff'; g.stroke(); g.restore(); text(X, Y + 20, 'じぶん', { must: true, col: '#c0392b' }); }
+  const s = S(), nx = window.edoNext(), q = questAt();
+  if (q) pin(q.x, q.z, s.quest.kind === 'deliver' ? `📦 ${s.quest.who}（届け先）` : s.quest.step ? `🏠 ${s.quest.name}の 家（返す）` : `🔍 ${s.quest.item}（さがす）`, '#f1c40f', { r: 8 });
+  for (const f of s.friends || []) { const m = mobs.find(o => o.id === f.id); if (m) pin(vx(m.home.v), vz(m.home.v), `🤝 ${f.name}の 家`, '#27ae60'); }
+  for (const sp of SPOTS) if (!sp.when || sp.when()) { const nm = SPOT_NAME[sp.k]; if (!nm) continue; const t = nm(); if (nx && nx.k === sp.k) { g.beginPath(); g.arc(sx(sp.x), sy(sp.z), 12, 0, 7); g.lineWidth = 3; g.strokeStyle = '#f1c40f'; g.stroke(); }
+    pin(sp.x, sp.z, t, sp.k === 'home' ? '#c0392b' : sp.k === 'unagi' && s.job ? '#8e44ad' : '#d35400'); }
+  for (const p of PEERS.values()) pin(p.g.position.x, p.g.position.z, `👥 ${p.name}`, '#2e86c1');
+  // 遊郭：地図の 外 → はしに 矢印
+  for (const f of FAR) { const dx = f.x - c0x, dz = f.z - c0z, L = Math.hypot(dx, dz), ux = dx / L, uz = dz / L, k = Math.min((W / 2 - 34) / Math.abs(ux || 1e-6), (H / 2 - 34) / Math.abs(uz || 1e-6));
+    const X = W / 2 + ux * k, Y = H / 2 + uz * k; g.save(); g.translate(X, Y); g.rotate(Math.atan2(uz, ux)); g.beginPath(); g.moveTo(16, 0); g.lineTo(-6, 11); g.lineTo(-6, -11); g.closePath();
+    g.fillStyle = '#8e2a5a'; g.fill(); g.lineWidth = 2; g.strokeStyle = '#fff'; g.stroke(); g.restore();
+    text(X, Y - uz * 22, f.t, { must: true, col: '#8e2a5a', size: 14 }); }
+  // 北
+  { const X = W - 34, Y = 34, a = Math.atan2(-Math.cos(-27.14 * Math.PI / 180), Math.sin(-27.14 * Math.PI / 180));
+    g.beginPath(); g.arc(X, Y, 22, 0, 7); g.fillStyle = 'rgba(243,234,216,.9)'; g.fill(); g.lineWidth = 2; g.strokeStyle = '#2a2520'; g.stroke();
+    g.save(); g.translate(X, Y); g.rotate(a); g.beginPath(); g.moveTo(17, 0); g.lineTo(-4, 6); g.lineTo(-4, -6); g.closePath(); g.fillStyle = '#c0392b'; g.fill(); g.restore();
+    taken.push([X - 24, Y - 24, X + 24, Y + 24]); text(X, Y + 34, '北', { must: true, size: 13 }); }
+  // 地名（重ならない ものだけ。同じ 名前は 1回）
+  const seen = new Set(), PS = [...MAP.places].sort((a, b) => (a[3] === '町村字') - (b[3] === '町村字'));
+  for (const pl of PS) { const t = pl[0].split('\u3000')[0].replace('ト云', ''); if (seen.has(t)) continue; const X = sx(pl[1]), Y = sy(pl[2]); if (X < 0 || X > W || Y < 0 || Y > H) continue;
+    if (text(X, Y, t, { size: mapAll ? 11 : 13, col: '#4a3a2a' })) seen.add(t); }
+  $('mapZ').textContent = mapAll ? '📍 近く' : '🔍 町ぜんたい';
+  mapLast = out; }
+function mapOpen(how) {
+  if (!G || mapOn || !S() || !$('town').classList.contains('on') || $('sheet').classList.contains('on') || window.edoNight()) return;
+  if (!mapBase) mapBase = mapBaseDraw();
+  stop(); mapOn = true; mapAll = false; mapT0 = performance.now(); $('mapV').classList.add('on'); mapDraw();
+  logEvent('map_open', { how, x: +P.x.toFixed(1), z: +P.z.toFixed(1), friends: (S().friends || []).length, quest: !!S().quest, n: mapLast.length }); }
+function mapClose(how) { if (!mapOn) return; mapOn = false; $('mapV').classList.remove('on'); logEvent('map_close', { how, ms: Math.round(performance.now() - mapT0), all: mapAll }); }
+$('mapB').addEventListener('click', () => mapOpen('btn'));
+$('mapX').addEventListener('click', () => mapClose('btn'));
+$('mapZ').addEventListener('click', () => { mapAll = !mapAll; mapDraw(); logEvent('map_view', { all: mapAll }); });
+addEventListener('keydown', e => { if (/INPUT|TEXTAREA/.test(e.target.tagName)) return;
+  if (e.code === 'KeyM' && !e.repeat) { e.preventDefault(); mapOn ? mapClose('key') : active() && mapOpen('key'); }
+  else if (e.code === 'Escape' && mapOn) mapClose('key'); });
+addEventListener('resize', () => { if (mapOn) mapDraw(); });
+
 // ---- まわす ----
 const SPEED = 5.2, TURN = 2.2;                       // ⚠ こちらの 決め（歩き 5.2m/秒＝通りの はしから ウナギ屋まで 約10秒）
 let walked = false, last = performance.now(), moved = 0, sampT = 0, frN = 0, frSum = 0, frT = 0;
@@ -1461,6 +1561,7 @@ const tmp = new THREE.Vector3();
 function tick(now) {
   requestAnimationFrame(tick);
   const raw = (now - last) / 1000; last = now; const dt = Math.min(raw, 0.05);
+  if (mapOn && (!$('town').classList.contains('on') || $('sheet').classList.contains('on') || window.edoNight())) mapClose('auto');
   if (!$('town').classList.contains('on') || !S()) return;
   if (S() !== lastS) { lastS = S(); spawn(); }
   frames++;
@@ -1534,7 +1635,7 @@ document.body.classList.add('t3d');
 if ((navigator.maxTouchPoints || 0) > 0) document.body.classList.add('touch');
 logEvent('t3d', { ok: true });
 requestAnimationFrame(tick);
-if (DEV) window.__t = { P, SPOTS, boxes, blocked, callSoon() { callT = 0; }, get callM() { return callM; }, get yaw() { return yaw; }, set yaw(v) { yaw = v; }, get cur() { return cur; }, get frames() { return frames; },
+if (DEV) window.__t = { P, SPOTS, boxes, blocked, get mapOn() { return mapOn; }, get mapLast() { return mapLast; }, mapAll(v) { mapAll = v; mapDraw(); }, callSoon() { callT = 0; }, get callM() { return callM; }, get yaw() { return yaw; }, set yaw(v) { yaw = v; }, get cur() { return cur; }, get frames() { return frames; },
   warp(k) { const s = SPOTS.find(q => q.k === k); P.set(s.x, 0, s.z); }, MAP, cellAt, nHouse, sil, get silOn() { return silOn; }, silCount() { silhouette(); if (!silOn) return 0; const gl = sil.getContext(), w = gl.drawingBufferWidth, h = gl.drawingBufferHeight, px = new Uint8Array(w * h * 4); gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px); let n = 0; for (let i = 3; i < px.length; i += 4) if (px[i]) n++; return n; }, keys, stick, camera, scene, yatai, udonG, drunk, zz, UPOS, mobs, get mobVis() { return mobVis; }, renderer, mobNear, PEERS, get talkM() { return talkM; } };
 } catch (e) { console.warn('⚠ 3D の 町を 出せなかった。ボタンの 画面で 遊べる', e); logEvent('t3d', { ok: false, err: String(e).slice(0, 120) }); }
 </script>
