@@ -235,7 +235,7 @@
 const $ = id => document.getElementById(id);
 const URLQ = new URLSearchParams(location.search);
 const DEV = URLQ.get('dev') === '1';
-const BUILD = 'edo-1126f';   // ⚠ 版の印
+const BUILD = 'edo-1127a';   // ⚠ 版の印
 // 🎨 見た目：パパ 11/23「2の漆」で 決まり（?ui=1／3 は 比べる 用に 残す）
 const UI = ['1', '2', '3'].includes(URLQ.get('ui')) ? URLQ.get('ui') : '2';
 document.body.classList.add('ui' + UI); window.edoUI = UI;
@@ -292,6 +292,7 @@ const JOBS = [
   ['ウナギ屋', 'タレ'], ['寿司屋', '屋台'], ['てんぷら屋', '屋台'], ['蕎麦屋', '屋台'], ['うどん屋', '屋台'], ['大工', '道具箱'], ['奉行', '十手'], ['力士', 'ふんどし'],
   ['行司', '軍配'], ['歌舞伎役者', 'メイク道具'], ['絵師', '筆'], ['茶人', '釜'], ['和傘職人', 'のり'], ['植木屋', 'ハサミ'], ['火消し', '提灯'], ['駕籠屋', 'かご'], ['泥棒', '鍵'],
   ['魚屋', 'てんびん棒'], ['船頭', 'さお'],   // 監督 11/23 15:04「職業に魚屋 船頭をいれて」。⚠ 道具は こちらの 決め（監督は 名前だけ）
+  ['油屋', '油桶'],   // 監督 11/26 21:59「職業に油屋つくって」。⚠ 道具は こちらの 決め（監督は 名前だけ）
 ];
 // 監督 11/23 14:47「すべてのお仕事の給料プラス７文」→ ⚠ こちらの 読み：1日の 給料＝うまく できた ぶん ＋ 七文（0ぱいでも 七文）
 const PAY_PLUS = 7;
@@ -1311,7 +1312,8 @@ if (G && MOB_N) {
   const EATS = [{ x: 2, z: 2, name: '屋台', dx: 1 }, { x: 2, z: -14, name: '魚屋', dx: 1 }, { x: 2, z: -24, name: '飯屋', dx: 1 }].map(e => ({ v: nearCell(e.x, e.z), name: e.name, dx: e.dx, dz: 0 }));   // はじめの 通りの 東がわの 店
   const CLOTH = [0x2e4a7a, 0x6a3a2a, 0x3a5a3a, 0x7a6a4a, 0x5a2a4a, 0x2a5a6a, 0x8a5a2a, 0x4a4a5a, 0x6a6a3a, 0x9a4a3a];
   const mobGeo = mergedGeo;
-  const mobMat = new THREE.MeshLambertMaterial({ vertexColors: true }), ROLES = JOBS.map(j => j[0]);   // 監督 11/4 の 17の 仕事＋11/23 の 魚屋・船頭
+  const mobMat = new THREE.MeshLambertMaterial({ vertexColors: true }), ROLES = JOBS.map(j => j[0]).filter(r => r !== '油屋');   // 監督 11/4 の 17の 仕事＋11/23 の 魚屋・船頭（19）
+  // ⚠ 油屋（11/26）は ROLES に 入れない：入れると 割る 数が 19 → 20 に なって、前から いる 人の 仕事が ぜんぶ ずれる（友だちの 仕事が 変わる）。油屋の 人は 下で 番号 1000〜 に 足す
   // 🗺 11/25 監督 11/23「すべての地域に均等に人と建物と店が歩いてたりある」：町を 130m の ますに 分け、家（戸口）の ある ますに 同じ 数ずつ 住む
   //   仕事場・用事の 行き先は 家から 220m 以内の 地名（遠くの 仕事場へ みんなで 歩くと まん中に 集まる＝11/25 に 測って 47ますの うち 35ますが 0人だった）
   //   ?spread=near＝前の 置き方（家の 半分を はじめの 通りの 近くに）。見くらべ 用
@@ -1327,9 +1329,9 @@ if (G && MOB_N) {
   const NM_M2 = [...NM_M, '半七', '佐吉', '平助', '伊之助', '長吉', '新助', '太助', '権兵衛', '茂兵衛', '庄助', '弥太郎', '亀吉', '松五郎', '寅吉'], NM_F2 = [...NM_F, 'おけい', 'おしず', 'おなつ', 'おゆき', 'おりん', 'おちよ', 'おたね', 'おもと', 'おくに', 'おいと'];   // ⚠ こちらの 決め（落語に よく 出る 名前）
   let jobN = 0, nLater = 0; const MOB_NEAR0 = 260, mobT0 = performance.now();
   let r2s = 4242; const R2 = () => (r2s = (r2s * 16807) % 2147483647) / 2147483647;   // ⚠ 1人 1人の 種（R）は 使わない（使うと 101人目からの 人が 変わる）
-  for (let k = 0; k < MOB_N && doors.length && works.length; k++) {
-    const R = rngOf(k), pick = a => a[Math.floor(R() * a.length)], town = k % 10 < 3, sex = town && R() < 0.75 ? '女' : '男';
-    const role = town ? '町人' : ROLES[jobN++ % ROLES.length];
+  const addMob = (k, fixed) => {
+    const R = rngOf(k), pick = a => a[Math.floor(R() * a.length)], town = !fixed && k % 10 < 3, sex = town && R() < 0.75 ? '女' : '男';
+    const role = fixed || (town ? '町人' : ROLES[jobN++ % ROLES.length]);
     const home = SPREAD === 'near' ? pick(k % 2 && doorsNear.length ? doorsNear : doorsFar.length ? doorsFar : doors) : pick(regions.length ? regions[k % regions.length] : doors);
     const hx = cx(home.v), hz = cz(home.v), byD = works.map(w => ({ w, d: Math.hypot(cx(w.v) - hx, cz(w.v) - hz) })).sort((a, b) => a.d - b.d);
     let near = SPREAD === 'near' ? works : byD.filter(o => o.d < 220).map(o => o.w);
@@ -1343,7 +1345,10 @@ if (G && MOB_N) {
     mobs.push(m);
     if (Math.hypot(hx, hz - 22) < MOB_NEAR0) mobGo(m, home.v, true);
     else { m.x = hx; m.z = hz; m.inside = true; m.plan = 3; m.t = R2() * 45; nLater++; }   // 遠くの 人：家の 中から 0〜45秒の あいだに 1人ずつ 出て くる
-  }
+  };
+  for (let k = 0; k < MOB_N && doors.length && works.length; k++) addMob(k);
+  // 🛢 油屋の 人：ほかの 仕事と 同じ くらいの 数（600人なら 22人）。番号 1000〜（?mob= は 1000 まで なので ぶつからない）
+  if (doors.length && works.length) for (let i = 0, nA = Math.round(jobN / ROLES.length); i < nA; i++) addMob(1000 + i, '油屋');
   // 🙏 頼みごと（パパ 11/25）：届け先・落とし物の 場所＝いまの 場所から 50〜170m の 戸口。家に 返す ときは 頼んだ 人の 家の 戸口
   const WHO = ['おじさん', 'おばさん', 'じいさま', 'ばあさま', 'いとこ'], ITEM = ['財布', 'かんざし', '手ぬぐい', 'たばこ入れ', '鍵'];
   window.mobQuest = o => { const m = mobs.find(q => q.id === o.id); if (!m) return null; const s = window.edoS();
