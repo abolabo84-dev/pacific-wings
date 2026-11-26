@@ -163,6 +163,7 @@
   #mapB { display: none; }
   body.t3d #mapB { display: block; position: absolute; right: 8px; top: 68px; z-index: 6; width: auto; min-width: 52px; min-height: 52px; margin: 0; padding: 4px 10px; border-radius: 999px; font-size: 22px; background: rgba(14,10,8,.86); border: 1px solid #c9a24a; color: #ffe7a8; }
   body.t3d.night #mapB { display: none; }
+  body.inroom #mapB, body.inroom #compass { display: none !important; }
   #mapV { display: none; position: fixed; inset: 0; z-index: 40; background: #d8ccb0; }
   #mapV.on { display: block; }
   #mapCv { position: absolute; inset: 0; touch-action: none; }
@@ -234,7 +235,7 @@
 const $ = id => document.getElementById(id);
 const URLQ = new URLSearchParams(location.search);
 const DEV = URLQ.get('dev') === '1';
-const BUILD = 'edo-1126d';   // ⚠ 版の印
+const BUILD = 'edo-1126e';   // ⚠ 版の印
 // 🎨 見た目：パパ 11/23「2の漆」で 決まり（?ui=1／3 は 比べる 用に 残す）
 const UI = ['1', '2', '3'].includes(URLQ.get('ui')) ? URLQ.get('ui') : '2';
 document.body.classList.add('ui' + UI); window.edoUI = UI;
@@ -357,7 +358,7 @@ function refresh() {
   const pips = Array.from({ length: STARVE_DAYS }, (_, i) => `<i class="pip${i < left ? '' : ' e'}"></i>`).join('');
   $('top').innerHTML = `<span class="me">${S.sex === '女' ? '👩' : '👨'}${esc(S.name)}</span><span>${S.day}日目</span><span>💰${S.mon}文</span>` +
     `<span class="${left <= 2 ? 'warn' : ''}">🍚${pips}<i class="sr">${S.hungry === 0 ? 'おなか いっぱい' : `${S.hungry}日 食べていない`}</i></span>` +
-    `<span style="grid-column:1/-1">🏠${S.house ? S.house : '家なし'}${jobs ? '　' + jobs + `<i class="sr">${jobN}</i>` : ''}</span>`;
+    `<span style="grid-column:1/-1">🏠${S.house ? S.house : '家なし'}${S.oke ? (S.oke === 2 ? '　🪣💧' : '　🪣') : ''}${jobs ? '　' + jobs + `<i class="sr">${jobN}</i>` : ''}</span>`;
   $('bWork').disabled = !S.job;
   if (N) sobaTick(); else $('nextT').textContent = 'つぎは ' + nextSpot().t;
 }
@@ -366,6 +367,8 @@ function nextSpot() {
   if (S.quest && S.hungry < 3) {   // 🙏 頼みごとの とちゅうは その 場所を 先に 案内（⚠ 3日 食べて いない ときは ごはんが 先）
     const q = S.quest; return { k: 'quest', t: q.kind === 'deliver' ? `${q.place}の ${q.who}に 包みを 届ける` : q.step ? `${q.name}の 家へ ${q.item}を 返す` : `${q.place}で ${q.item}を さがす` }; }
   if (!S.house) return { k: 'home', t: '売り家へ。家を 買おう' };
+  if (S.oke === 1) return { k: 'ido', t: '井戸へ。桶で 水を くもう' };
+  if (S.oke === 2) return { k: 'home', t: 'じぶんの 家へ。水瓶に 水を 入れよう' };
   if (!S.job && S.soba) return { k: 'home', t: 'じぶんの 家へ。夜、屋台を 出そう' };
   if (!S.job) return S.mon < JOB_FEE && !S.lent ? { k: 'jii', t: '物知りな じいさんの 所へ' } : { k: 'home', t: 'じぶんの 家へ。回覧板を 見よう' };
   if (S.mon >= FOODS[0].mon && S.hungry > 0) return { k: 'yatai', t: '屋台へ。何か 食べよう' };
@@ -388,7 +391,7 @@ function shopSheet(i) {
 
 // ============ 家（監督11/4「まず自分の家を買う」） ============
 function houseSheet() {
-  if (S.house) return sheet(`<h2>🏠 ${esc(S.name)}の 家：${S.house}</h2><p class="hint">ほかの 家に ひっこすのは まだ できない</p><div class="row two"><button onclick="closeSheet()">とじる</button></div>`);
+  if (S.house) return moveSheet();
   sheet(`<h2>🏠 家を 買う</h2><p class="hint">いま 💰 ${S.mon}文。家を 買うと 回覧板が 来る</p><div class="row">` +
     HOUSES.map((h, i) => `<button ${S.mon >= h.mon ? '' : 'disabled'} onclick="buyHouse(${i})">${h.k}　<span class="cost">${h.label || h.mon + '文'}</span></button>`).join('') +
     `</div><div class="row two"><button onclick="closeSheet()">やめる</button></div>`);
@@ -399,6 +402,87 @@ function buyHouse(i) {
   news(`${h.k}を 買った（${h.mon}文）。`, 'good'); news('📋 回覧板が 来た。お仕事が のっている。', 'k');
   save(); closeSheet();
 }
+
+// ============ 🏠 家の 中・家具・引っこし（つくる 順番の 4） ============
+// 監督 11/23 15:02「自分の買った家の中にはいれて内装を決めたり出来る」／11/24 18:35「3そう（買った家の、中に入れる用に）」
+// 監督 11/24 17:35「お引っ越しできないから出来る様にして」／11/25 17:53「長屋は、家具屋で買ったものをおける」と 家具屋の リスト／11/25 21:46 しまえる 数
+const CAP = { 長屋: 15, 母屋: 30, 通邸: 50, 大邸: 70, 屋敷: 500 };   // 監督 11/25 21:46「長屋が十五個 母屋が三十個 通邸は、五十個 大邸は、七十個 屋敷五百個」
+// 部屋の 広さ（1ます＝0.9m）。⚠ こちらの 決め：長屋は 九尺二間（はば 2.7m・おく 3.6m）を 4×3 ますに。ほかは だんだん 広く
+const ROOM = { 長屋: [4, 3], 母屋: [6, 4], 通邸: [8, 6], 屋敷: [12, 8] };
+// 家具屋の 品（監督 11/25 17:53 の リスト ＋ 11/5 の ヘッツイ）。値段：ヘッツイ 三文・タンス 二文 は 監督 11/5「ヘッツイが三文 着替えようタンスが二文 物置ようタンスが二文」
+// ⚠ ほかの 値段は こちらの 決め（監督に 聞く）。⚠「物置よう タンス（11/5）」と「お金 入れよう タンス（11/25）」は 同じ 物と 読んだ（未確認・聞く）
+// ⚠ はたらきが あるのは 灯籠（明るく なる）・水瓶と 柄杓と 桶（監督 11/25：柄杓で 水を くむ・なくなったら 桶で 井戸から くむ・近くに もって いくと 入る）・お金 入れ タンス。ほかは 置く だけ
+// ponytail: 置くだけの 家具が 9こ, 監督が「ふとんで ねる」など はたらきを 言ったら 足す
+const FURN = [
+  { k: 'futon', n: 'ふとん', e: '🛏', mon: 2, fp: [1, 2] }, { k: 'tansuM', n: 'タンス（お金 入れ）', e: '💰', mon: 2 }, { k: 'tansuK', n: 'タンス（着がえ）', e: '👘', mon: 2 },
+  { k: 'toro', n: '灯籠', e: '🏮', mon: 3 }, { k: 'kaya', n: '蚊帳', e: '🕸', mon: 3, fp: [2, 2] }, { k: 'shikiri', n: 'しきり', e: '🧱', mon: 2 },
+  { k: 'hettsui', n: 'ヘッツイ（かまど）', e: '🔥', mon: 3 }, { k: 'nabe', n: '鍋', e: '🍲', mon: 1 }, { k: 'oke', n: '桶', e: '🪣', mon: 1 },
+  { k: 'taru', n: '樽', e: '🛢', mon: 1 }, { k: 'hishaku', n: '柄杓', e: '🥄', mon: 1 }, { k: 'mizugame', n: '水瓶', e: '🏺', mon: 2 }, { k: 'kakejiku', n: '掛け軸', e: '📜', mon: 3 },
+];
+const WMAX = 10;   // ⚠ 水瓶に 入る 水＝柄杓で 10ぱい（こちらの 決め）
+const FK = k => FURN.find(f => f.k === k), fpOf = k => FK(k).fp || [1, 1];
+const items = () => (S.items || (S.items = []));
+const owns = k => items().some(it => it.k === k);
+// 戸口（手前の まん中）から 押入れ（おくの かべ）までの 1列は 通り道（自動で 置く ときは あける）
+function uchiGrid() { const [w, d] = ROOM[S.house] || ROOM['長屋'], a = Math.floor(w / 2); return { w, d, door: [a, d - 1], oshi: [a, 0], aisle: a }; }
+function uchiFits(idx, i, j, auto) { const g = uchiGrid(), [fw, fd] = fpOf(items()[idx].k);
+  if (i < 0 || j < 0 || i + fw > g.w || j + fd > g.d) return false;
+  for (let a = i; a < i + fw; a++) for (let b = j; b < j + fd; b++) {
+    if (a === g.aisle && (b === g.door[1] || b === g.oshi[1] || auto)) return false;
+    if (items().some((o, n) => n !== idx && o.i != null && a >= o.i && a < o.i + fpOf(o.k)[0] && b >= o.j && b < o.j + fpOf(o.k)[1])) return false; }
+  return true; }
+function uchiAuto(idx) { const g = uchiGrid(), it = items()[idx];
+  for (let j = 0; j < g.d; j++) for (let i = 0; i < g.w; i++) if (uchiFits(idx, i, j, true)) { it.i = i; it.j = j; return true; }
+  it.i = it.j = null; return false; }
+const uchiRedraw = () => { if (window.uchiDraw) window.uchiDraw(); };
+function uchiRow() { const t3d = document.body.classList.contains('t3d');
+  return '<div class="row two">' + (t3d ? `<button onclick="$('sheet').classList.remove('on'); uchiEnter()">🚪 家の 中に 入る</button>` : '') + '<button onclick="houseSheet()">🏠 引っこす</button></div>'; }
+// 🪑 家具屋（町の 東西の 通りの 店）
+function kaguSheet() { const n = items().length, cap = S.house ? CAP[S.house] : 0;
+  sheet(`<h2>🪑 家具屋</h2><p class="hint">いま 💰 ${S.mon}文。${S.house ? `買った 物は 家に とどく（${S.house}に しまえるのは ${cap}こ。いま ${n}こ）` : '家具を 置くには、まず 家を 買おう'}</p><div class="row">` +
+    FURN.map((f, i) => `<button ${S.house && S.mon >= f.mon && n < cap ? '' : 'disabled'} onclick="kaguBuy(${i})">${f.e} ${f.n}${owns(f.k) ? '（もって いる）' : ''}　<span class="cost">${f.mon}文</span></button>`).join('') +
+    `</div><div class="row two"><button onclick="closeSheet()">やめる</button></div>`); }
+function kaguBuy(i) { const f = FURN[i]; if (!S.house || S.mon < f.mon || items().length >= CAP[S.house]) return;
+  S.mon -= f.mon; items().push({ k: f.k, i: null, j: null }); const placed = uchiAuto(items().length - 1);
+  logEvent('kagu_buy', { k: f.k, mon: f.mon, left: S.mon, n: items().length, placed });
+  news(`${f.e} ${f.n}を 買った（${f.mon}文）。${placed ? '家に 置いた' : '家の 押入れに しまった'}。`, 'good'); save(); uchiRedraw(); kaguSheet(); }
+// 🏠 引っこし：⚠ こちらの 決め＝前の 家は 買った ねだんの 半分で 売れる・物は ぜんぶ 持って いく（多すぎる ときは 引っこせない。勝手に 捨てない）
+// ponytail: じぶんの 家の 建物は 1けん だけ（場所は 同じで 家の 種類が 変わる）, 監督が 町ごとの 売り家の 数を 決めたら 売り家を 町じゅうに 置いて 場所も 変わる 引っこしに する
+function moveSheet() { const cur = HOUSES.findIndex(h => h.k === S.house), back = Math.floor(HOUSES[cur].mon / 2), n = items().length;
+  sheet(`<h2>🏠 ${esc(S.name)}の 家：${S.house}</h2><p class="hint">引っこすと、いまの 家は 半分の ねだん（${back}文）で 売れる。家具は ぜんぶ 持って いく（いま ${n}こ）。いま 💰 ${S.mon}文</p><div class="row">` +
+    HOUSES.map((h, i) => { const full = n > (CAP[h.k] ?? 0), ok = i !== cur && S.mon + back >= h.mon && !full;
+      return `<button ${ok ? '' : 'disabled'} onclick="moveHouse(${i})">${i === cur ? '✓ ' : ''}${h.k}${i === cur ? '（いまの 家）' : full ? `（物が 多すぎる：${CAP[h.k]}こまで）` : `（しまえる 数 ${CAP[h.k]}）`}　<span class="cost">${h.label || h.mon + '文'}</span></button>`; }).join('') +
+    `</div><div class="row two"><button onclick="closeSheet()">やめる</button></div>`); }
+function moveHouse(i) { const h = HOUSES[i], cur = HOUSES.findIndex(q => q.k === S.house), back = Math.floor(HOUSES[cur].mon / 2);
+  if (i === cur || S.mon + back < h.mon || items().length > (CAP[h.k] ?? 0)) return;
+  const from = S.house; S.mon = S.mon + back - h.mon; S.house = h.k; let stored = 0;
+  items().forEach((it, n) => { if (it.i != null && !uchiFits(n, it.i, it.j)) { it.i = it.j = null; stored++; } });   // 新しい 部屋に 入らない 物は 押入れへ（なくさない）
+  logEvent('move_house', { from, to: h.k, mon: h.mon, back, left: S.mon, n: items().length, stored });
+  news(`🏠 ${from}から ${h.k}に 引っこした（${h.mon}文。前の 家は ${back}文で 売れた）。${stored ? `${stored}こは 押入れに しまった。` : ''}`, 'good'); save(); closeSheet(); }
+// 家の 中で 物の 前に 立って「入る」→ その 物で できる こと
+function uchiItemSheet(idx) { const it = items()[idx]; if (!it) return; const f = FK(it.k), w = S.water || 0, b = [];
+  if (it.k === 'tansuM') { b.push(`<button ${S.mon ? '' : 'disabled'} onclick="tansu(1)">💰 お金を ぜんぶ しまう（${S.mon}文）</button>`, `<button ${S.safe ? '' : 'disabled'} onclick="tansu(-1)">👛 お金を ぜんぶ 出す（${S.safe || 0}文）</button>`); }
+  if (it.k === 'mizugame') b.push(`<button ${w && owns('hishaku') ? '' : 'disabled'} onclick="mizuNomu()">🥄 柄杓で 水を くんで のむ${owns('hishaku') ? '' : '（柄杓が いる）'}</button>`);
+  if (it.k === 'oke' && !S.oke) b.push(`<button onclick="okeTake()">🪣 桶を 持って 井戸へ 行く</button>`);
+  if (it.k === 'toro') b.push(`<button onclick="toroOn(${idx})">${it.on ? '🌑 灯籠を けす' : '🏮 灯籠を つける'}</button>`);
+  const say = { tansuM: `しまって ある お金：${S.safe || 0}文`, mizugame: `水：${w} / ${WMAX}${w ? '' : '。からっぽ。桶で 井戸から くんで こよう'}`, hishaku: '水瓶の 水を くむ ときに つかう', oke: S.oke ? '桶は いま 持って いる' : '井戸で 水を くんで、水瓶の 近くに 持って いくと 水が 入る',
+    toro: it.on ? 'ついて いる。部屋が 明るい' : '火を つけると 部屋が 明るく なる', tansuK: '着物は 着物屋が できたら しまえる（これから）' }[it.k] || '';
+  logEvent('uchi_item', { k: it.k, i: it.i, j: it.j });
+  sheet(`<h2>${f.e} ${f.n}</h2>${say ? `<p class="hint">${say}</p>` : ''}<div class="row">${b.join('')}<button onclick="uchiMove(${idx})">🤲 動かす</button><button onclick="uchiStore(${idx})">📦 押入れに しまう</button></div>${okBtn2}`); }
+function uchiMove(idx) { $('sheet').classList.remove('on'); if (window.uchiCarry) window.uchiCarry(idx); }
+function uchiStore(idx) { const it = items()[idx]; if (!it) return; if (it.k === 'toro') it.on = false; it.i = it.j = null; logEvent('uchi_store', { k: it.k }); save(); closeSheet(); uchiRedraw(); }
+function oshiSheet() { const n = items().length, st = items().map((it, i) => [it, i]).filter(([it]) => it.i == null);
+  logEvent('oshi_open', { n, stored: st.length });
+  sheet(`<h2>📦 押入れ</h2><p class="hint">${esc(S.house)}に しまえるのは ${CAP[S.house]}こ。いま ${n}こ（押入れに ${st.length}こ）。家具は 家具屋で 買える</p><div class="row">` +
+    (st.length ? st.map(([it, i]) => `<button onclick="uchiMove(${i})">${FK(it.k).e} ${FK(it.k).n}を 出して 置く</button>`).join('') : '<button disabled>しまって ある 物は ない</button>') + `</div>${okBtn2}`); }
+function tansu(d) { const v = d > 0 ? S.mon : S.safe || 0; if (!v) return; S.mon -= d * v; S.safe = (S.safe || 0) + d * v; logEvent(d > 0 ? 'tansu_in' : 'tansu_out', { mon: v, wallet: S.mon, safe: S.safe });
+  news(d > 0 ? `💰 タンスに ${v}文 しまった。` : `👛 タンスから ${v}文 出した。`, 'good'); save(); closeSheet(); }
+function mizuNomu() { if (!S.water || !owns('hishaku')) return; S.water--; logEvent('mizu_nomu', { left: S.water }); news(`🥄 ごくごく。冷たくて おいしい（水 のこり ${S.water}）`, 'good'); save(); closeSheet(); uchiRedraw(); }
+function okeTake() { if (S.oke || !owns('oke')) return; S.oke = 1; logEvent('oke_take', { water: S.water || 0 }); news('🪣 桶を 持った。井戸で 水を くもう。', 'k'); save(); closeSheet(); uchiRedraw(); }
+function idoKumu() { if (S.oke !== 1) return; S.oke = 2; logEvent('ido_kumu', {}); news('🪣 井戸で 水を くんだ。家の 水瓶の 近くに 持って いこう。', 'good'); save(); refresh(); }
+function mizuIre() { if (S.oke !== 2) return; S.oke = 0; S.water = WMAX; logEvent('mizu_ire', { water: S.water }); news('🏺 水瓶に 水が 入った。桶は もとの 所に もどした。', 'good'); save(); refresh(); uchiRedraw(); }
+function toroOn(idx) { const it = items()[idx]; if (!it) return; it.on = !it.on; logEvent('toro', { on: it.on }); save(); closeSheet(); uchiRedraw(); }
+function uchiPut(idx, i, j) { const it = items()[idx]; if (!it || !uchiFits(idx, i, j)) return false; const from = it.i == null ? 'oshi' : 'room'; it.i = i; it.j = j; logEvent('uchi_place', { k: it.k, i, j, from }); save(); return true; }
 
 // ============ 回覧板（監督11/4「回覧板が家を買うと来る 回覧板には、お仕事が紹介されている」） ============
 function boardSheet() {
@@ -412,7 +496,7 @@ function boardSheet() {
       : i === SOBA_I ? `<button ${S.mon >= JOB_FEE && t3d ? '' : 'disabled'} onclick="takeJob(${SOBA_I})">${k}（${tool}が もらえる）　<span class="cost">${t3d ? '夜、屋台を かついで 町を 歩く' : '歩ける 町で だけ'}</span></button>`
       : S.jobsOpen && S.jobsOpen[k] ? `<button disabled>✓ ${k}（紹介して もらった。遊べるのは これから）</button>`
       : `<button disabled>🔒 ${k}　<span class="cost">町の ${k}と 友だちに なると のる</span></button>`).join('') +
-    `</div><div class="row two"><button onclick="closeSheet()">やめる</button></div>`);
+    `</div>` + uchiRow() + `<div class="row two"><button onclick="closeSheet()">やめる</button></div>`);
 }
 function takeJob(i = 0) {
   if (S.mon < JOB_FEE || (i === 0 ? S.job : S.soba)) return;
@@ -1144,6 +1228,20 @@ building('屋台', 5.4, 2, 2.6, 2.6, 2.2, 0x8a5a2a, 0xb5452a, 0xf5f1e6);
 building('魚屋', 8.5, -14, 9, 8, 3.4, 0xb9c4c9, 0x3a4a5a, 0x2e6a8a);
 building('飯屋', 8.5, -24, 9, 8, 3.4, 0xd9b98a, 0x5a3a2a, 0x8a2f1b);
 building('ウナギ屋', 0, -34.5, 13, 7, 3.6, 0xc9a070, 0x2e2e36, 0x5b2a0c);
+// 🪣 井戸（監督 11/25「桶で井戸から組む」）。⚠ 場所は こちらの 決め：じぶんの 家の 南の すみ。⚠ 箱は 小さく（1.5m 以下＝町の 人の 道と 家は 変わらない）
+const IDO = { x: -4.7, z: 4.75 };
+{ const g = new THREE.Group(); g.position.set(IDO.x, 0, IDO.z);
+  const st = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.55, 0.75, 16), mat(0x8c8880)); st.position.y = 0.375; g.add(st);
+  const wt = new THREE.Mesh(new THREE.CircleGeometry(0.42, 16), mat(0x1c2a36)); wt.rotation.x = -Math.PI / 2; wt.position.y = 0.6; g.add(wt);
+  for (const s of [-1, 1]) { const pst = box(0.08, 1.9, 0.08, 0x5a3a1e); pst.position.set(s * 0.5, 0.95, 0); g.add(pst); }
+  const rf = box(1.3, 0.08, 0.8, 0x4a4c54); rf.position.y = 1.95; g.add(rf); const bm = box(1.05, 0.06, 0.06, 0x5a3a1e); bm.position.y = 1.55; g.add(bm);
+  const ok = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.12, 0.2, 10), mat(0xa0784a)); ok.position.set(0, 1.2, 0); g.add(ok);
+  const l = label('🪣 井戸', 3.6); l.position.y = 3.0; g.add(l); scene.add(g); boxes.push({ x: IDO.x, z: IDO.z, w: 1.1, d: 1.1 }); }
+// 🪑 家具屋（監督 11/23 14:56 店の 種類「家具屋」・11/25 17:53 家具屋の リスト）：東西の 通りの 南がわの 町家を 店に する（建物は 地図から 作った もの・名札と のれんだけ 足す）
+// ⚠ 場所は こちらの 決め。⚠ 新しい 箱は 足さない（町の 人の 道と 家が 変わらない）
+const KAGU = { x: 12, z: -1.4 };
+if (G) { noren(8.15, 0.15, 15.85, 7.85, 0, -1, 0x6a4a2a); }
+{ const l = label('🪑 家具屋'); l.position.set(KAGU.x, 7.2, 0.6); scene.add(l); }
 for (const [x, z] of (G ? [] : [[-20, 24], [18, 16], [-22, -32], [20, -34], [24, -4], [-24, 2]])) {           // 木（地図が 読めない ときだけ）
   const t = box(0.6, 2.4, 0.6, 0x5a3a1e); t.position.set(x, 1.2, z); scene.add(t);
   const c = new THREE.Mesh(new THREE.ConeGeometry(2.2, 4.5, 7), mat(0x3f6b32)); c.position.set(x, 4.4, z); scene.add(c); boxes.push({ x, z, w: 1, d: 1 });
@@ -1356,7 +1454,7 @@ if (NETW) {
 }
 function netTick(now, dt) {
   if (!NETW) return;
-  if (NETW.on && S() && now - netT > 100) { netT = now; NETW.send('p', [+P.x.toFixed(2), +P.z.toFixed(2), +yaw.toFixed(2), S().sex === '女' ? 1 : 0, String(S().name).slice(0, 10)]); }
+  if (NETW.on && S() && now - netT > 100) { netT = now; const sp = inRoom && outP ? outP : { x: P.x, z: P.z }; NETW.send('p', [+sp.x.toFixed(2), +sp.z.toFixed(2), +yaw.toFixed(2), S().sex === '女' ? 1 : 0, String(S().name).slice(0, 10)]); }
   for (const [id, p] of PEERS) {
     if (!NETW.on || now - p.last > 8000) { scene.remove(p.g); PEERS.delete(id); continue; }
     const k = 1 - Math.pow(0.0001, dt), ox = p.g.position.x, oz = p.g.position.z; p.g.position.x += (p.tx - ox) * k; p.g.position.z += (p.tz - oz) * k; p.mesh.rotation.y = p.yaw;
@@ -1367,6 +1465,8 @@ function netTick(now, dt) {
 // ---- 入れる 所（戸口の 前に 立つと「入る」が 出る）。ひらく 札は 試作1と 同じ ----
 const S = () => window.edoS();
 const SPOTS = [
+  { k: 'ido', free: true, x: -3.5, z: 4.9, hw: 0.95, hz: 0.75, when: () => S().oke === 1, txt: () => '🪣 井戸で 水を くむ', go: () => window.idoKumu() },   // ⚠ 屋台より 先（重なる 所が ある）
+  { k: 'kagu', free: true, x: KAGU.x, z: KAGU.z, hw: 2.6, hz: 1.2, txt: () => '🪑 家具屋に 入る', go: () => window.kaguSheet() },
   { k: 'home',   x: -3.2, z: 10,  txt: () => (S().house ? '📋 家の 回覧板' : '🏠 売り家を 見る'), go: () => (S().house ? window.boardSheet() : window.houseSheet()) },
   { k: 'yatai',  x: 3.2,  z: 2,   txt: () => '🍜 屋台', go: () => window.shopSheet(0) },
   { k: 'jii',    x: -2.2, z: -6,  txt: () => '👴 じいさんと 話す', go: () => window.jiiSheet() },
@@ -1379,7 +1479,7 @@ const SPOTS = [
   { k: 'unagi',  x: 0,    z: -29.1, hz: 2.3, hw: 6.6, txt: () => '🍱 ウナギ屋に 入る', go: () => window.unagiSheet() },
 ];
 // ⚠ 丸（半径）で 判定すると 通りの まんなかで 0.4秒ぶんしか 出なかった（11/22）→ 帯に した。hw＝東西の 半分・hz＝南北の 半分
-const inSpot = s => (!s.when || s.when()) && Math.abs(P.x) < (s.hw || 4.2) && Math.abs(P.z - s.z) < (s.hz || 2.6);
+const inSpot = s => (!s.when || s.when()) && (s.free ? Math.abs(P.x - s.x) < s.hw && Math.abs(P.z - s.z) < s.hz : Math.abs(P.x) < (s.hw || 4.2) && Math.abs(P.z - s.z) < (s.hz || 2.6));   // free＝通りの 外の 店（x も 見る）
 const mark = new THREE.Mesh(new THREE.OctahedronGeometry(0.5), new THREE.MeshBasicMaterial({ color: 0xffe066 })); scene.add(mark);   // ➡ つぎは ここ
 
 // ---- 🌙 夜（蕎麦屋）：屋台・うどん屋（NPC）・酔っぱらい・💤 の 家。場所は 帯（南北 ±2.4m）で 見る ----
@@ -1425,13 +1525,135 @@ function silhouette() {
   scene.overrideMaterial = null; scene.background = bg; scene.fog = fg; sil.autoClear = true;
 }
 function spawn() {                                  // ⚠ 場所は セーブしない。いつも 通りの 南の はしから（町の 形を 変えても 建物の 中から 始まらない）
+  if (inRoom) uchiExit('spawn');
   if (me) scene.remove(me);
   me = person(S().sex === '女' ? 0xb5452a : 0x2e4a7a, 0x1a1a1a); scene.add(me);
   P.set(0, 0, 22); yaw = 0; spawnT = performance.now(); firstDoor = false; cur = null; camera.position.set(0, 5, 28.5);
   logEvent('spawn', {});
 }
 const outside = (x, z, r) => (G ? [[r, r], [r, -r], [-r, r], [-r, -r]].some(([a, b]) => !walk(cellAt(x + a, z + b))) : Math.abs(x) > BOUND.x || z < BOUND.zMin || z > BOUND.zMax);
-const blocked = (x, z, r = 0.5) => outside(x, z, r) || boxes.some(b => Math.abs(x - b.x) < b.w / 2 + r && Math.abs(z - b.z) < b.d / 2 + r);
+const blocked = (x, z, r = 0.5) => (inRoom ? roomBlocked(x, z, r) : outside(x, z, r) || boxes.some(b => Math.abs(x - b.x) < b.w / 2 + r && Math.abs(z - b.z) < b.d / 2 + r));
+
+// ---- 🏠 家の 中（つくる 順番の 4）：町から 3km はなれた 所に 部屋を 1つ 作って、そこへ 入る（カメラは 230m より 先を 描かない＝町は 見えない） ----
+// 手前は かべなし（人形の 家の ように 上から のぞく）。1ます 0.9m。手前の 1列は 土間、おくは たたみ
+// ⚠ こちらの 決め：入口は 手前の まん中・押入れは おくの まん中・カメラの 角度
+let roomKey = '', inRoom = false, roomG = null, carry = -1, carryM = null, outP = null, uchiT0 = 0, roomLit0 = null, okeHand = null;
+const RM = { x: 0, z: -3000, c: 0.9 };
+const tatamiTex = ctex(128, 256, (c, w, h) => { c.fillStyle = '#c9c48a'; c.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 3) { c.fillStyle = `rgba(90,85,40,${0.12 + nr() * 0.1})`; c.fillRect(0, y, w, 1); }
+  c.fillStyle = '#2e3a2a'; c.fillRect(0, 0, 9, h); c.fillRect(w - 9, 0, 9, h); c.fillStyle = 'rgba(0,0,0,.25)'; c.fillRect(0, 0, w, 2); c.fillRect(0, h - 2, w, 2); });
+const rmat = (c, o) => new THREE.MeshLambertMaterial({ color: c, ...o });
+function furnMesh(k, it) {
+  const g = new THREE.Group(), B = (w, h, d, c, x = 0, y = 0, z = 0, o) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), rmat(c, o)); m.position.set(x, y + h / 2, z); g.add(m); return m; },
+    C = (r, h, c, x = 0, y = 0, z = 0, o, r2) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r2 ?? r, h, 16), rmat(c, o)); m.position.set(x, y + h / 2, z); g.add(m); return m; };
+  const s = S(), w = s.water || 0;
+  switch (k) {
+    case 'futon': B(0.82, 0.08, 1.7, 0x2e4a7a); B(0.8, 0.09, 1.28, 0xe9e2cf, 0, 0.08, 0.18); B(0.46, 0.1, 0.24, 0xf4f0e4, 0, 0.08, -0.6); break;
+    case 'tansuM': B(0.8, 0.9, 0.44, 0x6a3e22); for (let r = 0; r < 3; r++) B(0.74, 0.025, 0.02, 0x2a1a10, 0, 0.27 + r * 0.26, 0.225); for (let r = 0; r < 3; r++) B(0.1, 0.05, 0.03, 0xc9a24a, 0, 0.14 + r * 0.26, 0.23); break;
+    case 'tansuK': B(0.8, 1.25, 0.44, 0x8a5a32); for (let r = 0; r < 4; r++) B(0.74, 0.025, 0.02, 0x3a2414, 0, 0.28 + r * 0.26, 0.225); for (let r = 0; r < 4; r++) B(0.1, 0.05, 0.03, 0x2a2a2a, 0, 0.15 + r * 0.26, 0.23); break;
+    case 'toro': B(0.36, 0.06, 0.36, 0x3a2a1a); B(0.06, 0.45, 0.06, 0x3a2a1a, 0, 0.06); B(0.3, 0.36, 0.3, it && it.on ? 0xfff0c0 : 0xd8d0b8, 0, 0.5, 0, it && it.on ? { emissive: 0xffa040, emissiveIntensity: 0.9 } : undefined); B(0.36, 0.04, 0.36, 0x3a2a1a, 0, 0.86); break;
+    case 'kaya': B(1.72, 1.35, 1.72, 0x4a7a4a, 0, 0, 0, { transparent: true, opacity: 0.32, depthWrite: false }); for (const [x, z] of [[-0.85, -0.85], [0.85, -0.85], [-0.85, 0.85], [0.85, 0.85]]) B(0.03, 1.35, 0.03, 0x2a3a2a, x, 0, z); break;
+    case 'shikiri': B(0.84, 1.1, 0.05, 0xe2d4ac); B(0.86, 0.05, 0.08, 0x3a2414, 0, 1.1); for (const x of [-0.42, 0.42]) B(0.05, 1.15, 0.08, 0x3a2414, x); B(0.12, 0.05, 0.4, 0x3a2414, -0.38); B(0.12, 0.05, 0.4, 0x3a2414, 0.38); break;
+    case 'hettsui': B(0.82, 0.55, 0.62, 0x9a8670); B(0.26, 0.22, 0.04, 0x1a1210, 0, 0.1, 0.31); C(0.21, 0.16, 0x2a2a2a, 0, 0.55); break;
+    case 'nabe': C(0.22, 0.17, 0x2a2a2a); C(0.06, 0.04, 0x1a1a1a, 0, 0.17); break;
+    case 'oke': C(0.25, 0.3, 0xa0784a, 0, 0, 0, undefined, 0.22); C(0.255, 0.03, 0x3a3a3a, 0, 0.05); C(0.255, 0.03, 0x3a3a3a, 0, 0.22); break;
+    case 'taru': C(0.3, 0.72, 0x9a6a3a); C(0.305, 0.04, 0x3a3a3a, 0, 0.1); C(0.305, 0.04, 0x3a3a3a, 0, 0.58); B(0.4, 0.04, 0.4, 0x7a5a2a, 0, 0.72); break;
+    case 'hishaku': C(0.09, 0.3, 0x7a5a2a); { const h = B(0.035, 0.035, 0.62, 0x9a7a4a, 0, 0.34, 0.1); h.rotation.x = -0.9; } C(0.09, 0.09, 0x9a7a4a, 0, 0.55, -0.12); break;
+    case 'mizugame': C(0.3, 0.62, 0x5a3a2a, 0, 0, 0, undefined, 0.22); C(0.24, 0.05, 0x4a2a1a, 0, 0.62); { const d = new THREE.Mesh(new THREE.CircleGeometry(0.22, 16), rmat(w ? 0x3a7ab0 : 0x1a1008)); d.rotation.x = -Math.PI / 2; d.position.y = w ? 0.4 + 0.25 * w / 10 : 0.3; g.add(d); } break;
+    case 'kakejiku': B(0.55, 0.06, 0.32, 0x3a2414); B(0.46, 1.3, 0.03, 0xf2ecdc, 0, 0.12); B(0.36, 0.9, 0.01, 0xd8ccb0, 0, 0.32, 0.02); B(0.03, 0.55, 0.012, 0x1a1a1a, -0.05, 0.45, 0.03); B(0.03, 0.3, 0.012, 0x1a1a1a, 0.07, 0.6, 0.03); B(0.52, 0.04, 0.05, 0x3a2414, 0, 1.42); break;
+  }
+  return g;
+}
+const roomDim = () => { const g = window.uchiGrid(); return { g, W: g.w * RM.c, D: g.d * RM.c }; };
+const cellPos = (i, j, k) => { const { W, D } = roomDim(), [fw, fd] = k ? (FURN.find(f => f.k === k).fp || [1, 1]) : [1, 1]; return { x: RM.x - W / 2 + (i + fw / 2) * RM.c, z: RM.z - D / 2 + (j + fd / 2) * RM.c }; };
+function roomBuild() {
+  if (roomG) { scene.remove(roomG); roomG.traverse(o => { if (o.geometry) o.geometry.dispose(); }); }
+  const { g, W, D } = roomDim(), c = RM.c, its = S().items || []; roomG = new THREE.Group(); scene.add(roomG);
+  const add = (m, x, y, z) => { m.position.set(RM.x + x, y, RM.z + z); roomG.add(m); return m; };
+  const tt = tatamiTex.clone(); tt.needsUpdate = true; tt.repeat.set(W / 0.9, (D - c) / 1.8);
+  add(new THREE.Mesh(new THREE.BoxGeometry(W, 0.1, D - c), rmat(0xffffff, { map: tt })), 0, -0.05, -c / 2);
+  add(new THREE.Mesh(new THREE.BoxGeometry(W, 0.1, c), rmat(0x6e5c48)), 0, -0.08, D / 2 - c / 2);   // 土間
+  add(new THREE.Mesh(new THREE.BoxGeometry(W, 0.05, 0.08), rmat(0x3a2414)), 0, 0.01, D / 2 - c);   // 上がりかまち
+  const wallM = rmat(0xece5d3);
+  add(new THREE.Mesh(new THREE.BoxGeometry(W + 0.3, 2.6, 0.15), wallM), 0, 1.3, -D / 2 - 0.075);
+  for (const s of [-1, 1]) add(new THREE.Mesh(new THREE.BoxGeometry(0.15, 2.6, D), wallM), s * (W / 2 + 0.075), 1.3, 0);
+  for (let x = -W / 2; x <= W / 2 + 0.01; x += c * 2) add(new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.6, 0.1), rmat(0x4a3220)), x, 1.3, -D / 2 + 0.02);   // 柱
+  add(new THREE.Mesh(new THREE.BoxGeometry(W + 0.3, 0.12, 0.12), rmat(0x4a3220)), 0, 2.0, -D / 2 + 0.03);   // なげし
+  for (const s of [-1, 1]) add(new THREE.Mesh(new THREE.BoxGeometry(0.12, 2.6, 0.12), rmat(0x4a3220)), s * W / 2, 1.3, D / 2);   // 手前の 柱
+  // 押入れ（おくの かべ・まん中）：ふすま 2まい
+  const ox = -W / 2 + (g.oshi[0] + 0.5) * c;
+  for (const s of [-1, 1]) { add(new THREE.Mesh(new THREE.BoxGeometry(c / 2 - 0.02, 1.75, 0.04), rmat(0xf2ead2)), ox + s * c / 4, 0.9, -D / 2 + 0.03); add(new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.02), rmat(0x2a2a2a)), ox + s * 0.08, 0.95, -D / 2 + 0.06); }
+  add(new THREE.Mesh(new THREE.BoxGeometry(c, 0.05, 0.06), rmat(0x3a2414)), ox, 1.8, -D / 2 + 0.05);
+  // 入口：戸の わく（手前の まん中）
+  const dx = -W / 2 + (g.door[0] + 0.5) * c;
+  for (const s of [-1, 1]) add(new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.08), rmat(0x3a2414)), dx + s * c / 2, 0.02, D / 2);
+  its.forEach((it, n) => { if (it.i == null || n === carry || (it.k === 'oke' && S().oke)) return; const m = furnMesh(it.k, it), q = cellPos(it.i, it.j, it.k); m.position.set(q.x, 0, q.z); m.userData.idx = n; roomG.add(m); });
+  roomLight();
+}
+function roomLight() {   // 灯籠（監督「明るくなる」）：ついて いる 灯籠が あると 部屋が 明るい
+  const lit = (S().items || []).some(it => it.k === 'toro' && it.on && it.i != null);
+  sun.intensity = lit ? 1.3 : 0.55; amb.intensity = lit ? 1.0 : 0.35; hemi.intensity = lit ? 0.6 : 0.25; amb.color.setHex(lit ? 0xffd8a0 : 0xb8a888);
+  return lit; }
+function roomBlocked(x, z, r) {
+  const { g, W, D } = roomDim(), lx = x - RM.x, lz = z - RM.z, dx = -W / 2 + (g.door[0] + 0.5) * RM.c;
+  if (Math.abs(lx) > W / 2 - r || lz < -D / 2 + r) return true;
+  if (lz > D / 2 - r && (Math.abs(lx - dx) > RM.c / 2 - 0.1 || lz > D / 2 + 0.6)) return true;   // 手前は 入口だけ 出られる
+  const its = S().items || [];
+  return its.some((it, n) => { if (it.i == null || n === carry || (it.k === 'oke' && S().oke)) return false; const [fw, fd] = FURN.find(f => f.k === it.k).fp || [1, 1], q = cellPos(it.i, it.j, it.k), hw = fw * RM.c / 2 - 0.12, hd = fd * RM.c / 2 - 0.12;
+    return Math.abs(x - q.x) < hw + r * 0.7 && Math.abs(z - q.z) < hd + r * 0.7; });
+}
+const frontCell = () => { const { W, D } = roomDim(), fx = P.x - Math.sin(yaw) * 0.8, fz = P.z - Math.cos(yaw) * 0.8; return { i: Math.floor((fx - RM.x + W / 2) / RM.c), j: Math.floor((fz - RM.z + D / 2) / RM.c), fx, fz }; };
+const myCell = () => { const { W, D } = roomDim(); return { i: Math.floor((P.x - RM.x + W / 2) / RM.c), j: Math.floor((P.z - RM.z + D / 2) / RM.c) }; };
+function roomSpot() {
+  const { g } = roomDim(), its = S().items || [], f = frontCell(), me2 = myCell();
+  if (carry >= 0) { const it = its[carry], nm = it && FURN.find(q => q.k === it.k);
+    return { k: 'u_put', txt: () => `⬇ ${nm ? nm.n : ''}を ここに 置く`, go: () => { let i = f.i, j = f.j; const [fw, fd] = nm.fp || [1, 1]; if (fw > 1 && f.fx - (RM.x - roomDim().W / 2 + (i + 0.5) * RM.c) < 0) i--; if (fd > 1 && f.fz - (RM.z - roomDim().D / 2 + (j + 0.5) * RM.c) < 0) j--;
+      if (window.uchiPut(carry, i, j)) { carry = -1; roomBuild(); setCarryMesh(); } else { window.news('ここには 置けない（かべ・ほかの 物・入口・押入れの 前）', 'bad'); logEvent('uchi_place_ng', { k: it.k, i, j }); } } }; }
+  const hit = its.findIndex((it, n) => { if (it.i == null || (it.k === 'oke' && S().oke)) return false; const [fw, fd] = FURN.find(q => q.k === it.k).fp || [1, 1]; return f.i >= it.i && f.i < it.i + fw && f.j >= it.j && f.j < it.j + fd; });
+  if (hit >= 0) { const nm = FURN.find(q => q.k === its[hit].k); return { k: 'u_item', idx: hit, txt: () => `${nm.e} ${nm.n}`, go: () => window.uchiItemSheet(hit) }; }
+  if (me2.i === g.oshi[0] && me2.j === g.oshi[1]) return { k: 'u_oshi', txt: () => '📦 押入れ', go: () => window.oshiSheet() };
+  if (me2.i === g.door[0] && me2.j === g.door[1]) return { k: 'u_door', txt: () => '🚪 外に 出る', go: () => uchiExit('btn') };
+  return null;
+}
+function setCarryMesh() {   // 運んで いる 物は じぶんの 前に うかせる
+  if (carryM) { me.remove(carryM); carryM = null; }
+  const it = carry >= 0 && (S().items || [])[carry]; if (!it) return;
+  carryM = furnMesh(it.k, it); const fp = FURN.find(q => q.k === it.k).fp; carryM.scale.setScalar(fp ? 0.55 : 0.8); carryM.position.set(0, 0.55, -0.75); me.add(carryM);
+}
+function okeHandSync() {   // 🪣 桶を 持って いる あいだは 手に（水が 入って いれば 青）
+  const want = S() && S().oke ? S().oke : 0;
+  if (!okeHand) { okeHand = new THREE.Group(); const b = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.15, 0.22, 12), mat(0xa0784a)); okeHand.add(b);
+    const w = new THREE.Mesh(new THREE.CircleGeometry(0.15, 12), mat(0x3a7ab0)); w.rotation.x = -Math.PI / 2; w.position.y = 0.08; okeHand.add(w); okeHand.userData.w = w; okeHand.position.set(0.38, 0.55, -0.15); }
+  if (!want) { if (okeHand.parent) okeHand.parent.remove(okeHand); return; }
+  if (okeHand.parent !== me) me.add(okeHand); okeHand.userData.w.visible = want === 2;
+}
+window.uchiEnter = () => {
+  if (inRoom || !S() || !S().house || window.edoNight()) return;
+  outP = { x: P.x, z: P.z, yaw }; inRoom = true; carry = -1; uchiT0 = performance.now(); stop();
+  roomLit0 = { bg: scene.background.getHex(), sun: sun.intensity, amb: amb.intensity, hemi: hemi.intensity, ac: amb.color.getHex() };
+  scene.background.set(0x1a120c); scene.fog.color.set(0x1a120c);
+  roomBuild(); const { g, W, D } = roomDim(); P.set(RM.x - W / 2 + (g.door[0] + 0.5) * RM.c, 0, RM.z + D / 2 - RM.c / 2); yaw = 0; roomCam(1);
+  document.body.classList.add('inroom'); $('place').textContent = `🏠 ${S().house}の 中`;
+  if (!(S().items || []).length) window.news('🪑 家具は 東西の 通りの 家具屋で 買える（地図に ある）', 'k');
+  const its = S().items || []; logEvent('uchi_in', { house: S().house, n: its.length, placed: its.filter(it => it.i != null).length, water: S().water || 0, oke: S().oke || 0 });
+};
+function uchiExit(how) {
+  if (!inRoom) return; inRoom = false; carry = -1; setCarryMesh();
+  if (roomG) { scene.remove(roomG); roomG = null; }
+  if (roomLit0) { scene.background.set(roomLit0.bg); scene.fog.color.set(roomLit0.bg); sun.intensity = roomLit0.sun; amb.intensity = roomLit0.amb; hemi.intensity = roomLit0.hemi; amb.color.setHex(roomLit0.ac); }
+  document.body.classList.remove('inroom'); placeName = '';
+  if (outP) { P.set(outP.x, 0, outP.z); yaw = outP.yaw + Math.PI; camera.position.set(P.x + Math.sin(yaw) * 6.5, 5, P.z + Math.cos(yaw) * 6.5); }
+  logEvent('uchi_out', { how, ms: Math.round(performance.now() - uchiT0) });
+}
+window.uchiExit = uchiExit;
+window.uchiCarry = idx => { if (!inRoom) return; carry = idx; logEvent('uchi_carry', { k: (S().items[idx] || {}).k }); roomBuild(); setCarryMesh(); };
+window.uchiDraw = () => { if (inRoom) roomBuild(); okeHandSync(); };
+function roomCam(snap) {   // 部屋が ぜんぶ 入る 高さ（画面の 横はばで 決まる）から、少し 手前に かたむけて 見る
+  const { W, D } = roomDim(), vf = camera.fov * Math.PI / 360, hf = Math.atan(Math.tan(vf) * camera.aspect);
+  const dist = Math.max((W / 2 + 0.5) / Math.tan(hf), (D / 2 + 0.8) / Math.tan(vf)) + D / 2, el = 0.98;
+  tmp.set(RM.x, 0.4 + Math.sin(el) * dist, RM.z + Math.cos(el) * dist + D * 0.1);
+  if (snap) camera.position.copy(tmp); else camera.position.lerp(tmp, 0.1);
+  camera.lookAt(RM.x, 0.2, RM.z - D * 0.12);   // 部屋が 画面の まん中に 来る（下が あきすぎて いた）
+}
 
 // ---- 入力（三国志合戦と 同じ 流儀：左右で 向き・前後で 歩く） ----
 const keys = {}; const stick = { active: false, x: 0, y: 0, id: null, cx: 0, cy: 0 };
@@ -1493,7 +1715,7 @@ function mapBaseDraw() {                              // 町の 絵（1回だけ
   g.fillStyle = '#7a7a76'; for (const b of boxes) if (b.w > 1.5) g.fillRect(b.x - b.w / 2 + MAP.half, b.z - b.d / 2 + MAP.half, b.w, b.d);   // はじめの 通りの 手作りの 家
   return cv; }
 const SPOT_NAME = { home: () => (S().house ? '🏠 じぶんの 家' : '🏷 売り家'), yatai: () => '🍜 屋台', jii: () => '👴 じいさん', sakana: () => '🐟 魚屋', meshi: () => '🍚 飯屋',
-  unagi: () => (S().job ? '🍱 ウナギ屋（仕事場）' : '🍱 ウナギ屋'), shini: () => (S().doc ? '💀 死神' : '🧓 つえの じいさん'), byo: () => '🩺 病人の 家', chiri: () => '🎂 旦那' };
+  unagi: () => (S().job ? '🍱 ウナギ屋（仕事場）' : '🍱 ウナギ屋'), shini: () => (S().doc ? '💀 死神' : '🧓 つえの じいさん'), byo: () => '🩺 病人の 家', chiri: () => '🎂 旦那', kagu: () => '🪑 家具屋', ido: () => '🪣 井戸' };
 function mapDraw() {
   const cv = $('mapCv'), dpr = Math.min(devicePixelRatio || 1, 2), W = innerWidth, H = innerHeight - $('mapBar').offsetHeight;
   cv.width = W * dpr; cv.height = innerHeight * dpr; cv.style.width = W + 'px'; cv.style.height = innerHeight + 'px';
@@ -1541,7 +1763,7 @@ function mapDraw() {
   $('mapZ').textContent = mapAll ? '📍 近く' : '🔍 町ぜんたい';
   mapLast = out; }
 function mapOpen(how) {
-  if (!G || mapOn || !S() || !$('town').classList.contains('on') || $('sheet').classList.contains('on') || window.edoNight()) return;
+  if (!G || mapOn || inRoom || !S() || !$('town').classList.contains('on') || $('sheet').classList.contains('on') || window.edoNight()) return;
   if (!mapBase) mapBase = mapBaseDraw();
   stop(); mapOn = true; mapAll = false; mapT0 = performance.now(); $('mapV').classList.add('on'); mapDraw();
   logEvent('map_open', { how, x: +P.x.toFixed(1), z: +P.z.toFixed(1), friends: (S().friends || []).length, quest: !!S().quest, n: mapLast.length }); }
@@ -1575,12 +1797,22 @@ function tick(now) {
     if (!blocked(nx, P.z)) P.x = nx;                 // x と z を 別々に＝壁に そって すべる
     if (!blocked(P.x, nz)) P.z = nz;                 // ⚠ 町の 人では 止めない（止めると 前の 人と にらみ合いに なって 進めなかった 11/23 本番テスト）→ 町の 人の ほうが よける・押される
     moved += Math.hypot(P.x - ox, P.z - oz);
-    if (!walked && Math.hypot(P.x, P.z - 22) > 3) { walked = true; document.body.classList.add('walking'); logEvent('first_walk', { ms: Math.round(now - spawnT), how: stick.active ? 'stick' : 'key' }); }
+    if (!walked && !inRoom && Math.hypot(P.x, P.z - 22) > 3) { walked = true; document.body.classList.add('walking'); logEvent('first_walk', { ms: Math.round(now - spawnT), how: stick.active ? 'stick' : 'key' }); }
   }
   me.position.copy(P); me.rotation.y = yaw;
   if (waterTex) waterTex.offset.set(now / 90000, now / 140000);
   { const mv = Math.hypot(P.x - (me.userData.px ?? P.x), P.z - (me.userData.pz ?? P.z)); me.userData.ph = (me.userData.ph || 0) + mv * 3.2; me.position.y = mv > 0.001 ? Math.abs(Math.sin(me.userData.ph)) * 0.07 : 0; me.userData.px = P.x; me.userData.pz = P.z; }
   homeL2.visible = !!S().house; homeB.userData.label.visible = !S().house;
+  okeHandSync();
+  if (inRoom) {   // 🏠 家の 中：町の 戸口・町の 人・地名・つぎの 印は 見ない
+    if (P.z > RM.z + roomDim().D / 2 + 0.1) uchiExit('walk');
+    else { const s = S(); if (s.oke === 2) { const its = s.items || [], mi = its.findIndex(it => it.k === 'mizugame' && it.i != null); if (mi >= 0) { const q = cellPos(its[mi].i, its[mi].j, 'mizugame'); if (Math.hypot(P.x - q.x, P.z - q.z) < 1.4) window.mizuIre(); } }
+      if (window.__mobTick) window.__mobTick(dt, now, false); netTick(now, dt);
+      cur = roomSpot(); { const key = cur ? cur.k + (cur.idx ?? '') : ''; if (key !== roomKey) { roomKey = key; if (cur) logEvent('near', { k: cur.k, room: 1, it: cur.idx }); } }
+      const a = $('act'), on = !!cur && active(); if (on) { const t = cur.txt(); if (a.textContent !== t) a.textContent = t; } if (a.classList.contains('on') !== on) a.classList.toggle('on', on);
+      $('call').classList.remove('on'); mark.visible = false; roomCam(0); renderer.render(scene, camera); silhouette();
+      if (now - sampT > 1500 && moved > 0.5) { sampT = now; moved = 0; logEvent('pos', { room: 1, x: +(P.x - RM.x).toFixed(1), z: +(P.z - RM.z).toFixed(1), yaw: +yaw.toFixed(2) }); }
+      return; } }
   { const sv = !!S().house && !window.edoNight(); shini.visible = sv; shL1.visible = sv && !S().doc; shL2.visible = sv && !!S().doc; byoL.visible = !!S().doc; danna.visible = dnL.visible = sv; }
   // いちばん 近い 戸口
   if (yatai.parent !== me) me.add(yatai);
@@ -1635,7 +1867,7 @@ document.body.classList.add('t3d');
 if ((navigator.maxTouchPoints || 0) > 0) document.body.classList.add('touch');
 logEvent('t3d', { ok: true });
 requestAnimationFrame(tick);
-if (DEV) window.__t = { P, SPOTS, boxes, blocked, get mapOn() { return mapOn; }, get mapLast() { return mapLast; }, mapAll(v) { mapAll = v; mapDraw(); }, callSoon() { callT = 0; }, get callM() { return callM; }, get yaw() { return yaw; }, set yaw(v) { yaw = v; }, get cur() { return cur; }, get frames() { return frames; },
+if (DEV) window.__t = { P, SPOTS, boxes, blocked, get inRoom() { return inRoom; }, get carry() { return carry; }, get roomG() { return roomG; }, roomDim, cellPos, IDO, KAGU, get mapOn() { return mapOn; }, get mapLast() { return mapLast; }, mapAll(v) { mapAll = v; mapDraw(); }, callSoon() { callT = 0; }, get callM() { return callM; }, get yaw() { return yaw; }, set yaw(v) { yaw = v; }, get cur() { return cur; }, get frames() { return frames; },
   warp(k) { const s = SPOTS.find(q => q.k === k); P.set(s.x, 0, s.z); }, MAP, cellAt, nHouse, sil, get silOn() { return silOn; }, silCount() { silhouette(); if (!silOn) return 0; const gl = sil.getContext(), w = gl.drawingBufferWidth, h = gl.drawingBufferHeight, px = new Uint8Array(w * h * 4); gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px); let n = 0; for (let i = 3; i < px.length; i += 4) if (px[i]) n++; return n; }, keys, stick, camera, scene, yatai, udonG, drunk, zz, UPOS, mobs, get mobVis() { return mobVis; }, renderer, mobNear, PEERS, get talkM() { return talkM; } };
 } catch (e) { console.warn('⚠ 3D の 町を 出せなかった。ボタンの 画面で 遊べる', e); logEvent('t3d', { ok: false, err: String(e).slice(0, 120) }); }
 </script>
