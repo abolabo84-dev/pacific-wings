@@ -235,7 +235,7 @@
 const $ = id => document.getElementById(id);
 const URLQ = new URLSearchParams(location.search);
 const DEV = URLQ.get('dev') === '1';
-const BUILD = 'edo-1127a';   // ⚠ 版の印
+const BUILD = 'edo-1127b';   // ⚠ 版の印
 // 🎨 見た目：パパ 11/23「2の漆」で 決まり（?ui=1／3 は 比べる 用に 残す）
 const UI = ['1', '2', '3'].includes(URLQ.get('ui')) ? URLQ.get('ui') : '2';
 document.body.classList.add('ui' + UI); window.edoUI = UI;
@@ -1289,10 +1289,14 @@ const geoC = {}, mergedGeo = (cloth, hair) => geoC[cloth + '|' + hair] || (geoC[
 // 🏙 11/26 監督（パパとの 雑談）「ローディングなどを上手くやって、自然で生き生きとした街にしたい」→ 600人。近くの 人だけ 毎コマ 動かし、遠くの 人は 0.5秒に 1回 ざっと 動かす（下の farStep）
 //   測った こと（6倍 おそく した CPU）：前は 町の 人の 計算が 100人で 1コマ 2.2ms・600人で 14ms（人数に 比例）。見える 人は はじめの 通りで 7人 → 600人で 38人
 const MOB_N = Math.max(0, Math.min(1000, parseInt(new URLSearchParams(location.search).get('mob') ?? '600', 10) || 0));
+// 🛣 11/27 監督「町人は、一つの道に十人」「ひろいみちは、人は、多い狭い道は、人が少ない」・質問の 答え 2「仕事の人も町人も、ぜんぶで十人」
+//   → 道（角から 角まで）1本に 住む 人＝道の 人。道の はば 8m で 十人（はば 4m で 五人・12m で 十五人）。⚠ はばで 数える のは こちらの 決め。地図の 道は ほとんど 8m（元の 資料に 道の はばが あるかは 未確認）
+//   道の 人は 近くの 道に だけ 出す（105m より 近く なった 道に 出て、125m より 遠く なると いなく なる）。前からの 町を 歩きまわる 人（600人＋油屋）は そのまま
+const ROAD_N = Math.max(0, Math.min(30, parseInt(new URLSearchParams(location.search).get('road') ?? '10', 10) || 0));
 const MOB = { see: 80, talk: 2.3, lane: 0.9 };
 let mrs = 777; const mrand = () => (mrs = (mrs * 16807) % 2147483647) / 2147483647, mpick = a => a[Math.floor(mrand() * a.length)];   // ⚠ mob だけの 種（いつも 同じ 町）
 const mobs = []; let mobVis = 0;
-if (G && MOB_N) {
+if (G && (MOB_N || ROAD_N)) {
   const n = MAP.n, c = MAP.cell, h0 = MAP.half, idx = (x, z) => Math.floor((z + h0) / c) * n + Math.floor((x + h0) / c), cx = v => (v % n) * c - h0 + c / 2, cz = v => Math.floor(v / n) * c - h0 + c / 2;
   const D4 = [[1, 0], [-1, 0], [0, 1], [0, -1]], big = boxes.filter(b => b.w > 1.5), ok = new Uint8Array(n * n);
   for (let v = 0; v < n * n; v++) { if (!walk(G[v])) continue; const x = cx(v), z = cz(v); if (!big.some(b => Math.abs(x - b.x) < b.w / 2 + 1 && Math.abs(z - b.z) < b.d / 2 + 1)) ok[v] = 1; }
@@ -1349,6 +1353,66 @@ if (G && MOB_N) {
   for (let k = 0; k < MOB_N && doors.length && works.length; k++) addMob(k);
   // 🛢 油屋の 人：ほかの 仕事と 同じ くらいの 数（600人なら 22人）。番号 1000〜（?mob= は 1000 まで なので ぶつからない）
   if (doors.length && works.length) for (let i = 0, nA = Math.round(jobN / ROLES.length); i < nA; i++) addMob(1000 + i, '油屋');
+  // 🛣 道を 数える（はじめの 場所から 歩いて 行ける 通りの ます）：横向き・縦向きに 分けて、つながった ますを 1本。20m より 短い ものは 角の あまり
+  const ROADS = [], roadOf = new Int32Array(n * n).fill(-1), byAnchor = new Map(), roadT0 = performance.now();
+  if (ROAD_N) {
+    const Hr = new Uint16Array(n * n), Vr = new Uint16Array(n * n), cl = new Uint8Array(n * n), seen = new Uint8Array(n * n);
+    for (let j = 0; j < n; j++) for (let i = 0; i < n;) { if (!comp[j * n + i]) { i++; continue; } const a = i; while (i < n && comp[j * n + i]) i++; for (let t = a; t < i; t++) Hr[j * n + t] = i - a; }
+    for (let i = 0; i < n; i++) for (let j = 0; j < n;) { if (!comp[j * n + i]) { j++; continue; } const a = j; while (j < n && comp[j * n + i]) j++; for (let t = a; t < j; t++) Vr[t * n + i] = j - a; }
+    for (let v = 0; v < n * n; v++) if (comp[v]) cl[v] = Vr[v] <= 5 && Hr[v] >= 2 * Vr[v] ? 1 : Hr[v] <= 5 && Vr[v] >= 2 * Hr[v] ? 2 : 0;   // 1 横の 道・2 縦の 道・0 交差点や 広場
+    for (let v = 0; v < n * n; v++) { if (!cl[v] || seen[v]) continue; const d = cl[v], cells = [v]; seen[v] = 1;
+      for (let k = 0; k < cells.length; k++) { const u = cells[k], i = u % n, j = (u / n) | 0; for (const [a, b] of D4) { const ii = i + a, jj = j + b; if (ii < 0 || jj < 0 || ii >= n || jj >= n) continue; const w = jj * n + ii; if (cl[w] === d && !seen[w]) { seen[w] = 1; cells.push(w); } } }
+      const ws = cells.map(u => d === 1 ? Vr[u] : Hr[u]).sort((a, b) => a - b), wid = ws[ws.length >> 1];
+      if (cells.length / wid < 5) continue;
+      // 歩く 線：横の 道は 行ごと・縦の 道は 列ごとに、いちばん 長く つづく ます（3ます より 短い 線は 使わない）
+      const lines = new Map(); for (const u of cells) { const key = d === 1 ? (u / n) | 0 : u % n; if (!lines.has(key)) lines.set(key, []); lines.get(key).push(u); }
+      const lanes = [], st = d === 1 ? 1 : n; for (const arr of lines.values()) { arr.sort((a, b) => a - b); let best = [], cur = [arr[0]];
+        for (let k = 1; k < arr.length; k++) { if (arr[k] - arr[k - 1] === st) cur.push(arr[k]); else { if (cur.length > best.length) best = cur; cur = [arr[k]]; } }
+        if (cur.length > best.length) best = cur; if (best.length >= 3) lanes.push(best); }
+      if (!lanes.length) continue;
+      let sx = 0, sz = 0, x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9; for (const u of cells) { const x = cx(u), z = cz(u); sx += x; sz += z; x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); }
+      const r = { i: ROADS.length, anchor: Math.min(...cells), d, wid, len: cells.length / wid * c, lanes, x0, x1, z0, z1, x: sx / cells.length, z: sz / cells.length, doors: [], cnt: Math.max(1, Math.min(32, Math.round(ROAD_N * wid * c / 8))), on: false, ppl: [] };
+      for (const u of cells) roadOf[u] = r.i; ROADS.push(r); byAnchor.set(r.anchor, r); }
+    for (const dd of doors) { const ri = roadOf[dd.v]; if (ri >= 0 && ROADS[ri].lanes.some(l => l.includes(dd.v))) ROADS[ri].doors.push(dd); }   // 家＝歩く 線の 上の 戸口
+  }
+  // 道の 人の 番号＝100000 ＋ 道の はしの ます×32 ＋ 何人目（道の 数え方を 少し 変えても、同じ 道の 人は 同じ 番号＝友だちが 消えない）
+  // ⚠ 仕事は 20こ（油屋まで）で 固定して えらぶ：仕事を 足しても 道の 人の 仕事が ずれない
+  const RID0 = 100000, ROLES20 = JOBS.slice(0, 20).map(j => j[0]);
+  const resSpec = (r, s) => { const id = RID0 + r.anchor * 32 + s, R = rngOf(id), pick = a => a[Math.floor(R() * a.length)], town = s % 10 < 3, sex = town && R() < 0.75 ? '女' : '男';
+    const role = town ? '町人' : pick(ROLES20), NL = sex === '女' ? NM_F2 : NM_M2, name = pick(NL), home = r.doors.length ? pick(r.doors) : null;
+    return { id, R, pick, town, sex, role, name, home, lane: home ? r.lanes.find(l => l.includes(home.v)) : pick(r.lanes) }; };
+  let roadOn = 0, roadAcc = 0;
+  function roadSpawn(r) { r.on = true; roadOn++;
+    for (let s = 0; s < r.cnt; s++) { const sp = resSpec(r, s), R = sp.R, pick = sp.pick, L = sp.lane;
+      const cloth = sp.role === '奉行' ? 0x2a2a3a : sp.role === '泥棒' ? 0x22304a : sp.sex === '女' ? pick(FEM) : pick(CLOTH), hair = sp.sex === '男' && R() < 0.25 ? 0xdddddd : 0x1a1a1a;
+      const mesh = new THREE.Mesh(mobGeo(cloth, hair), mobMat); if (sp.role === '力士') mesh.scale.set(1.35, 1.05, 1.35); if (sp.sex === '女') mesh.scale.set(0.94, 0.95, 0.94); mesh.visible = false; scene.add(mesh);
+      const hv = sp.home ? sp.home.v : L[0];
+      const m = { id: sp.id, name: sp.name, role: sp.role, sex: sp.sex, town: sp.town, eatOk: false, near: [], road: r, lane: L, li: Math.floor(R() * L.length),
+        home: { ...(sp.home || { v: hv, dx: 0, dz: 0 }), name: placeAt(cx(hv), cz(hv)) }, work: { v: L[L.length >> 1], name: placeAt(r.x, r.z) }, plan: Math.floor(R() * 4), mesh, x: cx(hv), z: cz(hv),
+        spd: (sp.sex === '女' ? 1.0 : 1.1) + R() * 0.6, ph: R() * 6, inside: false, t: 0, talkT: 0, path: null, k: 0, hx: 0, hz: -1, side: 0, wo: [(R() - 0.5) * 1.2, (R() - 0.5) * 1.2], say: Math.floor(R() * 3) };
+      if (R() < 0.25) { m.inside = true; m.plan = 3; m.t = 5 + R() * 40; m.li = Math.max(0, L.indexOf(hv)); } else laneGo(m, true);   // 4人に 1人は 家の 中から
+      r.ppl.push(m); mobs.push(m); } }
+  function roadDrop(r) { r.on = false; roadOn--; for (const m of r.ppl) { scene.remove(m.mesh); const i = mobs.indexOf(m); if (i >= 0) mobs.splice(i, 1); } r.ppl = []; }
+  const ROAD_ON = 105, ROAD_OFF = 125;   // ⚠ こちらの 決め：見える 80m より 先で 出す・少し 先まで 残す（行ったり 来たりで 出たり 消えたり しない）
+  const roadD = (r, x, z) => Math.hypot(Math.max(r.x0 - x, 0, x - r.x1), Math.max(r.z0 - z, 0, z - r.z1));
+  // 部屋の 中に いる 間は 町の 場所（入る 前の 場所）で 数える＝出入りで 町の 人が 入れ替わらない
+  function roadsTick(all, o) { o = o || (window.__outPos ? window.__outPos() : P); const q = [];
+    for (const r of ROADS) { const d = roadD(r, o.x, o.z); if (r.on && d > ROAD_OFF) roadDrop(r); else if (!r.on && d < ROAD_ON) q.push([d, r]); }
+    q.sort((a, b) => a[0] - b[0]); for (const [, r] of all ? q : q.slice(0, 3)) roadSpawn(r); }   // 1回に 3本まで（ワープした 時に 一度に 作らない）
+  // 道の 人：家 → 道の 上の どこか → 道の 上の どこか → … → 家（道から 出ない。道さがし なし）
+  function laneGo(m, first) {
+    const L = m.lane, kind = m.plan === 3 ? 'home' : 'walk'; let to = kind === 'home' ? L.indexOf(m.home.v) : Math.floor(mrand() * L.length);
+    if (to < 0) to = 0; if (kind === 'walk' && to === m.li && L.length > 1) to = (m.li + 1 + Math.floor(mrand() * (L.length - 1))) % L.length;
+    m.goal = kind === 'home' ? { ...m.home, kind } : { v: L[to], kind, name: m.work.name, dx: 0, dz: 0 };
+    const p = L.slice(Math.min(m.li, to), Math.max(m.li, to) + 1); if (to < m.li) p.reverse(); m.li = to;
+    if (p.length < 2) { m.path = null; m.x = cx(L[to]); m.z = cz(L[to]); arrive(m); return; }
+    m.path = p; m.k = first ? Math.floor(mrand() * (p.length - 1)) : 0; m.x = cx(p[m.k]); m.z = cz(p[m.k]); m.inside = false;
+  }
+  // 友だちの 家（地図）：道の 人は 近くに いない 時も 番号から 家が わかる
+  window.__mobHomeOf = id => { const m = mobs.find(o => o.id === id); if (m) return { x: cx(m.home.v), z: cz(m.home.v) }; if (id < RID0) return null;
+    const r = byAnchor.get(Math.floor((id - RID0) / 32)); if (!r) return null; const sp = resSpec(r, (id - RID0) % 32), v = sp.home ? sp.home.v : sp.lane[0]; return { x: cx(v), z: cz(v) }; };
+  if (DEV) window.__roads = ROADS;
+  window.__roadOn = () => roadOn;
   // 🙏 頼みごと（パパ 11/25）：届け先・落とし物の 場所＝いまの 場所から 50〜170m の 戸口。家に 返す ときは 頼んだ 人の 家の 戸口
   const WHO = ['おじさん', 'おばさん', 'じいさま', 'ばあさま', 'いとこ'], ITEM = ['財布', 'かんざし', '手ぬぐい', 'たばこ入れ', '鍵'];
   window.mobQuest = o => { const m = mobs.find(q => q.id === o.id); if (!m) return null; const s = window.edoS();
@@ -1358,6 +1422,7 @@ if (G && MOB_N) {
       x: +x.toFixed(1), z: +z.toFixed(1), place: placeAt(x, z), who: WHO[Math.floor(R() * WHO.length)], item: ITEM[Math.floor(R() * ITEM.length)], hx: +cx(m.home.v).toFixed(1), hz: +cz(m.home.v).toFixed(1) }; };
   // つぎの 行き先へ（plan：0 仕事場 → 1 ごはん → 2 仕事場 → 3 家）
   function mobGo(m, from, first) {
+    if (m.lane) return laneGo(m, first);
     for (let tries = 0; tries < 4; tries++) {
       let kind = [m.town ? 'walk' : 'work', 'eat', m.town ? 'walk' : 'work', 'home'][m.plan]; if (kind === 'eat' && !m.eatOk) kind = 'walk';
       if (kind !== 'home' && kind !== 'eat' && m.near.length > 1) m.work = mpick(m.near);   // 毎回 近くの ちがう 所へ（同じ 所ばかりに ならない）
@@ -1379,13 +1444,16 @@ if (G && MOB_N) {
   }
   // 🚶‍♂️ よけ合う（パパ 11/23「町の人どうしがよけ合う」）：前に 同じ 向きの 人 → 速さを 合わせて ついて行く／止まって いる 人・向かいから 来る 人 → 横に よける／
   //   それでも 体が 重なったら 押し分ける。⚠ よける 強さ・きょりは こちらの 決め
-  // ponytail: 近くの 人を 毎コマ ぜんぶ 比べる（90m の 中の 人だけ。600人で はじめの 通り 約50人＝2500組）, 90m の 中が 100人を こえる ときは ます目で 分ける
+  // ponytail: x で ならべて x が 近い 人だけ 比べる（11/27 から。50m の 中）, 縦の 道に 人が ならんで 重く なったら ます目で 分ける
   const AVOID = new URLSearchParams(location.search).get('avoid') !== '0';   // ?avoid=0＝よけない（比べる 用）
   function mobAvoid(act, dt) {
     for (const m of act) { m.slow = 1; m.dodge = false; }
     const me = { x: P.x, z: P.z, moving: false };   // じぶん＝止まって いる 人と 同じに よける
-    for (const m of act) { if (!m.moving) continue;
-      for (const o of [...act, me]) { if (o === m) continue; const rx = o.x - m.x, rz = o.z - m.z, d = Math.hypot(rx, rz); if (d > 1.6) continue;
+    // 11/27：道の 人で 90m の 中が 100人を こえた（6倍 おそい CPU で 136人 26ms・271人 95ms）→ x で ならべて、x が 1.6m より はなれた 人は 比べない
+    const xs = act.slice().sort((a, b) => a.x - b.x);
+    for (let i = 0; i < xs.length; i++) { const m = xs[i]; if (!m.moving) continue;
+      const near = [me]; for (let j = i - 1; j >= 0 && m.x - xs[j].x <= 1.6; j--) near.push(xs[j]); for (let j = i + 1; j < xs.length && xs[j].x - m.x <= 1.6; j++) near.push(xs[j]);
+      for (const o of near) { const rx = o.x - m.x, rz = o.z - m.z, d = Math.hypot(rx, rz); if (d > 1.6) continue;
         const ahead = rx * m.hx + rz * m.hz, lat = rx * -m.hz + rz * m.hx;   // 前に どれだけ・右に どれだけ（右＝(-hz, hx)）
         if (ahead <= 0 || ahead > 1.4 || Math.abs(lat) > 0.85) continue;
         if (o.moving && o.hx * m.hx + o.hz * m.hz > 0.5) m.slow = Math.min(m.slow, Math.max(0, (ahead - 0.8) / 0.5));
@@ -1393,7 +1461,8 @@ if (G && MOB_N) {
     for (const m of act) if (!m.dodge && m.side) { m.side *= Math.max(0, 1 - 1.2 * dt); if (Math.abs(m.side) < 0.02) m.side = 0; }
   }
   function mobPush(act) {   // 重なった 2人を 半分ずつ 押し分ける（壁の ほうへは 押さない）
-    for (let i = 0; i < act.length; i++) for (let j = i + 1; j < act.length; j++) { const a = act[i], b = act[j], rx = b.x - a.x, rz = b.z - a.z, d = Math.hypot(rx, rz) || 0.01;
+    const xs = act.slice().sort((a, b) => a.x - b.x);   // x で ならべて 近くの 人だけ（押すと 少し ずれるので 1.2m まで 見る）
+    for (let i = 0; i < xs.length; i++) for (let j = i + 1; j < xs.length && xs[j].x - xs[i].x < 1.2; j++) { const a = xs[i], b = xs[j], rx = b.x - a.x, rz = b.z - a.z, d = Math.hypot(rx, rz) || 0.01;
       if (d >= 0.85) continue; const k = (0.85 - d) / 2 / d;
       if (!blocked(a.x - rx * k, a.z - rz * k, 0.45)) { a.x -= rx * k; a.z -= rz * k; }
       if (!blocked(b.x + rx * k, b.z + rz * k, 0.45)) { b.x += rx * k; b.z += rz * k; } }
@@ -1401,6 +1470,8 @@ if (G && MOB_N) {
       if (d < 0.9) { const k = (0.9 - d) / d; if (!blocked(a.x + rx * k, a.z + rz * k, 0.45)) { a.x += rx * k; a.z += rz * k; } else if (!blocked(P.x - rx * k, P.z - rz * k, 0.45)) { P.x -= rx * k; P.z -= rz * k; } } }   // 11/25：壁ぎわで 押せない 人には じぶんが 止められる（体に 入らない）
   }
   const arrive = m => { const g = m.goal; m.t = g.kind === 'home' ? 25 + mrand() * 35 : g.kind === 'eat' ? 12 + mrand() * 13 : g.kind === 'walk' ? 10 + mrand() * 15 : 20 + mrand() * 30; m.inside = g.kind === 'home' || g.kind === 'eat'; };
+  if (ROADS.length) { roadsTick(true, { x: 0, z: 22 });   // はじめの 場所の まわりの 道は 読みこみの 時に 出す（arrive の あと）
+    logEvent('road_init', { roads: ROADS.length, on: roadOn, ppl: ROADS.reduce((a, r) => a + r.cnt, 0), ms: Math.round(performance.now() - roadT0) }); }
   const FAR2 = 110 * 110;   // ⚠ こちらの 決め：110m より 遠い 人は ざっと 動かす（見えるのは 80m まで）
   function farStep(m, dt) {
     m.moving = false;
@@ -1411,9 +1482,13 @@ if (G && MOB_N) {
     if (m.k >= m.path.length - 1) arrive(m);
   }
   let farN = 0;
+  // ⚠ こちらの 決め：よけ合う のは 50m の 中の 人だけ（11/27 道の 人で 6倍 おそい CPU：よけ合い 約10ms → 遠くの 重なりは 見分けが つかない）
+  // ponytail: 50m の 外の 人は 重なっても よけない, 遠くで 重なって 見えると 言われたら 70m に
+  const ACT_R = 50;
   window.__mobTick = (dt, now, night) => {
     mobVis = 0; farN = 0;
-    const act = night || !AVOID ? [] : mobs.filter(m => !m.inside && m.path && Math.hypot(m.x - P.x, m.z - P.z) < MOB.see + 10);
+    if (ROADS.length && (roadAcc += dt) > 0.25) { roadAcc = 0; roadsTick(false); }
+    const act = night || !AVOID ? [] : mobs.filter(m => !m.inside && m.path && Math.hypot(m.x - P.x, m.z - P.z) < Math.min(MOB.see + 10, ACT_R));
     mobAvoid(act, dt);
     for (const m of mobs) {
       if (night) { m.mesh.visible = false; continue; }
@@ -1565,6 +1640,7 @@ const blocked = (x, z, r = 0.5) => (inRoom ? roomBlocked(x, z, r) : outside(x, z
 // 手前は かべなし（人形の 家の ように 上から のぞく）。1ます 0.9m。手前の 1列は 土間、おくは たたみ
 // ⚠ こちらの 決め：入口は 手前の まん中・押入れは おくの まん中・カメラの 角度
 let roomKey = '', inRoom = false, roomG = null, carry = -1, carryM = null, outP = null, uchiT0 = 0, roomLit0 = null, okeHand = null;
+window.__outPos = () => (inRoom && outP ? outP : P);   // 町の 人を 出す 場所（部屋の 中では 入る 前の 場所）
 const RM = { x: 0, z: -3000, c: 0.9 };
 const tatamiTex = ctex(128, 256, (c, w, h) => { c.fillStyle = '#c9c48a'; c.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 3) { c.fillStyle = `rgba(90,85,40,${0.12 + nr() * 0.1})`; c.fillRect(0, y, w, 1); }
   c.fillStyle = '#2e3a2a'; c.fillRect(0, 0, 9, h); c.fillRect(w - 9, 0, 9, h); c.fillStyle = 'rgba(0,0,0,.25)'; c.fillRect(0, 0, w, 2); c.fillRect(0, h - 2, w, 2); });
@@ -1769,7 +1845,7 @@ function mapDraw() {
     g.fillStyle = '#c0392b'; g.fill(); g.lineWidth = 2.5; g.strokeStyle = '#fff'; g.stroke(); g.restore(); text(X, Y + 20, 'じぶん', { must: true, col: '#c0392b' }); }
   const s = S(), nx = window.edoNext(), q = questAt();
   if (q) pin(q.x, q.z, s.quest.kind === 'deliver' ? `📦 ${s.quest.who}（届け先）` : s.quest.step ? `🏠 ${s.quest.name}の 家（返す）` : `🔍 ${s.quest.item}（さがす）`, '#f1c40f', { r: 8 });
-  for (const f of s.friends || []) { const m = mobs.find(o => o.id === f.id); if (m) pin(vx(m.home.v), vz(m.home.v), `🤝 ${f.name}の 家`, '#27ae60'); }
+  for (const f of s.friends || []) { const h = window.__mobHomeOf && window.__mobHomeOf(f.id); if (h) pin(h.x, h.z, `🤝 ${f.name}の 家`, '#27ae60'); }
   for (const sp of SPOTS) if (!sp.when || sp.when()) { const nm = SPOT_NAME[sp.k]; if (!nm) continue; const t = nm(); if (nx && nx.k === sp.k) { g.beginPath(); g.arc(sx(sp.x), sy(sp.z), 12, 0, 7); g.lineWidth = 3; g.strokeStyle = '#f1c40f'; g.stroke(); }
     pin(sp.x, sp.z, t, sp.k === 'home' ? '#c0392b' : sp.k === 'unagi' && s.job ? '#8e44ad' : '#d35400'); }
   for (const p of PEERS.values()) pin(p.g.position.x, p.g.position.z, `👥 ${p.name}`, '#2e86c1');
@@ -1882,7 +1958,7 @@ function tick(now) {
   // ログ：場所（動いた ときだけ 1.5秒ごと）・コマの 重さ（10秒ごと）
   if (now - sampT > 1500 && moved > 0.5) { sampT = now; moved = 0; logEvent('pos', { x: +P.x.toFixed(1), z: +P.z.toFixed(1), yaw: +yaw.toFixed(2) }); }
   frN++; frSum += raw; if (now - frT > 10000) { if (frT && frSum / frN > 0.04 && MOB.see > 50 && mobs.length) { MOB.see -= 15; logEvent('mob_see', { see: MOB.see, ms: +(frSum / frN * 1000).toFixed(1) }); }   // 🐢 25コマ/秒より おそい 電話では 町の 人を 見せる きょりを 15m ずつ ちぢめる（50m まで）。⚠ 30コマ/秒の 電話（省電力）は そのまま
-  if (frT) logEvent('frame', { ms: +(frSum / frN * 1000).toFixed(1), n: frN, mob: mobs.length, vis: mobVis, far: window.__mobFar ? window.__mobFar() : 0, calls: renderer.info.render.calls }); frT = now; frN = 0; frSum = 0; }
+  if (frT) logEvent('frame', { ms: +(frSum / frN * 1000).toFixed(1), n: frN, mob: mobs.length, vis: mobVis, far: window.__mobFar ? window.__mobFar() : 0, road: window.__roadOn ? window.__roadOn() : 0, calls: renderer.info.render.calls }); frT = now; frN = 0; frSum = 0; }
 }
 // 📍 いま いる あたりの 地名（地図データ）＝45m より 近い いちばん 近い 名前
 const PLACES = MAP ? MAP.places : []; let placeT = 0, placeName = '';
